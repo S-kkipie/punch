@@ -1,0 +1,31 @@
+{
+    "name": "create-shipkit",
+    "version": "0.1.0",
+    "description": "Scaffold a Skippie hackathon starter — Next 16 + Elysia + Better Auth + Drizzle/Postgres, with a Project CRUD reference domain.",
+    "type": "module",
+    "bin": {
+        "create-shipkit": "index.js"
+    },
+    "files": [
+        "index.js"
+    ],
+    "engines": {
+        "node": ">=18"
+    },
+    "keywords": [
+        "create",
+        "starter",
+        "scaffold",
+        "nextjs",
+        "elysia",
+        "better-auth",
+        "drizzle",
+        "hackathon"
+    ],
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/S-kkipie/hackaton-starter.git",
+        "directory": "cli/create-shipkit"
+    }
+}
