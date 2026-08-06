@@ -1,168 +1,185 @@
-# CLUTCH
+# SELLO
 
-> **every moment counts**
-> The identity and engagement layer for esports fandom.
+> **El sello de tu cafetería, pero vale en toda la ciudad.**
+> Red abierta de consumo, lealtad y adquisición para cafeterías.
 
-Ver una competición de esports debería significar **participar, apostar, coleccionar y
-construir una identidad verificable como fan**. CLUTCH convierte cada partido que ves
-en parte de tu historia.
+Hackathon Ethereum Lima 2026 · Arbitrum Track · Arbitrum Sepolia · Arequipa
 
-Hackathon Ethereum Lima 2026 · Arbitrum Track · Arbitrum Sepolia · CS2
+---
+
+## Core
+
+> **Cada tap en el mostrador de una cafetería es un consumo verificable. Y toda plata
+> que un café promete —rewards o campañas— está bloqueada en un contrato antes de
+> prometerla.**
+
+Dos primitivos. Todo lo demás sale de ellos:
+
+```text
+   1. PROOF OF CONSUMPTION          2. MERCHANT ESCROW
+   café y consumidor co-firman      café bloquea plata, el contrato
+   un consumo → va a la cadena      la libera si un proof cumple X
+              │                                │
+              └────────────┬───────────────────┘
+                           ▼
+        ┌──────────┬───────────┬──────────┬──────────┐
+        ▼          ▼           ▼          ▼          ▼
+    Coffee     Rewards     Canje en   Campaña    Passport
+    Score                  otro café  adquisición
+```
+
+Ni rewards, ni campañas, ni settlement son contratos aparte. Son **usos del mismo
+escrow con distinta condición de liberación**.
 
 ---
 
 ## El problema
 
-El fandom de esports está fragmentado. Ves partidas en Twitch, sigues resultados en
-Liquipedia, hablas en Discord, juegas en Steam. **Ninguna plataforma representa tu
-historia como fan.**
+**La tarjeta de sellos es una isla.** Todos tenemos seis cartones a medio llenar y
+ninguno completo. Cada uno vale en un solo local, y el café no sabe nada del cliente
+más allá de los sellos que él mismo puso.
 
-Cuando termina un stream con 40,000 espectadores, toda esa interacción desaparece.
-Nadie puede afirmar de forma verificable:
+**Y el café pequeño no puede adquirir clientes.**
 
-> "Adrian sigue a AQP desde 2026, participó en 37 partidos, acertó el 68% de sus
-> predicciones y es uno de sus 500 founding supporters."
-
-Y para equipos y torneos hay un segundo problema: **generan la audiencia, pero la
-plataforma de distribución es dueña de la relación con esa audiencia.**
-
----
-
-## La solución
-
-```text
-                  MATCH EN VIVO
-                        │
-              embed Twitch / YouTube
-                        │
-        ┌───────────────┼────────────────┐
-        ▼               ▼                ▼
-  AI live markets    Quests         Memberships
-   (apostar)       (completar)    (comprar pase)
-        │               │                │
-        └───────────────┼────────────────┘
-                        ▼
-                   XP + $CLUTCH
-                        │
-                 ESPORTS PASSPORT
-                        │
-       ┌────────────────┼────────────────┐
-       ▼                ▼                ▼
-   Reputación      Collectibles      Acceso
-```
-
-Mientras ves la partida, un **agente de IA abre mercados de predicción en vivo** a
-partir del estado real del juego:
-
-> *"skkippie está 1v3 con 34 HP. ¿Gana el clutch?"* — 8 segundos para apostar.
-
-Apuestas, ganas XP y collectibles, y tu historia se acumula on-chain de forma que
-nadie —ni el equipo, ni el torneo, ni nosotros— puede reescribir.
-
----
-
-## Proof of Fandom
-
-> **Tu historia como fan = la suma de acciones económicas verificables que tomaste
-> alrededor de competiciones reales.**
-
-No hay atestación de watch-time. No hay "confía en nuestro servidor". Cada credencial
-nace de una acción firmada por su dueño:
-
-| Acción | Firmada por |
-|---|---|
-| Apostar en un mercado | el usuario |
-| Comprar un MembershipPass | el usuario |
-| Apoyar a un equipo | el usuario |
-| Resultado oficial del match | el organizador |
-
-**La transacción es la prueba.**
-
----
-
-## Esports Passport
-
-```text
-ADRIAN
-━━━━━━━━━━━━━━━━━━━━━━
-
-CLUTCH LEVEL      47
-
-CS2               LVL 32
-
-TEAMS
-AQP               LVL 38
-Liquid            LVL 14
-
-HISTORY
-✓ AQP Founder
-✓ Lima Major 2027
-✓ 100 Matches
-✓ 37 Predictions Won
-
-COLLECTION
-🏆 Championship   🔥 The Clutch
-👑 Founder        🎯 Prediction Master
-```
-
-Steam registra lo que juegas. Twitch registra lo que ves. Liquipedia registra qué
-ocurrió. **CLUTCH registra tu historia dentro de esports.**
-
-| | **FanPassport** | **MembershipPass** |
+| Canal | Costo | Qué compra |
 |---|---|---|
-| Qué es | Tu identidad global | Producto de un equipo concreto |
-| Precio | Gratis | De pago |
-| Transferible | **No** (soulbound) | **Sí** |
-| Analogía | Tu pasaporte | Ser socio del club |
+| Volanteo | S/0.10 c/u | Impresiones. Cero atribución. |
+| Instagram Ads | S/20-40 CAC | Un click. No sabe si la persona toma café. |
 
-Vendes tu Founder Pass y pierdes el acceso, **pero el achievement de haber sido
-founder se queda contigo**. Historia ≠ propiedad.
+Ninguno le permite decir: *"quiero a la gente que ya toma 15 cafés al mes en otro lado
+y nunca entró acá"*. Esa persona existe, está a 300 metros, y hoy es invisible.
 
 ---
 
-## La IA: mercados en vivo, sin analizar vídeo
+## Cómo funciona
+
+### La unidad
+
+**1 punto = S/0.01.** Fijo. Respaldado 1:1 por dinero depositado en el contrato.
+No flota, no lo fijamos nosotros, no se puede devaluar.
+
+### Consumo → emisión
+
+Diego pide un cortado. S/12. El café tiene tasa 10%.
 
 ```text
-CS2 Game State Integration (JSON, ~10 Hz, latencia ~0)
+Barista marca S/12 en su panel
         │
-   DETECTOR determinista        1vX, bomba plantada, match point…
+   QR:  { cafeId, 1200 céntimos, nonce, expiry, FIRMA DEL CAFÉ }
         │
-   AGENTE LLM (~1-2s)           ¿merece mercado? pregunta, ventana,
-        │                       y un PREDICADO DE RESOLUCIÓN
-        ▼
-   LiveMarkets.openPool()       parimutuel, 8-15s de ventana
+   Diego escanea → su wallet firma
         │
-   GSI confirma outcome → settle → XP + collectible
+   Backend relayea la tx y paga el gas
+        │
+        ├──→ ConsumptionLog.record()   proof con las 2 firmas
+        └──→ RewardVault.issue()       +120 puntos a Diego
 ```
 
-**Invariante: el LLM propone, el código liquida.** El agente nunca decide el ganador;
-emite un predicado evaluable contra campos de GSI y un resolver determinista lo evalúa.
-Si el predicado no es válido, el mercado no se abre.
+Diego ve `+120 puntos · racha día 7 🔥`. No ve wallet, no paga gas, no lee la palabra
+"blockchain".
 
-Nadie puede escribir y abrir 40 micro-mercados por partido, con criterio de resolución
-válido, en menos de 2 segundos, en vivo. **Sin agente no hay producto.**
+**10 cafés = 1,200 puntos = S/12 = un cortado gratis.** La misma matemática que el
+cartón de sellos de siempre. A propósito.
+
+### Canje: en cualquier café de la red
+
+```text
+   RewardVault.redeem(1200)
+        │
+        ├──→ quema 1,200 puntos
+        └──→ transfiere S/12 del pool al café
+```
+
+Cobró completo, al instante. **Y no le reclama nada al café que emitió los puntos**,
+porque la emisión es prefondeada: esa plata ya estaba depositada.
+
+```text
+   OTROS DISEÑOS (deuda)          SELLO (prefondeado)
+
+   A emite ────► usuario          A DEPOSITA ────► pool
+        │                              │
+   B le reclama a A               B cobra del pool
+        │                              │
+   ¿y si A no paga?               ya estaba pagado
+```
+
+Cero riesgo de contraparte. Cero cobranza. Nada que arbitrar.
+
+### Lealtad y portabilidad, separadas
+
+| | Dónde vive | Cómo |
+|---|---|---|
+| **Lealtad** | En la **emisión** | Racha 7 días → 2x · martes → 1.5x · producto X → 3x |
+| **Portabilidad** | En el **canje** | 1 punto = S/0.01 en cualquier café. Sin letra chica. |
+
+> **Ganas más donde eres fiel. Gastas donde quieras.**
+
+---
+
+## Campañas: comprar clientes verificados
+
+Café Tostado abre. Cero clientes. Deposita S/500.
+
+```text
+CAMPAÑA — Tostado
+
+Segmento:   Coffee Score > 500      (≈15+ cafés/mes verificados)
+            Nunca hizo tap acá
+            Radio 2 km
+
+Reward:     S/5 en puntos, al primer consumo
+Budget:     S/500  →  100 conversiones máx.
+```
+
+El contrato retiene los S/500. Un consumidor que califica recibe la oferta, camina,
+hace tap → **el contrato le paga solo**. Tostado no aprueba nada. Nosotros tampoco.
+
+> **Pagas por consumo. No por impresión, no por click.**
+
+Si el 30% vuelve solo: CAC real ≈ S/17 por cliente recurrente.
 
 ---
 
 ## Por qué Arbitrum
 
-No es patrocinio, es física:
+**1. Precedente directo.** [Blackbird](https://www.blackbird.xyz) —la referencia del
+sector, fundada por el creador de Resy— corre en **Flynet, un L3 de Arbitrum Orbit**.
+El caso de uso ya está probado sobre este stack.
 
-```text
-Ventana de apuesta de un clutch:  ~10 segundos
+**2. Costo por proof.** Un café con 200 tickets/día genera 200 proofs diarios. En L1 el
+modelo no existe. Acá cada proof cuesta una fracción de céntimo y el relayer lo absorbe.
 
-Ethereum L1    12s / bloque,  $2-15 por tx     → imposible
-Arbitrum One   ~0.25s / bloque, ~$0.01 por tx  → cómodo
-```
+**3. Neutralidad verificable.** El punto no es velocidad: es que **nosotros no podemos
+hacer trampa**. Colateral, peg y condiciones de campaña están en el contrato. Si SELLO
+desaparece mañana, los cafés recuperan su colateral y los usuarios canjean sus puntos.
+Eso en Postgres no se puede prometer.
 
-Un mercado que vive 10 segundos **no puede existir** en L1, y se necesitan cientos de
-apuestas pequeñas por partido.
+---
 
-Y como las credenciales viven on-chain, una app de terceros puede reconocer tu
-achievement sin que nuestra base de datos sea la autoridad.
+## Contra Blackbird
 
-**Session keys** para que la apuesta quepa en la ventana: una firma al inicio del
-match, después cada apuesta es 1 tap sin popup ni gas.
+**1. Su modelo depende de ser el rail de pago — y por eso no puede entrar a Perú.**
+Su 2% requiere que pagues con la app. Acá se paga con efectivo, Yape y Plin. Nuestro
+proof depende del **tap**, no del pago.
+
+**2. Política monetaria discrecional.** Blackbird Labs fija el valor de `$FLY` desde un
+panel interno — el mismo problema de las millas que dicen resolver. SELLO: colateral
+obligatorio, peg en el contrato. **No podemos devaluar aunque queramos.**
+
+**3. Onboarding a mano.** NYC, LA y Charleston en ~3 años, invite-only. SELLO es
+**permissionless**: wallet + nombre + QR + 5 minutos, sin comercial.
+
+**4. App cerrada, no protocolo.** Su data vive adentro. Nuestro consumption graph es
+legible on-chain; un tercero construye encima sin pedirnos permiso.
+
+**5. Restaurantes = frecuencia baja. Cafés = frecuencia diaria.** Cena: 1-4 veces al
+mes. Café: todos los días. Con los mismos usuarios el grafo se densifica ~20x más
+rápido — y rachas, hábitos y tiers **solo funcionan con frecuencia diaria**.
+
+> Blackbird necesita ser el medio de pago. Acá el medio de pago es efectivo y Yape.
+> Nuestro proof no depende de cómo pagas — depende del tap.
+> Y quién emite, cuánto, y con qué respaldo, está en el contrato. No en nuestro panel
+> de admin.
 
 ---
 
@@ -172,70 +189,61 @@ Arbitrum Sepolia · Solidity · Foundry
 
 | Contrato | Responsabilidad |
 |---|---|
-| `EsportsRegistry` | Orgs, teams, players, matches. Grafo social. |
-| `FanPassport` | ERC-721 soulbound. XP, nivel, historial. |
-| `LiveMarkets` | Pools parimutuel. Open / settle / void + refund. |
-| `ClutchToken` | ERC-20 `$CLUTCH` + faucet testnet. |
-| `MembershipPass` | ERC-721 transferible. Supply limitado por equipo. |
-| `Collectibles` | ERC-1155 soulbound. Achievements y moments. |
+| `CafeRegistry` | Café se registra solo: wallet, nombre, geohash. Permissionless. |
+| `ConsumptionLog` | Proofs con las dos firmas (EIP-712). El consumption graph. |
+| `RewardVault` | ERC-20 de puntos **100% colateralizado**. Emitir = descontar crédito. Canjear = quemar y pagar. |
+| `CampaignEscrow` | Presupuesto retenido + condición + payout automático. |
+| `MockPEN` | ERC-20 de prueba con faucet. Solo testnet. |
 
 Direcciones desplegadas y enlaces a Arbiscan: *pendiente*.
 
 ---
 
-## Front-running: cómo lo manejamos
+## Qué va en la cadena y qué no
 
-La asimetría de información no se puede eliminar —un observer in-game siempre tendrá
-delay cero. Se acota hasta volverla económicamente irrelevante:
+| Arbitrum Sepolia | Postgres |
+|---|---|
+| Proofs de consumo | Coffee Score, rachas, tiers |
+| Colateral de puntos | Segmentación y matching de campañas |
+| Emisión / canje | Notificaciones, geo, catálogo |
+| Presupuesto y payout de campaña | Dashboards, analytics, CRM, UI |
 
-1. **Parimutuel** — apostar con información privilegiada te diluye a ti mismo. Con
-   1,000 ganas +25%; con 100,000 ganas +0.4%. Cuanto más explotas la ventaja, peor el
-   retorno.
-2. **Cierre por reloj del servidor de juego**, más rápido que cualquier stream.
-3. **Void + reembolso** si la realidad adelanta a la ventana. Preferimos anular mil
-   pools antes que pagar uno injusto.
-4. **Tope por Passport** (soulbound), no por wallet. Sybil no es gratis.
-5. **El premio no es dinero retirable** — es reputación intransferible. No hay
-   incentivo económico para atacarlo.
-
-Y los mercados **macro** se abren en freeze time, donde no está pasando nada: inmunes
-al delay por construcción.
+**La cadena guarda plata y compromisos. Postgres guarda todo lo demás.**
 
 ---
 
 ## Modelo de negocio
 
-| Cliente | Monetización |
+| Fuente | Cuánto |
 |---|---|
-| Fans | Free + Premium |
-| Teams | SaaS / fan CRM |
-| Tournaments | SaaS / engagement infrastructure |
-| Sponsors | Campañas y quests patrocinadas |
+| **Campaign fee** | 10-15% del presupuesto de adquisición |
+| **SaaS por café** | mensual — dashboard, CRM, segmentación, analytics |
+| Redemption fee | **0%**, a propósito |
 
-Arbitrum es infraestructura, **no es el modelo de negocio**. Nada de token
-especulativo: `participa → construye historia → gana status → desbloquea`.
+Arbitrum es infraestructura, **no es el modelo de negocio**. Sin token especulativo.
 
 ---
 
-## Posicionamiento
+## Alcance del hackathon
 
-```text
-Twitch       → where you WATCH
-Discord      → where you TALK
-Liquipedia   → where you LEARN
-Steam        → where you PLAY
+**Sí:** 5 contratos desplegados y testeados · flujo tap → proof → puntos · canje
+cruzado · campañas de punta a punta · PWA consumidor + panel de cobro + dashboard café
+· red simulada sembrada (~8 cafés, ~50 consumidores, ~3 meses).
 
-              ↓
+**No (declarado):** pagos y rail de cobro · integración POS · on-ramp fiat · mainnet ·
+NFC nativo · app nativa · expiración de puntos · multi-ciudad · wallet no-custodial ·
+token especulativo.
 
-CLUTCH       → where your FANDOM lives
-```
+Dos límites que se dicen en voz alta durante el demo, no se esconden:
+el MVP usa **wallet custodial** (la firma del consumidor la produce nuestro servidor),
+y la red del demo es **data sembrada**, no tracción real.
 
 ---
 
 ## Stack
 
 Next 16 · React 19 · Elysia (`/api/v1`) · Better Auth · Drizzle ORM + Postgres ·
-Eden + TanStack Query · zod · shadcn/ui + Tailwind v4 · LogTape · viem/wagmi ·
+Eden + TanStack Query · zod · shadcn/ui + Tailwind v4 · LogTape · viem ·
 Solidity + Foundry · Vitest · Biome.
 
 ### Setup
@@ -262,6 +270,8 @@ Los dominios viven en `src/core/<domain>/`:
 | `server/api/` | rutas hoja Elysia `*.route.ts` + `router.ts` del dominio |
 | `client/` | hooks Eden/TanStack Query + UI shadcn |
 
+Dominios de SELLO: `cafe/` · `consumption/` · `rewards/` · `campaign/`.
+
 Reglas: toda respuesta usa el envelope `CommonResponse` (`{ response?, code, status }`);
 los 4xx esperados son valores `err(AppErrors.x)`, no throws; las rutas autenticadas
 llevan `.use(authed)` **y** `authed: true`.
@@ -270,6 +280,9 @@ llevan `.use(authed)` **y** `authed: true`.
 `schemas/<domain>-schema.ts` (exportar desde `schemas/index.ts`) y montar el router en
 `src/server/router.ts` con `.use(<domain>Router)`. **Un router no existe hasta que se
 hace `.use()` en `server/router.ts`.** Después: `pnpm db:generate && pnpm db:migrate`.
+
+`src/core/project/` es el dominio de referencia del starter y se elimina una vez que
+`cafe/` esté funcionando.
 
 ### Scripts
 
@@ -280,13 +293,12 @@ hace `.use()` en `server/router.ts`.** Después: `pnpm db:generate && pnpm db:mi
 
 ## Software de terceros reutilizado
 
-Conforme a las reglas del track, se declara:
+Conforme a las reglas del track:
 
 - **Base del proyecto:** [`S-kkipie/hackaton-starter`](https://github.com/S-kkipie/hackaton-starter),
-  starter propio (Next + Elysia + Better Auth + Drizzle). El historial de git de CLUTCH
-  arranca después del KickOff (31 jul 2026, 16:00). Todo el MVP evaluable —contratos,
-  agente de IA, mercados, Passport, watch experience— se desarrolla durante la hackathon.
-- **Counter-Strike 2 Game State Integration** (Valve) como fuente de estado de juego.
+  starter propio (Next + Elysia + Better Auth + Drizzle). El historial de git arranca
+  después del KickOff (31 jul 2026, 16:00). Todo el MVP evaluable —contratos, proofs,
+  vault, campañas, PWA— se desarrolla durante la hackathon.
 - Bibliotecas open source listadas en `package.json`.
 
 ### Notas heredadas del starter
@@ -304,6 +316,6 @@ Conforme a las reglas del track, se declara:
 
 ## Documentación
 
-- [**Spec maestra**](./docs/superpowers/specs/2026-07-31-clutch-design.md) — diseño
-  completo, arquitectura, contratos, defensa contra front-running, riesgos y registro
-  de decisiones.
+- [**Spec maestra**](./docs/superpowers/specs/2026-08-06-sello-design.md) — diseño
+  completo, economía con números, arquitectura, contratos, ventaja contra Blackbird,
+  plan de 6 días, guion del demo, riesgos y registro de decisiones.
