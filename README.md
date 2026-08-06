@@ -1,6 +1,7 @@
-# SELLO
+# PUNCH
 
-> **El sello de tu cafetería, pero vale en toda la ciudad.**
+> **Tu tarjeta de sellos, pero vale en toda la ciudad.**
+> *Your punch card, everywhere.*
 > Red abierta de consumo, lealtad y adquisición para cafeterías.
 
 Hackathon Ethereum Lima 2026 · Arbitrum Track · Arbitrum Sepolia · Arequipa
@@ -94,7 +95,7 @@ Cobró completo, al instante. **Y no le reclama nada al café que emitió los pu
 porque la emisión es prefondeada: esa plata ya estaba depositada.
 
 ```text
-   OTROS DISEÑOS (deuda)          SELLO (prefondeado)
+   OTROS DISEÑOS (deuda)          PUNCH (prefondeado)
 
    A emite ────► usuario          A DEPOSITA ────► pool
         │                              │
@@ -150,24 +151,59 @@ El caso de uso ya está probado sobre este stack.
 modelo no existe. Acá cada proof cuesta una fracción de céntimo y el relayer lo absorbe.
 
 **3. Neutralidad verificable.** El punto no es velocidad: es que **nosotros no podemos
-hacer trampa**. Colateral, peg y condiciones de campaña están en el contrato. Si SELLO
+hacer trampa**. Colateral, peg y condiciones de campaña están en el contrato. Si PUNCH
 desaparece mañana, los cafés recuperan su colateral y los usuarios canjean sus puntos.
 Eso en Postgres no se puede prometer.
 
 ---
 
-## Contra Blackbird
+## Competencia
+
+| | Qué es | Escala |
+|---|---|---|
+| **Blackbird** | Puck NFC, `$FLY` de red, Blackbird Pay 2%, Flynet (L3 Arbitrum Orbit → Base) | NY / SF / Charleston · 500+ restaurantes · $85M (a16z, Coinbase, Spark, Amex) |
+| **Seillo** | Sellos digitales para cafeterías, QR, rachas, tiers | Lima · S/0-319 al mes · **single-merchant** |
+| **Morita** | Tarjetas de fidelidad digitales, plantilla de café | Perú · gratis |
+| **Cardlytics** | Ofertas card-linked: segmenta "quien gastó en tu competencia" | US, empresa pública |
+| **Fivestars / SumUp** | Coalición de loyalty para comercios pequeños | 70M usuarios · 12k comercios · $3B/año |
+| **Yape Promos** | Promos de comercios dentro de Yape | Perú · 15.9M usuarios activos |
+
+**Seillo y Morita digitalizan el cartón de sellos.** Un cartón por negocio, sin
+portabilidad, sin red, sin campañas. Nosotros hacemos que el cartón valga en toda la
+ciudad, y que el café pueda comprar clientes verificados de la competencia.
+
+**El riesgo estratégico real no es Blackbird, es Yape** — tiene la distribución que
+nosotros no vamos a tener. Pero es un rail cerrado de Credicorp: reproduce exactamente
+el problema de neutralidad, y un café no le entrega su relación con el cliente al banco
+que además le cobra la comisión.
+
+### Dos cementerios que nos enseñan
+
+**Starbucks Odyssey** (dic 2022 → marzo 2024) murió de **complejidad**: videos, quizzes
+y NFT stamps contra un core que era "$1 = 1 estrella". Por eso nuestra mecánica es **10
+cafés = uno gratis**, la misma matemática del cartón. Cero conceptos nuevos.
+
+**Plenti de American Express** (2015 → 2018): 30M inscritos, menos de la mitad canjeó
+nunca. Murió de **control central rígido** y de **socios subsidiándose entre sí sin
+quererlo**. Eso es exactamente lo que elimina el escrow prefondeado: ningún café
+subsidia a otro porque depositó por adelantado lo que emitió, y las reglas están en el
+contrato, no en el panel de Amex.
+
+> El argumento on-chain no es filosófico. Es el diagnóstico de una muerte documentada.
+
+### Contra Blackbird
 
 **1. Su modelo depende de ser el rail de pago — y por eso no puede entrar a Perú.**
 Su 2% requiere que pagues con la app. Acá se paga con efectivo, Yape y Plin. Nuestro
 proof depende del **tap**, no del pago.
 
 **2. Política monetaria discrecional.** Blackbird Labs fija el valor de `$FLY` desde un
-panel interno — el mismo problema de las millas que dicen resolver. SELLO: colateral
+panel interno — el mismo problema de las millas que dicen resolver. PUNCH: colateral
 obligatorio, peg en el contrato. **No podemos devaluar aunque queramos.**
 
-**3. Onboarding a mano.** NYC, LA y Charleston en ~3 años, invite-only. SELLO es
-**permissionless**: wallet + nombre + QR + 5 minutos, sin comercial.
+**3. Onboarding a mano.** NY, SF y Charleston en ~3 años, 500 restaurantes,
+invite-only. PUNCH es **permissionless**: wallet + nombre + QR + 5 minutos, sin
+comercial.
 
 **4. App cerrada, no protocolo.** Su data vive adentro. Nuestro consumption graph es
 legible on-chain; un tercero construye encima sin pedirnos permiso.
@@ -270,7 +306,7 @@ Los dominios viven en `src/core/<domain>/`:
 | `server/api/` | rutas hoja Elysia `*.route.ts` + `router.ts` del dominio |
 | `client/` | hooks Eden/TanStack Query + UI shadcn |
 
-Dominios de SELLO: `cafe/` · `consumption/` · `rewards/` · `campaign/`.
+Dominios de PUNCH: `cafe/` · `consumption/` · `rewards/` · `campaign/`.
 
 Reglas: toda respuesta usa el envelope `CommonResponse` (`{ response?, code, status }`);
 los 4xx esperados son valores `err(AppErrors.x)`, no throws; las rutas autenticadas
@@ -316,6 +352,6 @@ Conforme a las reglas del track:
 
 ## Documentación
 
-- [**Spec maestra**](./docs/superpowers/specs/2026-08-06-sello-design.md) — diseño
+- [**Spec maestra**](./docs/superpowers/specs/2026-08-06-punch-design.md) — diseño
   completo, economía con números, arquitectura, contratos, ventaja contra Blackbird,
   plan de 6 días, guion del demo, riesgos y registro de decisiones.

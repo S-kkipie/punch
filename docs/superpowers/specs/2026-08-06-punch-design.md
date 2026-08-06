@@ -1,4 +1,4 @@
-# SELLO — Spec maestra
+# PUNCH — Spec maestra
 
 | | |
 |---|---|
@@ -15,8 +15,9 @@
 
 ## 1. Resumen
 
-> **SELLO**
-> El sello de tu cafetería, pero vale en toda la ciudad.
+> **PUNCH**
+> Tu tarjeta de sellos, pero vale en toda la ciudad.
+> *Your punch card, everywhere.*
 
 Red abierta de consumo, lealtad y adquisición para cafeterías, sobre Arbitrum.
 
@@ -124,7 +125,7 @@ Se registra solo:  wallet + nombre + geo + tag/QR    (sin comercial, sin permiso
 
 Este split es la decisión de producto central. Resuelve la objeción del dueño del café
 (*"¿por qué voy a regalar puntos que se gastan donde mi competencia?"*) sin romper la
-portabilidad, que es lo único que hace a SELLO distinto de un cartón de sellos.
+portabilidad, que es lo único que hace a PUNCH distinto de un cartón de sellos.
 
 ---
 
@@ -221,7 +222,7 @@ para registrar obligaciones entre comercios.
 Quinta la depositó.
 
 ```text
-   DISEÑO ORIGINAL (deuda)        SELLO (prefondeado)
+   DISEÑO ORIGINAL (deuda)        PUNCH (prefondeado)
 
    A emite ────► usuario          A DEPOSITA ────► pool
         │                              │
@@ -262,7 +263,7 @@ El contrato retiene los S/500. Diego califica → le llega la oferta → camina 
 |---|---|---|
 | Volanteo | S/0.10 c/u | Impresiones, sin atribución |
 | Instagram Ads | S/20-40 CAC | Un click, sin saber si toma café |
-| **SELLO** | **S/5 verificado** | Una persona que **entró y consumió**, con historial de 15 cafés/mes |
+| **PUNCH** | **S/5 verificado** | Una persona que **entró y consumió**, con historial de 15 cafés/mes |
 
 > **Pagas por consumo. No por impresión, no por click.**
 
@@ -398,16 +399,32 @@ céntimo, y el relayer puede absorberlo sin trasladarlo al usuario.
 
 **3. Neutralidad verificable.** El argumento no es velocidad, es que **nosotros no
 podemos hacer trampa**. El colateral, el peg y las condiciones de campaña están en el
-contrato. Si SELLO desaparece mañana, los cafés recuperan su colateral y los usuarios
+contrato. Si PUNCH desaparece mañana, los cafés recuperan su colateral y los usuarios
 canjean sus puntos. Eso en Postgres no se puede prometer.
 
 ---
 
-## 7. Ventaja frente a Blackbird
+## 7. Panorama competitivo
 
-Blackbird (Ben Leventhal, ex-Resy/Eater): puck NFC en el mostrador, `$FLY` como moneda
-de red, Blackbird Pay al 2% vs 3.5-4% de tarjeta, L3 en Arbitrum Orbit, +100k wallets,
-NYC / LA / Charleston.
+### 7.1 Mapa
+
+| | Qué es | Escala | Relación con PUNCH |
+|---|---|---|---|
+| **Blackbird** | Puck NFC, `$FLY` de red, Blackbird Pay 2%, Flynet (L3 Arbitrum Orbit → Base) | NY / SF / Charleston · 500+ restaurantes · $85M (a16z, Coinbase, Spark, **Amex**) · 70% retención · +100k wallets | Referencia del sector. No puede entrar a Perú. |
+| **Seillo** | Sellos digitales, QR, rachas, tiers Regular→VIP. *"Haz que los clientes de tu cafetería vuelvan"* | Lima · Malvatech S.A.C. · S/0 / 152 / 319 al mes | **Competencia local directa.** Single-merchant. |
+| **Morita** | Tarjetas digitales, QR, 11 plantillas (café incluido) | Perú · *"gratis para siempre"* | Presión de precio sobre el SaaS. |
+| **Cardlytics** | Ofertas card-linked en la app del banco; segmenta "quien gastó en tu competencia" | US, empresa pública | **Nuestra tesis de campañas, ya a escala.** |
+| **Fivestars / SumUp** | Red de loyalty para SMBs, dos lados | 70M usuarios · 12k comercios · $3B/año · vendida en $317M | Coalición SMB que **sí funcionó**, sin cripto. |
+| **Fetch Rewards** | Escaneas el recibo → puntos; las marcas pagan por la prueba de compra | US | Proof of consumption **sin tocar al comercio**. |
+| **Hang** | Membresías NFT (Ulta, Budweiser, Cinemark, Boba Guys) | $16M Serie A (Paradigm) | Infra web3 loyalty. |
+| **Yape Promos** | Promos de comercios dentro de Yape | Perú · 15.9M usuarios activos (2025) | **El riesgo estratégico real.** |
+| **Loyverse · Loopy · letstamp · Loyapp** | SaaS de sellos digitales | Global | Commodity. |
+
+### 7.2 Blackbird
+
+Ben Leventhal (ex-Resy/Eater). Puck NFC en el mostrador, `$FLY` como moneda de red,
+Blackbird Pay al 2% vs 3.5-4% de tarjeta, Flynet como L3 de Arbitrum Orbit que asienta
+en Base.
 
 Cinco grietas reales:
 
@@ -417,15 +434,15 @@ Plin. Nuestro proof depende del **tap**, no del pago. No es una limitación nues
 es la razón por la que existimos donde ellos no pueden.
 
 **2. Política monetaria discrecional.** Blackbird Labs fija el valor de `$FLY` desde un
-panel interno — el mismo problema de las millas que dicen resolver. SELLO: colateral
+panel interno — el mismo problema de las millas que dicen resolver. PUNCH: colateral
 obligatorio, peg en el contrato. **No podemos devaluar aunque queramos.** Ese "no
 podemos" es el producto.
 
-**3. Onboarding a mano.** NYC, LA y Charleston en ~3 años, curado e invite-only.
-SELLO: **permissionless**. Wallet + nombre + QR + 5 minutos. Sin comercial. La red
-crece sin nosotros.
+**3. Onboarding a mano.** NY, SF y Charleston en ~3 años, 500 restaurantes, curado e
+invite-only. PUNCH: **permissionless**. Wallet + nombre + QR + 5 minutos. Sin
+comercial. La red crece sin nosotros.
 
-**4. App cerrada, no protocolo.** Su data vive adentro. El consumption graph de SELLO
+**4. App cerrada, no protocolo.** Su data vive adentro. El consumption graph de PUNCH
 es legible on-chain: un tercero construye su app de barrio, su marketplace o su wallet
 sin pedirnos permiso.
 
@@ -441,6 +458,87 @@ grafo.
 > Nuestro proof no depende de cómo pagas — depende del tap.
 > Y quién emite, cuánto, y con qué respaldo, está en el contrato. No en nuestro panel
 > de admin.
+
+### 7.3 Seillo y Morita — la competencia local
+
+**Seillo** (Lima, Malvatech S.A.C.) es el competidor más cercano que existe hoy en
+Perú. Su headline literal: *"Haz que los clientes de tu cafetería vuelvan"*.
+Cafeterías, QR en el mostrador, sellos, rachas diarias, niveles Regular→VIP. S/0 /
+S/152 / S/319 al mes.
+
+Lo que **no** tiene: es **single-merchant**. Su plan Growth ofrece *"hasta 3 locales"*
+— tres sucursales del mismo dueño, no tres negocios distintos. Sin portabilidad, sin
+red, sin campañas, sin colateral.
+
+**Morita** (Perú) es lo mismo en versión gratuita: tarjetas digitales con QR, 11
+plantillas incluida café, sin funciones de adquisición.
+
+La línea que nos separa de ambos:
+
+> **Ellos digitalizan el cartón. Nosotros lo hacemos valer en toda la ciudad, y encima
+> el café puede comprar clientes verificados de la competencia.**
+
+Consecuencia de precio: **Morita es gratis**. Nuestro plan SaaS no puede competir por
+precio contra gratis — compite por lo que el cartón digitalizado no puede dar: red y
+adquisición. Si el SaaS es la principal fuente de ingreso, el modelo está mal armado.
+Por eso el ingreso principal es el campaign fee.
+
+### 7.4 Los no-cripto que sí funcionan
+
+**Cardlytics** valida la tesis de campañas y a la vez la ataca: ya existe segmentar
+*"quien gastó en tu competidor, clientes perdidos, compradores de la categoría"*, a
+escala, con data transaccional real, dentro de la app del banco.
+
+Diferencias a nuestro favor: corre sobre rieles de tarjeta (en Perú el consumo de café
+es efectivo y Yape), el comercio pequeño no accede, la data la controla el banco, y el
+consumidor no participa voluntariamente ni cobra directo.
+
+**Fivestars / SumUp** es la prueba de que una coalición de loyalty para comercios
+pequeños puede funcionar: 70M usuarios, 12k comercios, $3B en ventas locales anuales,
+vendida en $317M. También es la prueba de que se puede hacer sin blockchain — con el
+costo de que el operador central es dueño de todo.
+
+**Fetch Rewards** demuestra que el proof of consumption no necesita al comercio: basta
+el recibo. Es la ruta alternativa si el onboarding de cafés resulta más lento de lo
+previsto, y vale tenerla en el bolsillo.
+
+### 7.5 Yape — el riesgo estratégico real
+
+No es Blackbird. Es Yape: 15.9M usuarios activos en Perú y **ya tiene promociones de
+comercios dentro de la app**. Si decide hacer loyalty transversal, tiene una
+distribución que nosotros no vamos a tener nunca.
+
+Contra-argumento, y es el mismo argumento del producto: Yape es un rail cerrado de
+Credicorp. Reproduce exactamente el problema de neutralidad —una empresa dueña del
+balance, las reglas y la relación con el cliente— y un café no le entrega su relación
+con el cliente al banco que además le cobra la comisión.
+
+### 7.6 Los dos cementerios
+
+**Starbucks Odyssey.** Lanzado dic 2022, cerrado **marzo 2024**. Causa citada de forma
+consistente: **complejidad**. Videos, quizzes, comprar NFT stamps — contra un core
+(Starbucks Rewards) que es "$1 = 1 estrella".
+
+→ Valida la decisión #4 del registro por una razón distinta a la original: **10 cafés =
+uno gratis, la misma matemática del cartón**. Cero conceptos nuevos para el usuario.
+Este es el argumento para rechazar cualquier mecánica adicional que se proponga.
+
+**Plenti (American Express).** Coalición lanzada 2015, muerta abril 2018. 30M
+inscritos, **menos de la mitad canjeó alguna vez**. *Nunca ha triunfado una coalición
+de loyalty a gran escala en EE.UU.* (Nectar UK sí: 19M miembros).
+
+Causas documentadas: **control central rígido**, **intercambio de valor asimétrico
+entre socios**, confusión por mezclar categorías inconexas, y efecto dominó cuando
+Macy's se fue a construir su programa propio.
+
+→ Este es el hallazgo más útil del research. **Plenti murió de control centralizado y
+de socios subsidiándose entre sí sin quererlo. Es exactamente lo que elimina el escrow
+prefondeado:** ningún café subsidia a otro, porque depositó por adelantado lo que
+emitió; y las reglas están en el contrato, no en el panel de Amex.
+
+El argumento on-chain deja de ser filosófico y pasa a ser el diagnóstico de una muerte
+documentada. Segunda lección aplicada: Plenti mezcló grifos, supermercados y tiendas
+por departamento. PUNCH es **una sola categoría**.
 
 ---
 
@@ -537,7 +635,7 @@ wallet no-custodial · token especulativo.
        Y el respaldo de los puntos está en el contrato, no en nuestro admin.
        No podemos devaluarlos aunque quisiéramos."
 
-2:50  SELLO. El sello de tu cafetería, pero vale en toda la ciudad.
+2:50  PUNCH. Tu tarjeta de sellos, pero vale en toda la ciudad.
 ```
 
 ---
@@ -552,6 +650,15 @@ meses**, colateral devuelto al emisor, anunciada de antemano y escrita en el con
 **Cold start.** Segmentar "toma 15 cafés/mes" requiere red densa. En el demo es data
 sembrada y se declara como *"simulación de 3 meses de red en Arequipa"*. Mentir en
 esto es la forma más rápida de perder en preguntas.
+
+**Los socios son competidores directos.** La literatura de coalición dice que funciona
+mejor cuando los socios ofrecen servicios similares **pero no compiten entre sí**.
+Nuestros socios son todos cafés: compiten de frente. Respuesta: el split
+lealtad-en-la-emisión / portabilidad-en-el-canje hace que competir **dentro** de la red
+salga más barato que competir fuera —hoy la guerra es a punta de descuentos ciegos; acá
+se paga solo por el cliente que efectivamente entró—. La competencia no desaparece: se
+vuelve explícita, medible y pagada. Riesgo real y no resuelto del todo; es la pregunta
+más difícil que nos pueden hacer.
 
 **Colusión café-usuario.** Un café podría firmar consumos falsos para farmear campañas
 ajenas. Defensas: la campaña la fondea el café que **recibe** al cliente (falsear es
@@ -596,3 +703,6 @@ desarrolla durante la hackathon.
 | 8 | Campañas como clímax del demo | Canje cruzado como clímax | El canje cruzado es el core de Blackbird; la campaña es lo que nadie hace y además es el modelo de negocio |
 | 9 | Escrow como primitivo único | Contratos separados para rewards y campañas | Campaña y colateral son el mismo patrón: bloquear plata, liberar por condición |
 | 10 | Arbitrum Sepolia, no Orbit propio | L3 propio tipo Flynet | Fuera de alcance en 6 días. Orbit es la ruta post-hackathon |
+| 11 | Nombre PUNCH | SELLO | Existe **Seillo** en Lima, cafeterías, sellos digitales. Colisión fonética en el mismo mercado y vertical |
+| 12 | Una sola categoría (café), nunca multi-vertical | Coalición multi-categoría | Plenti murió en parte por mezclar grifos, supermercados y tiendas por departamento |
+| 13 | Ingreso principal = campaign fee, no SaaS | SaaS como ingreso principal | Morita es gratis en Perú. No se compite por precio contra gratis; se compite con lo que el cartón digitalizado no puede dar |
