@@ -119,14 +119,19 @@ Cero riesgo de contraparte. Cero cobranza. Nada que arbitrar.
 
 ## Campañas: comprar clientes verificados
 
+Tres tipos, un solo contrato. Solo cambia la condición de liberación.
+
+### Adquisición
+
 Café Tostado abre. Cero clientes. Deposita S/500.
 
 ```text
-CAMPAÑA — Tostado
+CAMPAÑA — Tostado · Adquisición
 
 Segmento:   Coffee Score > 500      (≈15+ cafés/mes verificados)
             Nunca hizo tap acá
             Radio 2 km
+            Ventana: L-V, 14:00-17:00
 
 Reward:     S/5 en puntos, al primer consumo
 Budget:     S/500  →  100 conversiones máx.
@@ -138,6 +143,68 @@ hace tap → **el contrato le paga solo**. Tostado no aprueba nada. Nosotros tam
 > **Pagas por consumo. No por impresión, no por click.**
 
 Si el 30% vuelve solo: CAC real ≈ S/17 por cliente recurrente.
+
+### Win-back — la campaña que solo una red puede construir
+
+Una app de sellos ve que tu cliente frecuente **dejó de venir**. PUNCH ve que **se fue
+al café de la esquina, hace tres semanas, y ya lleva seis visitas allá**.
+
+```text
+Segmento:   era cliente mío (>8 visitas en 90d)
+            no viene hace 21 días
+            SIGUE consumiendo café en la red   ← imposible de replicar
+Reward:     S/8
+```
+
+### Café crawl — multi-café
+
+```text
+Condición:  tap en Quinta + Tostado + Barranco, en 7 días
+Reward:     S/15 al completar
+Budget:     S/1,500, aportado en tercios entre los tres cafés
+```
+
+El único tipo de campaña que **exige** que la red exista.
+
+---
+
+## La franja horaria no es un filtro, es el modelo
+
+Una campaña sin restricción horaria puede pagar S/5 por alguien que llega **a las 9am**,
+cuando el local ya está lleno. Ese asiento se ocupaba igual.
+
+Cortado S/12 · COGS ~S/3 · alquiler y barista son costo hundido:
+
+```text
+  9am (lleno)     12 − 3 − 5 = +4  ... pero desplazó a un cliente que dejaba 9
+                  →  DESTRUYE VALOR
+
+  3pm (muerto)    12 − 3 − 5 = +4  que no existía
+                  →  CREA VALOR
+```
+
+**El café no regala margen: vende inventario que se le vencía.** Yield management de
+aerolínea aplicado a mesas vacías. Deja de ser *"cuánto me cuesta la lealtad"* y pasa a
+ser *"cuánto recupero de mis horas muertas"*.
+
+---
+
+## Subasta: los cafés compiten por ti, en abierto
+
+```text
+    HOY TE QUIEREN INVITAR
+
+    La Quinta      S/7   ← 2-5pm
+    Tostado        S/5
+    Barranco       S/4
+```
+
+El mercado descubre cuánto vale un cliente; nosotros no lo fijamos. Es el mecanismo de
+Google Ads — la razón por la que Google Ads es una máquina de plata y el volanteo no.
+
+Y del lado del consumidor: Fetch te da 25 puntos por tu recibo y le vende tu data a las
+marcas; Cardlytics segmenta tu consumo dentro del app del banco sin que lo sepas.
+**Acá ves las tres ofertas que compiten por ti y eliges.**
 
 ---
 
@@ -252,23 +319,62 @@ Direcciones desplegadas y enlaces a Arbiscan: *pendiente*.
 
 | Fuente | Cuánto |
 |---|---|
-| **Campaign fee** | 10-15% del presupuesto de adquisición |
-| **SaaS por café** | mensual — dashboard, CRM, segmentación, analytics |
+| **Campaign fee** | 10-15% del presupuesto — **única fuente principal** |
+| Loyalty, red, CRM, analytics | **S/0, para siempre** |
 | Redemption fee | **0%**, a propósito |
 
+**Por qué la capa de loyalty es gratis.** Seillo cobra S/152-319 al mes por digitalizar
+el cartón — eso **es** su ingreso. PUNCH da gratis más de lo que Seillo vende y cobra
+solo cuando el café **compra clientes**.
+
+```text
+   Seillo    cobra por la herramienta   → no puede regalarla sin morirse
+   Morita    ya es gratis               → no tiene nada que cobrar después
+   PUNCH     regala la herramienta      → cobra el mercado que la herramienta crea
+```
+
 Arbitrum es infraestructura, **no es el modelo de negocio**. Sin token especulativo.
+
+---
+
+## Dónde está el foso (y dónde no)
+
+Abrir el consumption graph **destruye el moat de data** — un copycat lo lee y arranca con
+la red sembrada. No se arregla, se asume:
+
+```text
+   NO es el código     ~400 líneas de Solidity, se copian en un fin de semana
+   NO es la data       es pública a propósito
+
+   SÍ es la densidad   25 cafés caminables; el copycat los refirma uno por uno, a pie
+   SÍ es el colateral  un café con S/1,000 trabados y 60 clientes cargando puntos
+                       suyos no se muda — y ese costo CRECE SOLO con cada emisión
+```
+
+Moat tipo Uniswap: código abierto, foso en la liquidez.
+
+---
+
+## El enemigo no es el café de al lado
+
+> El enemigo de una cafetería independiente **no es la cafetería de la esquina**.
+> Es Starbucks, es Juan Valdez, y es que la gente se quede tomando café en su casa.
+>
+> Solo, ningún independiente puede tener el programa de lealtad de Starbucks.
+> **Juntos, todos lo tienen.**
 
 ---
 
 ## Alcance del hackathon
 
 **Sí:** 5 contratos desplegados y testeados · flujo tap → proof → puntos · canje
-cruzado · campañas de punta a punta · PWA consumidor + panel de cobro + dashboard café
-· red simulada sembrada (~8 cafés, ~50 consumidores, ~3 meses).
+cruzado · **las tres campañas** (adquisición, win-back, café crawl) · ventana horaria ·
+subasta visible · PWA consumidor + panel de cobro + dashboard café · red simulada
+sembrada (~8 cafés, ~50 consumidores, ~3 meses).
 
 **No (declarado):** pagos y rail de cobro · integración POS · on-ramp fiat · mainnet ·
 NFC nativo · app nativa · expiración de puntos · multi-ciudad · wallet no-custodial ·
-token especulativo.
+token especulativo · subasta sellada y bidding dinámico · revelación selectiva de proofs.
 
 Dos límites que se dicen en voz alta durante el demo, no se esconden:
 el MVP usa **wallet custodial** (la firma del consumidor la produce nuestro servidor),
