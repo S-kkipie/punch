@@ -186,4 +186,8 @@ contract ConsumptionLogInvariantTest is Test {
             }
         }
     }
+
+    function afterInvariant() public view {
+        assertGt(handler.successfulRecords(), 0);
+    }
 }

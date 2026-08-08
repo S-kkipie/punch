@@ -386,6 +386,14 @@ contract ConsumptionLogTest is Test {
         assertEq(vault.lastUser(), address(account));
     }
 
+    function test_recordConsumption_malformedCafeSignatureReverts() public {
+        IConsumptionLog.ConsumptionProof memory proof = _proof(1);
+        bytes memory userSig = _sign(userKey, proof);
+
+        vm.expectRevert(InvalidCafeSignature.selector);
+        consumptionLog.recordConsumption(proof, hex"1234", userSig);
+    }
+
     function _record(uint256 nonce) internal returns (IConsumptionLog.ConsumptionProof memory proof) {
         proof = _proof(nonce);
         bytes memory cafeSig = _sign(operatorKey, proof);

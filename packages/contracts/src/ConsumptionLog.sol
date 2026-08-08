@@ -83,7 +83,10 @@ contract ConsumptionLog is IConsumptionLog, Ownable, Pausable, EIP712 {
     /// @inheritdoc IConsumptionLog
     /// @dev Permissionless: the two signatures are the authorization, the sender only
     /// pays gas. Effects land before the external calls, and PlanManager enforces plan,
-    /// credit and café status, so this contract does not restate those rules.
+    /// credit and café status, so this contract does not restate those rules. No reentrancy
+    /// guard is needed: SignatureChecker uses staticcall, ECDSA.tryRecover is pure, and the
+    /// state-changing external calls run after replay state is spent, so a reentrant call
+    /// with the same proof reverts on NonceUsed.
     function recordConsumption(
         ConsumptionProof calldata proof,
         bytes calldata cafeSignature,
