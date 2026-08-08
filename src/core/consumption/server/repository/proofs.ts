@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
 import { type DbClient, db } from "@/server/drizzle/db";
 import {
     type ConsumptionProofRow,
@@ -41,18 +41,19 @@ export async function findProofByNonceOrReceipt(
     receiptHash: string,
     client: DbClient = db,
 ): Promise<ConsumptionProofRow | null> {
-    const [nonceMatch, receiptMatch] = await Promise.all([
-        client
-            .select()
-            .from(consumptionProof)
-            .where(eq(consumptionProof.nonce, nonce)),
-        client
-            .select()
-            .from(consumptionProof)
-            .where(eq(consumptionProof.receiptHash, receiptHash)),
-    ]);
-    const nonceProof = nonceMatch[0];
-    const receiptProof = receiptMatch[0];
+    const matches = await client
+        .select()
+        .from(consumptionProof)
+        .where(
+            or(
+                eq(consumptionProof.nonce, nonce),
+                eq(consumptionProof.receiptHash, receiptHash),
+            ),
+        );
+    const nonceProof = matches.find((proof) => proof.nonce === nonce);
+    const receiptProof = matches.find(
+        (proof) => proof.receiptHash === receiptHash,
+    );
     if (nonceProof && receiptProof && nonceProof.id !== receiptProof.id) {
         throw new ProofRepositoryError(
             "PROOF_COLLISION",
@@ -90,11 +91,11 @@ export async function bindProofSignatures(
     const [existing] = await client
         .select({
             status: consumptionProof.status,
-            expiresAt: consumptionProof.expiresAt,
+            expired: sql<boolean>`${consumptionProof.expiresAt} <= now()`,
         })
         .from(consumptionProof)
         .where(eq(consumptionProof.id, id));
-    if (existing?.status === "issued" && existing.expiresAt <= new Date()) {
+    if (existing?.status === "issued" && existing.expired) {
         throw new ProofRepositoryError(
             "PROOF_EXPIRED",
             `Proof ${id} has expired`,
