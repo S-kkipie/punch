@@ -1,5 +1,5 @@
-import { LANDING_COPY, LANDING_LINKS } from "../landing-content";
 import { CafeCustomerCollage } from "../landing-art";
+import { LANDING_COPY, LANDING_LINKS } from "../landing-content";
 
 export function HeroNetwork() {
     const copy = LANDING_COPY.hero;
@@ -12,10 +12,16 @@ export function HeroNetwork() {
                     <h1 id="hero-title">{copy.title}</h1>
                     <p className="pnch-lede">{copy.body}</p>
                     <div className="pnch-actions">
-                        <a className="pnch-cta pnch-cta--fill" href={LANDING_LINKS.cafe}>
+                        <a
+                            className="pnch-cta pnch-cta--fill"
+                            href={LANDING_LINKS.cafe}
+                        >
                             {copy.primaryCta} →
                         </a>
-                        <a className="pnch-cta pnch-cta--text" href={LANDING_LINKS.consumer}>
+                        <a
+                            className="pnch-cta pnch-cta--text"
+                            href={LANDING_LINKS.consumer}
+                        >
                             {copy.secondaryCta} →
                         </a>
                     </div>
