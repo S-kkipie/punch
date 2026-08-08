@@ -1,13 +1,12 @@
 import "server-only";
-import { and, asc, eq, gt } from "drizzle-orm";
+import { and, eq, gt } from "drizzle-orm";
 import { type DbClient, db } from "@/server/drizzle/db";
 import {
-    campaign,
-    coffeeCrawl,
-    coffeeCrawlStep,
     consumerCrawlProgress,
     consumerVoucher,
 } from "@/server/drizzle/schemas/punch-schema";
+import { findActiveCampaignForCafe } from "./campaigns";
+import { findActiveCrawlForCafe, getCrawlSteps } from "./crawls";
 
 export async function getDashboardReadData(
     userId: string,
@@ -24,32 +23,7 @@ export async function getDashboardReadData(
                 gt(consumerVoucher.expiresAt, now),
             ),
         );
-    let activeCampaign: { id: string; name: string; cafeId: string } | null =
-        null;
-    const campaignVoucher = vouchers.find(
-        (voucher) => voucher.source === "campaign" && voucher.campaignId,
-    );
-    if (campaignVoucher?.campaignId) {
-        const [row] = await client
-            .select()
-            .from(campaign)
-            .where(
-                and(
-                    eq(campaign.id, campaignVoucher.campaignId),
-                    eq(campaign.active, true),
-                    gt(campaign.windowEnd, now),
-                ),
-            );
-        if (row)
-            activeCampaign = { id: row.id, name: row.name, cafeId: row.cafeId };
-    }
-    let activeCrawl: {
-        id: string;
-        name: string;
-        completedSteps: number;
-        totalSteps: number;
-    } | null = null;
-    const [progress] = await client
+    const progressRows = await client
         .select()
         .from(consumerCrawlProgress)
         .where(
@@ -58,30 +32,55 @@ export async function getDashboardReadData(
                 eq(consumerCrawlProgress.status, "in_progress"),
             ),
         );
-    if (progress) {
-        const [crawl] = await client
-            .select()
-            .from(coffeeCrawl)
-            .where(
-                and(
-                    eq(coffeeCrawl.id, progress.crawlId),
-                    eq(coffeeCrawl.active, true),
-                    gt(coffeeCrawl.expiresAt, now),
-                ),
-            );
-        if (crawl) {
-            const steps = await client
-                .select({ id: coffeeCrawlStep.id })
-                .from(coffeeCrawlStep)
-                .where(eq(coffeeCrawlStep.crawlId, crawl.id))
-                .orderBy(asc(coffeeCrawlStep.stepIndex));
-            activeCrawl = {
-                id: crawl.id,
-                name: crawl.name,
-                completedSteps: progress.completedCafeIds.length,
-                totalSteps: steps.length,
-            };
+    const progressByCrawl = new Map(
+        progressRows.map((progress) => [progress.crawlId, progress]),
+    );
+    const crawlCafeIds = new Set<string>();
+    for (const progress of progressRows) {
+        const steps = await getCrawlSteps(client, progress.crawlId);
+        for (const step of steps) crawlCafeIds.add(step.cafeId);
+    }
+    const cafeIds = [
+        ...new Set([
+            ...vouchers.flatMap((voucher) =>
+                voucher.cafeId ? [voucher.cafeId] : [],
+            ),
+            ...crawlCafeIds,
+        ]),
+    ].sort();
+
+    let activeCampaign: { id: string; name: string; cafeId: string } | null =
+        null;
+    let activeCrawl: {
+        id: string;
+        name: string;
+        completedSteps: number;
+        totalSteps: number;
+    } | null = null;
+    for (const cafeId of cafeIds) {
+        if (!activeCampaign) {
+            const campaign = await findActiveCampaignForCafe(client, cafeId);
+            if (campaign)
+                activeCampaign = {
+                    id: campaign.id,
+                    name: campaign.name,
+                    cafeId: campaign.cafeId,
+                };
         }
+        if (!activeCrawl) {
+            const crawl = await findActiveCrawlForCafe(client, cafeId);
+            const progress = crawl ? progressByCrawl.get(crawl.id) : undefined;
+            if (crawl && progress) {
+                const steps = await getCrawlSteps(client, crawl.id);
+                activeCrawl = {
+                    id: crawl.id,
+                    name: crawl.name,
+                    completedSteps: progress.completedCafeIds.length,
+                    totalSteps: steps.length,
+                };
+            }
+        }
+        if (activeCampaign && activeCrawl) break;
     }
     return { activeCampaign, activeCrawl };
 }
