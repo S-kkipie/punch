@@ -12,6 +12,8 @@ DONE
 
 `867403ee84f27a49eb4e22ca571cf8cd45168319` — `fix(drizzle): enforce consumer flow integrity constraints`
 
+`0bf6999fc505bc39f36e214c9b6523fe73a5d2ee` — `test(drizzle): assert generated integrity predicates`
+
 ## Files changed
 
 - `src/server/drizzle/schemas/consumption-schema.ts`
@@ -41,7 +43,7 @@ DONE
 ## Commands and results
 
 - `pnpm install --frozen-lockfile` — passed.
-- `pnpm test -- src/server/drizzle/__tests__/task-3-schema.test.ts` — passed; 23 files and 152 tests passed (Vitest includes the configured suite despite the scoped path argument). Tests assert exact check, foreign-key, and unique-index names for all new integrity rules.
+- `pnpm test -- src/server/drizzle/__tests__/task-3-schema.test.ts` — passed; 23 files and 153 tests passed (Vitest includes the configured suite despite the scoped path argument). Tests assert exact Drizzle constraint names plus normalized generated SQL bodies for every new check and both partial-index predicates.
 - `pnpm typecheck` — passed.
 - `pnpm db:generate` — passed; generated `drizzle/0005_exotic_payback.sql` with FK additions, partial unique indexes, and all requested checks; second generation reported no schema changes.
 - `pnpm check` — passed; Biome checked 271 files.
