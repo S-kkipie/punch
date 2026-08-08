@@ -7,15 +7,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 (
     globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
-const { punchMutate, voucherMutate, txState, inboxData } = vi.hoisted(() => ({
-    punchMutate: vi.fn(),
-    voucherMutate: vi.fn(),
-    txState: new Map<string, { status: string }>(),
-    inboxData: [
-        { id: "punch-1", kind: "punch_reward", status: "pending" },
-        { id: "voucher-1", kind: "voucher", status: "pending" },
-    ],
-}));
+const { punchMutate, voucherMutate, txState, inboxData, txError } = vi.hoisted(
+    () => ({
+        punchMutate: vi.fn(),
+        voucherMutate: vi.fn(),
+        txState: new Map<string, { status: string }>(),
+        txError: { value: false },
+        inboxData: [
+            { id: "punch-1", kind: "punch_reward", status: "pending" },
+            { id: "voucher-1", kind: "voucher", status: "pending" },
+        ],
+    }),
+);
 vi.mock("next/navigation", () => ({ useParams: () => ({ cafeId: "cafe-1" }) }));
 vi.mock("@/core/consumption/client/hooks", () => ({
     useCafeRedemptionInbox: () => ({
@@ -29,6 +32,8 @@ vi.mock("@/core/consumption/client/hooks", () => ({
     }),
     useTransactionStatus: (id: string) => ({
         data: id ? txState.get(id) : undefined,
+        isError: txError.value,
+        refetch: () => undefined,
     }),
 }));
 vi.mock("@/frontend/components/ui/button", () => ({
@@ -70,6 +75,7 @@ describe("café redemption settlement lifecycle", () => {
         document.body.innerHTML = "";
         vi.clearAllMocks();
         txState.clear();
+        txError.value = false;
         inboxData.splice(
             0,
             inboxData.length,
@@ -136,6 +142,19 @@ describe("café redemption settlement lifecycle", () => {
         await act(async () => retry?.click());
         expect(voucherMutate).toHaveBeenCalledTimes(2);
         expect(punchMutate).toHaveBeenCalledTimes(1);
+        await act(async () => root.unmount());
+    });
+
+    it("renders a Spanish retry state when transaction polling fails", async () => {
+        txError.value = true;
+        const container = document.createElement("div");
+        document.body.append(container);
+        const root = createRoot(container);
+        await act(async () => root.render(<CafeRedemptionsPage />));
+        expect(container.textContent).toContain(
+            "No se pudo consultar el estado del canje",
+        );
+        expect(container.textContent).not.toContain("[object Object]");
         await act(async () => root.unmount());
     });
 });

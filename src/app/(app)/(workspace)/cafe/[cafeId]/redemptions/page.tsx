@@ -30,13 +30,30 @@ function FulfillmentItem({
     decision?: Settlement;
     onRetry: () => void;
 }) {
+    const { cafeId } = useParams<{ cafeId: string }>();
     const transactionQuery = useTransactionStatus(
         decision?.transactionId ?? "",
+        cafeId,
     );
     const transaction = (transactionQuery.data ?? decision) as
         | Settlement
         | undefined;
-    if (!transaction) return null;
+    if (transactionQuery.isError) {
+        return (
+            <div className="grid gap-2 text-sm" role="alert">
+                <p className="text-destructive">
+                    No se pudo consultar el estado del canje.
+                </p>
+                <Button
+                    variant="outline"
+                    onClick={() => transactionQuery.refetch()}
+                >
+                    Reintentar
+                </Button>
+            </div>
+        );
+    }
+    if (!transaction?.status) return null;
     return (
         <TransactionStatus
             status={transaction.status}
