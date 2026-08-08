@@ -88,7 +88,9 @@ describe("decidePunchRedemptionService", () => {
     });
 
     it("returns conflict for an already rejected request with a different decision", async () => {
-        vi.mocked(findRedemptionRequestById).mockResolvedValue(rejectedRequest as never);
+        vi.mocked(findRedemptionRequestById).mockResolvedValue(
+            rejectedRequest as never,
+        );
         const result = await decidePunchRedemptionService("u", "c", "r", {
             decision: "approved",
         });
@@ -97,7 +99,9 @@ describe("decidePunchRedemptionService", () => {
     });
 
     it("makes the same rejection idempotent", async () => {
-        vi.mocked(findRedemptionRequestById).mockResolvedValue(rejectedRequest as never);
+        vi.mocked(findRedemptionRequestById).mockResolvedValue(
+            rejectedRequest as never,
+        );
         const result = await decidePunchRedemptionService("u", "c", "r", {
             decision: "rejected",
             rejectionReason: "Sin stock",
