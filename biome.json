@@ -3,7 +3,12 @@
     "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
     "files": {
         "ignoreUnknown": true,
-        "includes": ["**", "!packages/contracts/lib", "!packages/contracts/out"]
+        "includes": [
+            "**",
+            "!packages/contracts/lib",
+            "!packages/contracts/out",
+            "!.claude"
+        ]
     },
     "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 4 },
     "css": { "parser": { "tailwindDirectives": true } },

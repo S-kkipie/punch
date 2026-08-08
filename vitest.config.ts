@@ -10,6 +10,9 @@ export default defineConfig({
             "@": r("./src"),
         },
     },
+    css: {
+        postcss: { plugins: [] },
+    },
     test: {
         environment: "node",
         globals: true,
