@@ -113,15 +113,16 @@ describeIntegration("purchase repository concurrency", () => {
             .returning();
         fixture.jobId = job.id;
 
+        const leaseMs = 200;
         const [first, second] = await Promise.all([
-            findJobsToRun(1, 40),
-            findJobsToRun(1, 40),
+            findJobsToRun(1, leaseMs),
+            findJobsToRun(1, leaseMs),
         ]);
         expect(first).toHaveLength(1);
         expect(second).toHaveLength(0);
 
-        await new Promise((resolve) => setTimeout(resolve, 50));
-        const afterLease = await findJobsToRun(1, 40);
+        await new Promise((resolve) => setTimeout(resolve, leaseMs + 10));
+        const afterLease = await findJobsToRun(1, leaseMs);
         expect(afterLease.map((claimed) => claimed.id)).toEqual([job.id]);
     });
 });

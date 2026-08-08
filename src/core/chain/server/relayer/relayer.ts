@@ -41,6 +41,11 @@ const PERMANENT_CODES = new Set<RevertCode>([
 
 type Job = Awaited<ReturnType<typeof findJobsToRun>>[number];
 type RelayerWallet = WalletClient;
+type Submission = {
+    proof: ConsumptionProof;
+    cafeSignature: Hex;
+    userSignature: Hex;
+};
 
 export type RelayerDeps = {
     findJobsToRun: (limit: number) => Promise<Job[]>;
@@ -61,10 +66,17 @@ export type RelayerDeps = {
         extra?: { txHash?: string; failureReason?: string },
     ) => Promise<unknown>;
     wallet: RelayerWallet;
-    pub: Pick<
-        PublicClient,
-        "waitForTransactionReceipt" | "getTransactionReceipt"
-    >;
+    pub: {
+        waitForTransactionReceipt: PublicClient["waitForTransactionReceipt"];
+        getTransactionReceipt: PublicClient["getTransactionReceipt"];
+        simulateContract: (args: {
+            address: Address;
+            abi: typeof abis.consumptionLog;
+            functionName: "recordConsumption";
+            args: [ConsumptionProof, Hex, Hex];
+            account: Address;
+        }) => Promise<unknown>;
+    };
     addresses: ReturnType<typeof getAddresses>;
     submitter: Address;
     now: () => Date;
@@ -104,6 +116,50 @@ function sanitizedFailure(parsed: ParsedRevert): string {
 async function confirm(deps: RelayerDeps, job: Job) {
     await deps.markJobConfirmed(job.id);
     await deps.setOrderStatus(job.orderId, "confirmed");
+}
+
+function parseSubmission(job: Job): Submission {
+    if (!job.payload || typeof job.payload !== "object") {
+        throw new Error("invalid payload");
+    }
+    const payload = job.payload as Record<string, unknown>;
+    if (
+        !isSignature(payload.cafeSignature) ||
+        !isSignature(payload.userSignature)
+    ) {
+        throw new Error("invalid signature");
+    }
+    try {
+        return {
+            proof: deserializeProof(payload.proof),
+            cafeSignature: payload.cafeSignature,
+            userSignature: payload.userSignature,
+        };
+    } catch {
+        throw new Error("invalid payload");
+    }
+}
+
+async function replaySubmissionError(
+    deps: RelayerDeps,
+    submission: Submission,
+): Promise<unknown> {
+    try {
+        await deps.pub.simulateContract({
+            address: deps.addresses.consumptionLog,
+            abi: abis.consumptionLog,
+            functionName: "recordConsumption",
+            args: [
+                submission.proof,
+                submission.cafeSignature,
+                submission.userSignature,
+            ],
+            account: deps.submitter,
+        });
+    } catch (error) {
+        return error;
+    }
+    return new Error("transaction reverted");
 }
 
 async function handleFailure(deps: RelayerDeps, job: Job, error: unknown) {
@@ -148,27 +204,18 @@ async function handleFailure(deps: RelayerDeps, job: Job, error: unknown) {
 
 async function submitJob(deps: RelayerDeps, job: Job) {
     let hash: Hex;
+    let submission: Submission;
     try {
-        if (!job.payload || typeof job.payload !== "object")
-            throw new Error("invalid payload");
-        const payload = job.payload as Record<string, unknown>;
-        if (
-            !isSignature(payload.cafeSignature) ||
-            !isSignature(payload.userSignature)
-        ) {
-            throw new Error("invalid signature");
-        }
-        let proof: ConsumptionProof;
-        try {
-            proof = deserializeProof(payload.proof);
-        } catch {
-            throw new Error("invalid payload");
-        }
+        submission = parseSubmission(job);
         hash = (await deps.wallet.writeContract({
             address: deps.addresses.consumptionLog,
             abi: abis.consumptionLog,
             functionName: "recordConsumption",
-            args: [proof, payload.cafeSignature, payload.userSignature],
+            args: [
+                submission.proof,
+                submission.cafeSignature,
+                submission.userSignature,
+            ],
             account: deps.submitter,
         } as never)) as Hex;
     } catch (error) {
@@ -186,7 +233,11 @@ async function submitJob(deps: RelayerDeps, job: Job) {
         if (receipt.status === "success") {
             await confirm(deps, job);
         } else {
-            await handleFailure(deps, job, new Error("transaction reverted"));
+            await handleFailure(
+                deps,
+                job,
+                await replaySubmissionError(deps, submission),
+            );
         }
     } catch (error) {
         await handleFailure(deps, job, error);
@@ -226,11 +277,15 @@ export async function recoverStuckJobs(
             if (receipt.status === "success") {
                 await confirm(deps, job);
             } else {
-                await handleFailure(
-                    deps,
-                    job,
-                    new Error("transaction reverted"),
-                );
+                try {
+                    await handleFailure(
+                        deps,
+                        job,
+                        await replaySubmissionError(deps, parseSubmission(job)),
+                    );
+                } catch (error) {
+                    await handleFailure(deps, job, error);
+                }
             }
         } catch {
             // A missing receipt is not evidence of success. Requeue safely and
