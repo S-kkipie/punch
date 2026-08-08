@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth, useSignOut } from "@better-auth-ui/react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { Spinner } from "@/frontend/components/ui/spinner";
 import { cn } from "@/frontend/lib/utils";
@@ -17,19 +18,23 @@ export type SignOutProps = {
  */
 export function SignOut({ className }: SignOutProps) {
     const { authClient, basePaths, navigate, viewPaths } = useAuth();
+    const queryClient = useQueryClient();
 
     const { mutate: signOut } = useSignOut(authClient, {
         onError: () => {
+            queryClient.clear();
             navigate({
                 to: `${basePaths.auth}/${viewPaths.auth.signIn}`,
                 replace: true,
             });
         },
-        onSuccess: () =>
+        onSuccess: () => {
+            queryClient.clear();
             navigate({
                 to: `${basePaths.auth}/${viewPaths.auth.signIn}`,
                 replace: true,
-            }),
+            });
+        },
     });
 
     const hasSignedOut = useRef(false);

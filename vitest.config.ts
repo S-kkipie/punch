@@ -21,6 +21,8 @@ export default defineConfig({
             DATABASE_URL: "postgres://user:pass@localhost:5432/app",
             BETTER_AUTH_SECRET: "test-secret-least-thirty-two-chars-long",
             NEXT_PUBLIC_APP_URL: "http://localhost:3000",
+            WALLET_MASTER_MNEMONIC:
+                "test test test test test test test test test test test junk",
         },
     },
 });

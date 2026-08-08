@@ -15,6 +15,7 @@
         "contracts:test": "pnpm --dir packages/contracts test",
         "db:generate": "drizzle-kit generate",
         "db:migrate": "tsx --env-file=.env scripts/migrate.ts",
+        "db:seed": "tsx --env-file=.env --conditions react-server scripts/seed.ts",
         "db:studio": "drizzle-kit studio"
     },
     "dependencies": {
@@ -32,6 +33,7 @@
         "@elysiajs/server-timing": "^1.4.1",
         "@logtape/elysia": "^2.2.1",
         "@logtape/logtape": "^2.2.1",
+        "@scure/bip39": "^2.2.0",
         "@t3-oss/env-nextjs": "^0.13.11",
         "@tanstack/react-form": "^1.33.1",
         "@tanstack/react-pacer": "^0.22.1",
@@ -57,6 +59,7 @@
         "react": "19.2.4",
         "react-day-picker": "^10.0.1",
         "react-dom": "19.2.4",
+        "server-only": "^0.0.1",
         "sonner": "^2.0.7",
         "tailwind-merge": "^3.6.0",
         "vaul": "^1.1.2",

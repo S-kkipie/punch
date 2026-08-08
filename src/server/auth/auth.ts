@@ -5,6 +5,7 @@ import { openAPI } from "better-auth/plugins";
 import { headers } from "next/headers";
 import { cache } from "react";
 import { ServerConfig } from "@/config/server-config";
+import { assignWallet } from "@/core/chain/server/wallet/assign-wallet";
 import { db } from "@/server/drizzle/db";
 import * as authSchema from "@/server/drizzle/schemas/auth-schema";
 
@@ -23,6 +24,35 @@ export const auth = betterAuth({
     plugins: [
         openAPI({ disableDefaultReference: !ServerConfig.isDevelopment }),
     ],
+    user: {
+        additionalFields: {
+            isOps: { type: "boolean", defaultValue: false, input: false },
+        },
+    },
+    databaseHooks: {
+        user: {
+            create: {
+                after: async (createdUser) => {
+                    // Deliberate: signup never fails on wallet hiccups. assignWallet is
+                    // idempotent — any flow that needs the wallet (signing, emission) must
+                    // call assignWallet(userId) as lazy backfill before deriveUserAccount.
+                    try {
+                        await assignWallet(createdUser.id);
+                    } catch (e) {
+                        // Signup must not fail if wallet assignment hiccups;
+                        // assignWallet is idempotent and re-runnable (seed/backfill).
+                        logger.error(
+                            "wallet assignment failed for {userId}: {error}",
+                            {
+                                userId: createdUser.id,
+                                error: e,
+                            },
+                        );
+                    }
+                },
+            },
+        },
+    },
     database: drizzleAdapter(db, { provider: "pg", schema: authSchema }),
 });
 
