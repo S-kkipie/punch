@@ -1,0 +1,19 @@
+{
+    "scanned": "2026-08-06",
+    "framework": "Next.js 16.2.6 (app router)",
+    "palette": "shadcn neutral OKLCH tokens in src/app/globals.css (:root + .dark), zero chroma",
+    "fonts": "none detected before this run — no next/font, no @fontsource, no Google Fonts link",
+    "motion": "motion ^12.42.2 installed (package.json) — motion-on project",
+    "spacing": "Tailwind v4 defaults (4pt), no tailwind.config",
+    "tokens": "Tailwind v4 @theme inline in src/app/globals.css",
+    "preserved": [
+        "Tailwind v4 @theme inline block",
+        "shadcn token names (--background, --foreground, …)",
+        "src/app/globals.css untouched"
+    ],
+    "introduced": [
+        "font stack via next/font (Fraunces, IBM Plex Sans, JetBrains Mono)",
+        "tokens.css at project root (portable Hallmark tokens)",
+        "landing CSS scoped under .pnch"
+    ]
+}
