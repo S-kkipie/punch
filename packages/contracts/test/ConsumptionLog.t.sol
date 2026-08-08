@@ -5,7 +5,16 @@ import {Test} from "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ConsumptionLog, ZeroAddress, InvalidLimit} from "../src/ConsumptionLog.sol";
+import {
+    ConsumptionLog,
+    ZeroAddress,
+    InvalidLimit,
+    InvalidUser,
+    ProofExpired,
+    ExpiryTooFar,
+    TicketTooSmall,
+    ProductNotEligible
+} from "../src/ConsumptionLog.sol";
 import {PlanManager} from "../src/PlanManager.sol";
 import {CafeRegistry} from "../src/CafeRegistry.sol";
 import {MockPEN} from "../src/MockPEN.sol";
@@ -198,5 +207,72 @@ contract ConsumptionLogTest is Test {
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
         vm.prank(stranger);
         consumptionLog.pause();
+    }
+
+    function test_recordConsumption_pausedReverts() public {
+        consumptionLog.pause();
+        IConsumptionLog.ConsumptionProof memory proof = _proof(1);
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        consumptionLog.recordConsumption(proof, "", "");
+    }
+
+    function test_recordConsumption_zeroUserReverts() public {
+        IConsumptionLog.ConsumptionProof memory proof = _proof(1);
+        proof.user = address(0);
+        vm.expectRevert(InvalidUser.selector);
+        consumptionLog.recordConsumption(proof, "", "");
+    }
+
+    function test_recordConsumption_expiredReverts() public {
+        IConsumptionLog.ConsumptionProof memory proof = _proof(1);
+        vm.warp(proof.expiry + 1);
+        vm.expectRevert(abi.encodeWithSelector(ProofExpired.selector, proof.expiry));
+        consumptionLog.recordConsumption(proof, "", "");
+    }
+
+    function test_recordConsumption_expiryTooFarReverts() public {
+        IConsumptionLog.ConsumptionProof memory proof = _proof(1);
+        proof.expiry = block.timestamp + 16 minutes;
+        vm.expectRevert(abi.encodeWithSelector(ExpiryTooFar.selector, proof.expiry));
+        consumptionLog.recordConsumption(proof, "", "");
+    }
+
+    function test_recordConsumption_ticketTooSmallReverts() public {
+        IConsumptionLog.ConsumptionProof memory proof = _proof(1);
+        proof.amount = 8e6 - 1;
+        vm.expectRevert(abi.encodeWithSelector(TicketTooSmall.selector, proof.amount));
+        consumptionLog.recordConsumption(proof, "", "");
+    }
+
+    function test_recordConsumption_productNotEligibleReverts() public {
+        IConsumptionLog.ConsumptionProof memory proof = _proof(1);
+        proof.productId = 99;
+        vm.expectRevert(abi.encodeWithSelector(ProductNotEligible.selector, cafeId, uint256(99)));
+        consumptionLog.recordConsumption(proof, "", "");
+    }
+
+    function test_recordConsumption_rewardProductNotEligibleForEmission() public {
+        vm.prank(cafeOwner);
+        registry.setEligibleProduct(cafeId, 42, ICafeRegistry.ProductKind.Reward, true);
+        IConsumptionLog.ConsumptionProof memory proof = _proof(1);
+        proof.productId = 42;
+        vm.expectRevert(abi.encodeWithSelector(ProductNotEligible.selector, cafeId, uint256(42)));
+        consumptionLog.recordConsumption(proof, "", "");
+    }
+
+    function testFuzz_recordConsumption_amountBelowFloorAlwaysReverts(uint256 amount) public {
+        amount = bound(amount, 0, 8e6 - 1);
+        IConsumptionLog.ConsumptionProof memory proof = _proof(1);
+        proof.amount = amount;
+        vm.expectRevert(abi.encodeWithSelector(TicketTooSmall.selector, amount));
+        consumptionLog.recordConsumption(proof, "", "");
+    }
+
+    function testFuzz_recordConsumption_expiryBeyondTtlAlwaysReverts(uint256 offset) public {
+        offset = bound(offset, 15 minutes + 1, 365 days);
+        IConsumptionLog.ConsumptionProof memory proof = _proof(1);
+        proof.expiry = block.timestamp + offset;
+        vm.expectRevert(abi.encodeWithSelector(ExpiryTooFar.selector, proof.expiry));
+        consumptionLog.recordConsumption(proof, "", "");
     }
 }

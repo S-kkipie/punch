@@ -11,6 +11,11 @@ import {IPunchVault} from "./interfaces/IPunchVault.sol";
 
 error ZeroAddress();
 error InvalidLimit();
+error InvalidUser();
+error ProofExpired(uint256 expiry);
+error ExpiryTooFar(uint256 expiry);
+error TicketTooSmall(uint256 amount);
+error ProductNotEligible(uint256 cafeId, uint256 productId);
 
 /// @notice Single entry point for PUNCH emission. Validates a consumption proof signed by
 /// both the café and the user, blocks replay, and orchestrates emission by calling
@@ -61,7 +66,21 @@ contract ConsumptionLog is IConsumptionLog, Ownable, Pausable, EIP712 {
         ConsumptionProof calldata proof,
         bytes calldata cafeSignature,
         bytes calldata userSignature
-    ) external {}
+    ) external whenNotPaused {
+        _validateProof(proof);
+    }
+
+    /// @dev Cheapest checks first, and all of them before any state write
+    /// (checks-effects-interactions, mother spec §20).
+    function _validateProof(ConsumptionProof calldata proof) private view {
+        if (proof.user == address(0)) revert InvalidUser();
+        if (block.timestamp > proof.expiry) revert ProofExpired(proof.expiry);
+        if (proof.expiry > block.timestamp + MAX_PROOF_TTL) revert ExpiryTooFar(proof.expiry);
+        if (proof.amount < minTicketAmount) revert TicketTooSmall(proof.amount);
+        if (!registry.isEligible(proof.cafeId, proof.productId, ICafeRegistry.ProductKind.Emission)) {
+            revert ProductNotEligible(proof.cafeId, proof.productId);
+        }
+    }
 
     /// @notice EIP-712 digest of a proof. Backend and tests sign against this rather than
     /// re-deriving the typehash, so there is one source of truth for the payload.
