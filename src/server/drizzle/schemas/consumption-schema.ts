@@ -96,6 +96,7 @@ export const consumerTransaction = pgTable(
             .default("pending")
             .notNull(),
         rejectionReason: text("rejection_reason"),
+        modeledHostPayoutCentimos: integer("modeled_host_payout_centimos"),
         idempotencyKey: text("idempotency_key").notNull(),
         createdAt: timestamp("created_at").defaultNow().notNull(),
         updatedAt: timestamp("updated_at")
@@ -117,6 +118,10 @@ export const consumerTransaction = pgTable(
         check(
             "consumer_transaction_operation_shape",
             sql`(${table.operation} = 'emission' AND ${table.proofId} IS NOT NULL AND ${table.redemptionRequestId} IS NULL) OR (${table.operation} IN ('punch_redemption', 'voucher_redemption') AND ${table.proofId} IS NULL AND ${table.redemptionRequestId} IS NOT NULL)`,
+        ),
+        check(
+            "consumer_transaction_modeled_host_payout_shape",
+            sql`(${table.operation} = 'punch_redemption' AND ((${table.status} = 'confirmed' AND coalesce(${table.modeledHostPayoutCentimos} = 360, false)) OR (${table.status} IN ('pending', 'rejected', 'failed') AND ${table.modeledHostPayoutCentimos} IS NULL))) OR (${table.operation} IN ('emission', 'voucher_redemption') AND ${table.modeledHostPayoutCentimos} IS NULL)`,
         ),
     ],
 );
