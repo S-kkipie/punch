@@ -1,6 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { useMyCafes } from "@/core/cafe/client/hooks";
 import { useDashboard } from "@/core/punch/client/hooks";
 import { PunchMeter } from "@/core/punch/client/ui/punch-meter";
 import type { Dashboard } from "@/core/punch/domain/types";
@@ -8,9 +11,28 @@ import { Button } from "@/frontend/components/ui/button";
 import { Spinner } from "@/frontend/components/ui/spinner";
 
 export default function HomePage() {
+    const router = useRouter();
     const dashboardQuery = useDashboard();
+    const myCafesQuery = useMyCafes();
+    const myCafes = myCafesQuery.data as
+        | Array<{
+              id: string;
+              onboardingStatus: string;
+          }>
+        | undefined;
 
-    if (dashboardQuery.isPending) {
+    const workspaceCafe = myCafes?.[0];
+    const workspacePath = workspaceCafe
+        ? workspaceCafe.onboardingStatus === "approved"
+            ? `/cafe/${workspaceCafe.id}/terminal`
+            : `/cafe/${workspaceCafe.id}`
+        : null;
+
+    useEffect(() => {
+        if (workspacePath) router.replace(workspacePath);
+    }, [router, workspacePath]);
+
+    if (myCafesQuery.isPending || workspacePath) {
         return (
             <div className="flex min-h-64 items-center justify-center">
                 <span className="sr-only">Cargando</span>
