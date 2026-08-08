@@ -1,3 +1,5 @@
+import "server-only";
+
 import { createPublicClient, createWalletClient, http } from "viem";
 import { arbitrumSepolia, foundry } from "viem/chains";
 import { env } from "@/config/env";

@@ -1,3 +1,5 @@
+import "server-only";
+
 import type { Address } from "viem";
 import { env } from "@/config/env";
 import localAddresses from "./addresses.local.json";
