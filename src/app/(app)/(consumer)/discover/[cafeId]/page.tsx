@@ -13,6 +13,66 @@ import {
 } from "@/frontend/components/ui/card";
 import { Spinner } from "@/frontend/components/ui/spinner";
 
+function ProductSection({
+    title,
+    products,
+    emptyMessage,
+    caption,
+    linkToRedeem = false,
+    cafeId,
+}: {
+    title: string;
+    products: Product[];
+    emptyMessage: string;
+    caption: string;
+    linkToRedeem?: boolean;
+    cafeId?: string;
+}) {
+    return (
+        <section className="space-y-4">
+            <h2 className="font-semibold text-xl">{title}</h2>
+            {products.length === 0 ? (
+                <p className="text-muted-foreground text-sm">{emptyMessage}</p>
+            ) : (
+                <div className="grid gap-4 sm:grid-cols-2">
+                    {products.map((product) => {
+                        const card = (
+                            <Card key={product.id}>
+                                <CardHeader>
+                                    <CardTitle>{product.name}</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-2">
+                                    {product.description && (
+                                        <p className="text-muted-foreground text-sm">
+                                            {product.description}
+                                        </p>
+                                    )}
+                                    <p className="font-medium">
+                                        S/ {product.priceSoles}
+                                    </p>
+                                    <p className="text-muted-foreground text-sm">
+                                        {caption}
+                                    </p>
+                                </CardContent>
+                            </Card>
+                        );
+                        return linkToRedeem && cafeId ? (
+                            <Link
+                                key={product.id}
+                                href={`/redeem/${product.id}?cafeId=${cafeId}`}
+                            >
+                                {card}
+                            </Link>
+                        ) : (
+                            <div key={product.id}>{card}</div>
+                        );
+                    })}
+                </div>
+            )}
+        </section>
+    );
+}
+
 export default function DiscoverCafePage() {
     const { cafeId } = useParams<{ cafeId: string }>();
     const cafeQuery = useCafe(cafeId);
@@ -68,41 +128,24 @@ export default function DiscoverCafePage() {
                     )}
                 </CardContent>
             </Card>
-            <section className="space-y-4">
-                <h2 className="font-semibold text-xl">Productos aprobados</h2>
-                {products.length === 0 ? (
-                    <Card>
-                        <CardContent className="p-6 text-muted-foreground">
-                            Este café todavía no tiene productos publicados.
-                        </CardContent>
-                    </Card>
-                ) : (
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        {products.map((product) => (
-                            <Card key={product.id}>
-                                <CardHeader>
-                                    <CardTitle>{product.name}</CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-2">
-                                    {product.description && (
-                                        <p className="text-muted-foreground text-sm">
-                                            {product.description}
-                                        </p>
-                                    )}
-                                    <p className="font-medium">
-                                        S/ {product.priceSoles}
-                                    </p>
-                                    <p className="text-muted-foreground text-sm">
-                                        {product.type === "reward"
-                                            ? "Recompensa"
-                                            : "Emisión"}
-                                    </p>
-                                </CardContent>
-                            </Card>
-                        ))}
-                    </div>
+            <ProductSection
+                title="Productos que dan PUNCH"
+                products={products.filter(
+                    (product) => product.type === "emission",
                 )}
-            </section>
+                emptyMessage="Sin productos de emisión por ahora."
+                caption="Emite 1 PUNCH"
+            />
+            <ProductSection
+                title="Recompensas (12 PUNCH)"
+                products={products.filter(
+                    (product) => product.type === "reward",
+                )}
+                emptyMessage="Sin recompensas publicadas por ahora."
+                caption="Costo fijo: 12 PUNCH"
+                linkToRedeem
+                cafeId={cafe.id}
+            />
         </div>
     );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
 import {
@@ -117,7 +118,31 @@ export default function CafePanelPage() {
                     <h1 className="font-semibold text-2xl">{cafe.name}</h1>
                     <p className="text-muted-foreground">Panel del café</p>
                 </div>
-                <StatusBadge status={cafe.onboardingStatus} />
+                <div className="flex flex-wrap items-center gap-2">
+                    <StatusBadge status={cafe.onboardingStatus} />
+                    {cafe.onboardingStatus === "approved" && (
+                        <>
+                            <Button
+                                asChild
+                                className="min-h-11"
+                                variant="outline"
+                            >
+                                <Link href={`/cafe/${cafeId}/terminal`}>
+                                    Terminal de compras
+                                </Link>
+                            </Button>
+                            <Button
+                                asChild
+                                className="min-h-11"
+                                variant="outline"
+                            >
+                                <Link href={`/cafe/${cafeId}/redemptions`}>
+                                    Bandeja de canjes
+                                </Link>
+                            </Button>
+                        </>
+                    )}
+                </div>
             </div>
             {cafe.onboardingStatus === "rejected" && cafe.reviewNote && (
                 <p className="rounded-md border border-red-200 bg-red-50 p-3 text-red-800 text-sm">
