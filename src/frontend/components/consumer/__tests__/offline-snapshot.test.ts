@@ -42,4 +42,29 @@ describe("offline snapshots", () => {
         expect(storage.getItem("unrelated")).toBe("keep");
         expect(readPunchSnapshot(storage, "user-a", "dashboard")).toBeNull();
     });
+    it("does not throw for quota, security, malformed, or removal failures", () => {
+        const storage = memoryStorage();
+        storage.setItem("punch:snapshot:user-a:bad", "{");
+        expect(() => readPunchSnapshot(storage, "user-a", "bad")).not.toThrow();
+        const throwing = {
+            ...storage,
+            getItem: () => {
+                throw new Error("blocked");
+            },
+            setItem: () => {
+                throw new Error("quota");
+            },
+            removeItem: () => {
+                throw new Error("blocked");
+            },
+            key: () => {
+                throw new Error("blocked");
+            },
+        } as Storage;
+        expect(() =>
+            writePunchSnapshot(throwing, "u", "home", {}),
+        ).not.toThrow();
+        expect(() => readPunchSnapshot(throwing, "u", "home")).not.toThrow();
+        expect(() => clearPunchSnapshots(throwing)).not.toThrow();
+    });
 });

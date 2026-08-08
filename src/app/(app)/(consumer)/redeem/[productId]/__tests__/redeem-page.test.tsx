@@ -8,11 +8,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
     globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
-const { punchMutate, voucherMutate, useSearchParams } = vi.hoisted(() => ({
-    punchMutate: vi.fn(),
-    voucherMutate: vi.fn(),
-    useSearchParams: vi.fn(),
-}));
+const { punchMutate, voucherMutate, useSearchParams, voucherStatus } =
+    vi.hoisted(() => ({
+        punchMutate: vi.fn(),
+        voucherMutate: vi.fn(),
+        useSearchParams: vi.fn(),
+        voucherStatus: { value: "redeemed" as string },
+    }));
 vi.mock("next/navigation", () => ({
     useParams: () => ({ productId: "product-1" }),
     useSearchParams,
@@ -31,7 +33,7 @@ vi.mock("@/core/punch/client/hooks", () => ({
             {
                 id: "voucher-1",
                 source: "campaign",
-                status: "redeemed",
+                status: voucherStatus.value,
                 cafeId: "cafe-1",
             },
         ],
@@ -78,6 +80,7 @@ describe("RedeemPage voucher safety", () => {
     });
     afterEach(() => {
         document.body.innerHTML = "";
+        voucherStatus.value = "redeemed";
         vi.clearAllMocks();
     });
 
@@ -91,6 +94,22 @@ describe("RedeemPage voucher safety", () => {
         expect(container.textContent).not.toContain("Necesitas 12 PUNCH");
         await act(async () => container.querySelector("button")?.click());
         expect(punchMutate).not.toHaveBeenCalled();
+        expect(voucherMutate).not.toHaveBeenCalled();
+        await act(async () => root.unmount());
+    });
+
+    it("disables a valid voucher and avoids mutation after going offline", async () => {
+        voucherStatus.value = "available";
+        const container = document.createElement("div");
+        document.body.append(container);
+        const root = createRoot(container);
+        await act(async () => root.render(<RedeemPage />));
+        await act(async () => window.dispatchEvent(new Event("offline")));
+        expect(container.textContent).toContain("Vuelve a conectarte");
+        expect(
+            (container.querySelector("button") as HTMLButtonElement).disabled,
+        ).toBe(true);
+        await act(async () => container.querySelector("button")?.click());
         expect(voucherMutate).not.toHaveBeenCalled();
         await act(async () => root.unmount());
     });
