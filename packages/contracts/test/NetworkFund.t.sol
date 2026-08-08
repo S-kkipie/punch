@@ -531,4 +531,29 @@ contract NetworkFundTest is Test {
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
         fund.withdrawBucket(EPOCH, NetworkFund.Bucket.Acquisition, stranger, 1e6);
     }
+
+    function testFuzz_prorate_neverExceedsPool(uint96 amount, uint8 refsA, uint8 refsB) public {
+        amount = uint96(bound(amount, 1e6, 1_000e6));
+        refsA = uint8(bound(refsA, 1, 20));
+        refsB = uint8(bound(refsB, 1, 20));
+
+        _seed(amount);
+        fund.fundEpoch(EPOCH, amount);
+        for (uint256 i = 0; i < refsA; i++) {
+            _record(cafeA, keccak256(abi.encode("a", i)));
+        }
+        for (uint256 i = 0; i < refsB; i++) {
+            _record(cafeB, keccak256(abi.encode("b", i)));
+        }
+        fund.finalizeOriginEpoch(EPOCH);
+
+        uint256 originPool = fund.getEpoch(EPOCH).originPool;
+        uint256 paid = fund.pendingOriginCredit(EPOCH, cafeA) + fund.pendingOriginCredit(EPOCH, cafeB);
+        assertLe(paid, originPool);
+
+        fund.claimOriginCredit(EPOCH, cafeA);
+        fund.claimOriginCredit(EPOCH, cafeB);
+        assertEq(pen.balanceOf(cafeOwnerA) + pen.balanceOf(cafeOwnerB), paid);
+        assertLe(fund.getEpoch(EPOCH).originPaid, originPool);
+    }
 }
