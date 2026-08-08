@@ -1,6 +1,9 @@
 import "server-only";
-import type { Cafe, CafeAdmin } from "@/core/cafe/domain/types";
-import type { CafeRow } from "@/server/drizzle/schemas/cafe-schema";
+import type { Cafe, CafeAdmin, Product } from "@/core/cafe/domain/types";
+import type {
+    CafeProductRow,
+    CafeRow,
+} from "@/server/drizzle/schemas/cafe-schema";
 
 export function toCafeAdmin(row: CafeRow): CafeAdmin {
     return {
@@ -21,7 +24,6 @@ export function toCafeAdmin(row: CafeRow): CafeAdmin {
         updatedAt: row.updatedAt.toISOString(),
     };
 }
-
 export function toCafe(row: CafeRow): Cafe {
     const {
         ruc: _ruc,
@@ -31,7 +33,22 @@ export function toCafe(row: CafeRow): Cafe {
     } = toCafeAdmin(row);
     return rest;
 }
-
+export function toProduct(row: CafeProductRow): Product {
+    return {
+        id: row.id,
+        cafeId: row.cafeId,
+        name: row.name,
+        description: row.description,
+        priceSoles: row.priceSoles,
+        cogsSoles: row.cogsSoles,
+        type: row.type,
+        approvalStatus: row.approvalStatus,
+        reviewNote: row.reviewNote,
+        active: row.active,
+        createdAt: row.createdAt.toISOString(),
+        updatedAt: row.updatedAt.toISOString(),
+    };
+}
 export function slugify(name: string): string {
     return name
         .normalize("NFD")
