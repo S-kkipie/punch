@@ -105,13 +105,18 @@ export const transactionPollingInterval = (query: {
     const status = data?.response?.status ?? data?.status;
     return status === "pending" ? 2000 : false;
 };
-export const useTransactionStatus = (transactionId: string | undefined) => {
+export const useTransactionStatus = (
+    transactionId: string | undefined,
+    cafeId?: string,
+) => {
     const client = useElysia().consumption;
     return useQuery({
         ...(client
             .transactions({ transactionId: transactionId ?? "" })
-            .get.queryOptions() as unknown as Record<string, unknown>),
-        queryKey: consumptionTransactionQueryKey(transactionId),
+            .get.queryOptions({
+                query: cafeId ? { cafeId } : undefined,
+            }) as unknown as Record<string, unknown>),
+        queryKey: [...consumptionTransactionQueryKey(transactionId), cafeId],
         select: unwrap,
         enabled: Boolean(transactionId),
         refetchInterval: transactionPollingInterval,

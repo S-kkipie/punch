@@ -9,10 +9,11 @@ import { getTransactionStatusService } from "../../services/get-transaction-stat
 
 export const getTransactionRoute = new Elysia().use(authed).get(
     "/transactions/:transactionId",
-    async ({ user, params, status }) => {
+    async ({ user, params, query, status }) => {
         const result = await getTransactionStatusService(
             user.id,
             params.transactionId,
+            query.cafeId,
         );
         if (!result.ok) {
             return status(
@@ -28,6 +29,7 @@ export const getTransactionRoute = new Elysia().use(authed).get(
     {
         authed: true,
         params: t.Object({ transactionId: t.String() }),
+        query: t.Object({ cafeId: t.Optional(t.String()) }),
         response: {
             200: t.Object({
                 status: t.Literal(200),

@@ -1,4 +1,5 @@
 import "server-only";
+import { requireCafeRole } from "@/server/auth/membership/require-cafe-role";
 import {
     AppErrors,
     type AsyncAppResult,
@@ -8,17 +9,35 @@ import {
 import type { ChainTransactionStatus } from "../chain-port";
 import { ConsumerChainError } from "../chain-port";
 import { PostgresMockConsumerChain } from "../postgres-mock-chain";
-import { findTransactionByIdForConsumer } from "../repository/transactions";
+import {
+    findTransactionById,
+    findTransactionByIdForConsumer,
+} from "../repository/transactions";
 
 export async function getTransactionStatusService(
-    consumerUserId: string,
+    requestingUserId: string,
     transactionId: string,
+    cafeId?: string,
 ): AsyncAppResult<ChainTransactionStatus> {
     const owned = await findTransactionByIdForConsumer(
         transactionId,
-        consumerUserId,
+        requestingUserId,
     );
-    if (!owned) {
+    let authorized = Boolean(owned);
+    if (!authorized && cafeId) {
+        const transaction = await findTransactionById(transactionId);
+        const isRedemption =
+            transaction?.operation === "punch_redemption" ||
+            transaction?.operation === "voucher_redemption";
+        if (transaction && isRedemption && transaction.cafeId === cafeId) {
+            const membership = await requireCafeRole(requestingUserId, cafeId, [
+                "owner",
+                "barista",
+            ]);
+            authorized = membership.ok;
+        }
+    }
+    if (!authorized) {
         return err(AppErrors.notFound({ targets: ["transactionId"] }));
     }
     try {
