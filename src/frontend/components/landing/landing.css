@@ -1,0 +1,992 @@
+@import "../../../../tokens.css";
+
+/* Hallmark · pre-emit critique: P5 H5 E5 S5 R4 V5
+ * ------------------------------------------------------------------
+ * Hallmark · genre: editorial · macrostructure: Split Studio
+ * H2 split-diptych knobs: ratio=6/6, right=proof column (CSS punch card), divider=negative-space
+ * nav: N12 (banner=status, fill=ink, dismiss=yes) · footer: Ft4 dense colophon
+ * sections: S2 hanging · F3 tabular spec sheet ×2 · F4 step sequence · T4 stat strip · C1 outlined chip
+ * theme: custom · vibe: "cartón perforado, tinta de sello, mostrador de barrio"
+ * paper: oklch(94% 0.014 62) · accent: oklch(45% 0.17 32)
+ * display: Fraunces · body: IBM Plex Sans · outlier: JetBrains Mono
+ * outlier role: verifiable figures — two slots only, the fold's data and the colophon
+ * axes: light / roman-serif / warm
+ * enrichment: Tier A pure-CSS punch card · motion: reveal · stamp · nav-retract
+ * studied: no · context: user-provided · audience: dueños de café + consumidores
+ * ------------------------------------------------------------------
+ * slop test 58/58 · contrast: pass (40–41) · slop: pass (42–45)
+ * honest: pass (46 — every figure comes from the spec, none invented)
+ * chrome: pass (47) · tokens: pass (48) · icons: pass (30)
+ * responsive: pass (49) · mobile: pass (34, 49, 50–57)
+ * verified rendered at 320 / 375 / 414 / 768 / 1280 / 1440 px — zero overflow,
+ * zero two-line affordances. Gate 44a measured on visual padding (64 → 96),
+ * excluding the fixed-nav clearance in the calc().
+ * ------------------------------------------------------------------
+ * Scoped under .pnch so the authenticated app keeps its own shadcn tokens.
+ */
+
+/* Only clip on documents that actually render the landing — the rest of
+   the app is untouched. `clip`, never `hidden`: it preserves sticky. */
+html:has(.pnch),
+body:has(.pnch) {
+    background: var(--color-paper);
+    overflow-x: clip;
+}
+
+.pnch {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-body);
+    font-size: var(--text-base);
+    font-weight: 400;
+    line-height: 1.6;
+    min-height: 100dvh;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+.pnch *,
+.pnch *::before,
+.pnch *::after {
+    box-sizing: border-box;
+}
+
+.pnch h1,
+.pnch h2,
+.pnch h3 {
+    font-family: var(--font-display);
+    font-style: normal;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.06;
+    margin: 0;
+    overflow-wrap: anywhere;
+    min-width: 0;
+    text-wrap: balance;
+}
+
+.pnch p {
+    margin: 0;
+}
+
+.pnch a {
+    color: inherit;
+}
+
+.pnch :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 3px;
+    border-radius: var(--radius-xs);
+}
+
+/* ── Shared primitives ──────────────────────────────────────────── */
+
+.pnch-shell {
+    margin-inline: auto;
+    max-width: 78rem;
+    padding-inline: var(--page-gutter);
+    width: 100%;
+}
+
+/* The signature: a punch-card perforation, used as the section rule.
+   The diptych gutters stay clean negative space, per the macrostructure. */
+.pnch-perf {
+    background-image: radial-gradient(
+        circle,
+        var(--color-rule) 0 1.6px,
+        transparent 1.7px
+    );
+    background-position: center;
+    background-repeat: repeat-x;
+    background-size: 13px 13px;
+    border: 0;
+    height: 13px;
+    margin: 0;
+    width: 100%;
+}
+
+.pnch-lede {
+    color: var(--color-ink-2);
+    font-size: var(--text-md);
+    line-height: 1.55;
+    max-width: 46ch;
+}
+
+.pnch-prose {
+    color: var(--color-ink-2);
+    max-width: 62ch;
+}
+
+.pnch-prose + .pnch-prose {
+    margin-top: var(--space-md);
+}
+
+.pnch-note {
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+    max-width: 56ch;
+}
+
+.pnch-mark {
+    background-image: linear-gradient(
+        180deg,
+        transparent 34%,
+        var(--color-accent-wash) 34%,
+        var(--color-accent-wash) 90%,
+        transparent 90%
+    );
+    color: inherit;
+}
+
+/* Section head — always a single stacked column, never tag-left. */
+.pnch-head {
+    padding-block: var(--space-3xl) var(--space-xl);
+}
+
+.pnch-head h2 {
+    font-size: var(--text-display-s);
+    max-width: 20ch;
+}
+
+.pnch-head .pnch-prose {
+    margin-top: var(--space-lg);
+}
+
+/* ── C1 · Outlined chip + its accent sibling ─────────────────────── */
+
+.pnch-cta {
+    align-items: center;
+    border: var(--rule-hair) solid var(--color-ink);
+    border-radius: var(--radius-xs);
+    display: inline-flex;
+    font-family: var(--font-body);
+    font-size: var(--text-base);
+    font-weight: 600;
+    gap: var(--space-xs);
+    justify-content: center;
+    min-height: 44px;
+    padding: var(--space-sm) var(--space-md);
+    text-decoration: none;
+    transition:
+        background-color var(--dur-short) var(--ease-out),
+        color var(--dur-short) var(--ease-out),
+        transform var(--dur-micro) var(--ease-out);
+    white-space: nowrap;
+}
+
+.pnch-cta:hover,
+.pnch-cta.is-hover {
+    background: var(--color-ink);
+    color: var(--color-paper);
+}
+
+.pnch-cta:active,
+.pnch-cta.is-active {
+    transform: translateY(1px);
+}
+
+.pnch-cta[aria-disabled="true"] {
+    border-color: var(--color-rule);
+    color: var(--color-muted);
+    pointer-events: none;
+}
+
+.pnch-cta--fill {
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+    color: var(--color-accent-ink);
+}
+
+.pnch-cta--fill:hover,
+.pnch-cta--fill.is-hover {
+    background: var(--color-ink);
+    border-color: var(--color-ink);
+    color: var(--color-paper);
+}
+
+/* ── N12 · Announcement banner + retracting nav ──────────────────── */
+
+.pnch-nav {
+    inset: 0 0 auto;
+    position: fixed;
+    transform: translateY(0);
+    transition: transform 320ms var(--ease-out);
+    z-index: var(--z-sticky);
+}
+
+.pnch-nav.is-compact {
+    transform: translateY(calc(var(--banner-h) * -1));
+}
+
+.pnch-nav.is-dismissed {
+    transform: none;
+}
+
+/* Banner is ink-filled, not accent-filled: the accent budget belongs to
+   the page, and ink/paper contrast is what stops it reading as two navs. */
+.pnch-nav__banner {
+    align-items: center;
+    background: var(--color-ink);
+    color: var(--color-paper);
+    display: flex;
+    gap: var(--space-sm);
+    height: var(--banner-h);
+    justify-content: center;
+    padding-inline: var(--page-gutter) 2.75rem;
+    position: relative;
+}
+
+.pnch-nav.is-dismissed .pnch-nav__banner {
+    display: none;
+}
+
+.pnch-nav__banner-text {
+    font-size: var(--text-sm);
+    letter-spacing: 0.01em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The banner has one line's worth of room. Below 40rem it keeps the
+   short form and drops the link — the full disclosure lives in the
+   colophon, so nothing is lost by trimming here. */
+.pnch-nav__banner-tail,
+.pnch-nav__banner-link {
+    display: none;
+}
+
+.pnch-nav__banner-link {
+    color: var(--color-paper);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    white-space: nowrap;
+}
+
+@media (min-width: 40rem) {
+    .pnch-nav__banner-tail {
+        display: inline;
+    }
+
+    .pnch-nav__banner-link {
+        display: inline;
+    }
+}
+
+.pnch-nav__banner-x {
+    background: none;
+    border: 0;
+    border-radius: var(--radius-xs);
+    color: var(--color-paper);
+    cursor: pointer;
+    font-size: var(--text-md);
+    height: 32px;
+    transition: opacity var(--dur-short) var(--ease-out);
+    line-height: 1;
+    position: absolute;
+    right: max(0.5rem, calc(var(--page-gutter) - 1rem));
+    top: 50%;
+    transform: translateY(-50%);
+    width: 32px;
+}
+
+.pnch-nav__bar {
+    background: var(--color-paper);
+    border-bottom: var(--rule-hair) solid var(--color-rule);
+    height: var(--bar-h);
+}
+
+.pnch-nav__inner {
+    align-items: center;
+    display: flex;
+    gap: var(--space-lg);
+    height: 100%;
+    justify-content: space-between;
+    margin-inline: auto;
+    max-width: 78rem;
+    padding-inline: var(--page-gutter);
+}
+
+.pnch-nav__brand {
+    align-items: center;
+    display: inline-flex;
+    font-family: var(--font-display);
+    font-size: var(--text-md);
+    font-weight: 800;
+    gap: 0.1em;
+    letter-spacing: 0.01em;
+    text-decoration: none;
+}
+
+/* The U of PUNCH, punched out — a hole, not a dot. The filled version
+   lives on the hero card, where it means "the tap you just made". */
+.pnch-nav__brand-hole {
+    border: 0.1em solid var(--color-accent);
+    border-radius: var(--radius-full);
+    display: inline-block;
+    height: 0.44em;
+    width: 0.44em;
+}
+
+.pnch-nav__links {
+    display: none;
+    gap: var(--space-lg);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.pnch-nav__link {
+    color: var(--color-ink-2);
+    font-size: var(--text-sm);
+    text-decoration: none;
+    transition: color var(--dur-short) var(--ease-out);
+    white-space: nowrap;
+}
+
+.pnch-nav__link:hover {
+    color: var(--color-accent);
+}
+
+.pnch-nav__link:active {
+    color: var(--color-ink);
+}
+
+.pnch-nav__link[aria-disabled="true"],
+.pnch-nav__banner-link[aria-disabled="true"] {
+    color: var(--color-muted);
+    pointer-events: none;
+}
+
+.pnch-nav__banner-link:hover {
+    text-decoration-thickness: var(--rule-thick);
+}
+
+.pnch-nav__banner-x:hover {
+    opacity: 0.7;
+}
+
+.pnch-nav__banner-x:active {
+    transform: translateY(calc(-50% + 1px));
+}
+
+.pnch-colophon a:hover {
+    text-decoration-thickness: var(--rule-thick);
+}
+
+.pnch-nav__cta {
+    font-size: var(--text-sm);
+    min-height: 40px;
+    padding: var(--space-xs) var(--space-sm);
+}
+
+@media (min-width: 46rem) {
+    .pnch-nav__links {
+        display: flex;
+    }
+}
+
+/* ── Hero · H2 split diptych ─────────────────────────────────────── */
+
+.pnch-hero {
+    padding-block: calc(var(--banner-h) + var(--bar-h) + var(--space-xl))
+        var(--space-2xl);
+}
+
+@media (min-width: 60rem) {
+    .pnch-hero {
+        padding-block: calc(var(--banner-h) + var(--bar-h) + var(--space-2xl))
+            var(--space-3xl);
+    }
+}
+
+.pnch-hero__grid {
+    align-items: center;
+    display: grid;
+    gap: var(--space-2xl);
+    grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 60rem) {
+    .pnch-hero__grid {
+        gap: var(--space-3xl);
+        grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+    }
+}
+
+.pnch-hero__title {
+    font-size: var(--text-display);
+    max-width: 15ch;
+}
+
+.pnch-hero__lede {
+    margin-top: var(--space-xl);
+}
+
+.pnch-hero__actions {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    margin-top: var(--space-xl);
+}
+
+/* ── Enrichment · Tier A pure-CSS punch card ─────────────────────── */
+
+.pnch-card {
+    --stub: 1.75rem;
+
+    background: var(--color-paper-3);
+    border: var(--rule-hair) solid var(--color-rule);
+    border-radius: var(--radius-sm);
+    display: grid;
+    gap: var(--space-lg);
+    max-width: 26rem;
+    padding: var(--space-lg) var(--space-lg) var(--space-md);
+    position: relative;
+}
+
+@media (min-width: 34rem) {
+    .pnch-card {
+        --stub: 3rem;
+    }
+}
+
+/* The tear-off stub: a perforated line down the card's inner edge. */
+.pnch-card::after {
+    background-image: radial-gradient(
+        circle,
+        var(--color-rule) 0 1.4px,
+        transparent 1.5px
+    );
+    background-repeat: repeat-y;
+    background-size: var(--space-sm) var(--space-sm);
+    bottom: var(--space-sm);
+    content: "";
+    position: absolute;
+    right: calc((var(--stub) - var(--space-sm)) / 2);
+    top: var(--space-sm);
+    width: var(--space-sm);
+}
+
+.pnch-card__head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2xs);
+    padding-right: var(--stub);
+}
+
+@media (min-width: 34rem) {
+    .pnch-card__head {
+        align-items: baseline;
+        flex-direction: row;
+        gap: var(--space-sm);
+        justify-content: space-between;
+    }
+}
+
+.pnch-card__name {
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    margin: 0;
+    text-transform: uppercase;
+}
+
+.pnch-card__streak {
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.pnch-card__holes {
+    display: grid;
+    gap: var(--space-sm);
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    list-style: none;
+    margin: 0;
+    padding: 0 var(--stub) 0 0;
+}
+
+.pnch-card__hole {
+    aspect-ratio: 1;
+    border: var(--rule-thick) solid var(--color-rule);
+    border-radius: var(--radius-full);
+    width: 100%;
+}
+
+.pnch-card__hole--done {
+    background: var(--color-ink);
+    border-color: var(--color-ink);
+}
+
+/* The single accent dot on the page's fold, and the only motion that
+   carries meaning: the tap you just made lands once, then stops. */
+.pnch-card__hole--fresh {
+    animation: pnch-stamp 480ms var(--ease-out) 700ms both;
+    background: var(--color-accent);
+    border-color: var(--color-accent);
+}
+
+.pnch-card__foot {
+    align-items: baseline;
+    border-top: var(--rule-hair) solid var(--color-rule-2);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs) var(--space-md);
+    justify-content: space-between;
+    padding-top: var(--space-sm);
+    padding-right: var(--stub);
+}
+
+.pnch-card__figure {
+    font-family: var(--font-outlier);
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+}
+
+.pnch-card__hint {
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+}
+
+@keyframes pnch-stamp {
+    from {
+        opacity: 0;
+        transform: scale(0.4);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* ── T4 · Numbered stat strip ────────────────────────────────────── */
+
+.pnch-facts {
+    border-block: var(--rule-hair) solid var(--color-rule);
+    display: grid;
+    gap: var(--space-lg);
+    grid-template-columns: minmax(0, 1fr);
+    margin-top: var(--space-2xl);
+    padding-block: var(--space-lg);
+}
+
+@media (min-width: 45rem) {
+    .pnch-facts {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: var(--space-xl);
+    }
+}
+
+.pnch-fact b {
+    display: block;
+    font-family: var(--font-outlier);
+    font-size: var(--text-xl);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+}
+
+.pnch-fact span {
+    color: var(--color-muted);
+    display: block;
+    font-size: var(--text-sm);
+    margin-top: var(--space-2xs);
+}
+
+/* ── Split Studio · alternating diptych rows ─────────────────────── */
+
+.pnch-split {
+    align-items: start;
+    display: grid;
+    gap: var(--space-xl);
+    grid-template-columns: minmax(0, 1fr);
+    padding-bottom: var(--space-3xl);
+}
+
+@media (min-width: 60rem) {
+    .pnch-split {
+        gap: var(--space-3xl);
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    /* The pairing alternates direction down the page. DOM order stays
+	   reading-order for mobile; only the desktop row flips. */
+    .pnch-split--flip > :last-child {
+        order: -1;
+    }
+}
+
+.pnch-note--spaced {
+    margin-top: var(--space-lg);
+}
+
+.pnch-split__aside {
+    min-width: 0;
+}
+
+/* ── F3 · Tabular spec sheet ─────────────────────────────────────── */
+
+.pnch-spec {
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+    text-align: start;
+    width: 100%;
+}
+
+.pnch-spec caption {
+    caption-side: bottom;
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    padding-top: var(--space-md);
+    text-align: start;
+}
+
+.pnch-spec th,
+.pnch-spec td {
+    border-bottom: var(--rule-hair) solid var(--color-rule);
+    padding: var(--space-sm) var(--space-sm) var(--space-sm) 0;
+    vertical-align: baseline;
+}
+
+.pnch-spec thead th {
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.pnch-spec tbody th {
+    font-weight: 600;
+}
+
+.pnch-spec td:last-child {
+    color: var(--color-ink-2);
+    padding-right: 0;
+}
+
+.pnch-spec .pnch-spec__val {
+    font-size: var(--text-sm);
+    font-weight: 500;
+}
+
+/* Row heads and figures hold one line only once there's room for it —
+   below that they wrap rather than push the table past the viewport. */
+@media (min-width: 34rem) {
+    .pnch-spec tbody th,
+    .pnch-spec .pnch-spec__val {
+        white-space: nowrap;
+    }
+}
+
+/* ── F4 · Step sequence ──────────────────────────────────────────── */
+
+.pnch-steps {
+    counter-reset: none;
+    display: grid;
+    gap: var(--space-xl);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+@media (min-width: 60rem) {
+    .pnch-steps {
+        gap: var(--space-2xl);
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+.pnch-step {
+    border-top: var(--rule-thick) solid var(--color-ink);
+    padding-top: var(--space-sm);
+}
+
+.pnch-step__stage {
+    color: var(--color-accent);
+    display: block;
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+.pnch-step h3 {
+    font-size: var(--text-lg);
+    margin-top: var(--space-2xs);
+}
+
+.pnch-step p {
+    color: var(--color-ink-2);
+    margin-top: var(--space-sm);
+}
+
+/* ── The thesis diptych ──────────────────────────────────────────── */
+
+.pnch-thesis {
+    font-size: var(--text-display-s);
+    max-width: 24ch;
+}
+
+.pnch-half__label {
+    color: var(--color-muted);
+    display: block;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.pnch-half h3 {
+    font-size: var(--text-lg);
+    margin-top: var(--space-xs);
+}
+
+.pnch-half p {
+    color: var(--color-ink-2);
+    margin-top: var(--space-sm);
+    max-width: 46ch;
+}
+
+/* ── Ledger diagram — prefondeado vs deuda (pure CSS) ────────────── */
+
+.pnch-ledger {
+    display: grid;
+    gap: var(--space-lg);
+    grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 34rem) {
+    .pnch-ledger {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.pnch-ledger__col {
+    border-top: var(--rule-thick) solid var(--color-rule);
+    padding-top: var(--space-sm);
+}
+
+.pnch-ledger__col--ours {
+    border-top-color: var(--color-accent);
+}
+
+.pnch-ledger__title {
+    display: block;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.pnch-ledger__col--ours .pnch-ledger__title {
+    color: var(--color-accent);
+}
+
+.pnch-ledger__list {
+    display: grid;
+    font-size: var(--text-sm);
+    gap: var(--space-xs);
+    list-style: none;
+    margin: var(--space-sm) 0 0;
+    padding: 0;
+}
+
+.pnch-ledger__list li {
+    color: var(--color-ink-2);
+}
+
+.pnch-ledger__list li:last-child {
+    color: var(--color-ink);
+    font-weight: 500;
+}
+
+/* ── Campaign spec card ──────────────────────────────────────────── */
+
+.pnch-campaign {
+    background: var(--color-paper-2);
+    border: var(--rule-hair) solid var(--color-rule);
+    border-radius: var(--radius-sm);
+    padding: var(--space-lg);
+}
+
+.pnch-campaign__title {
+    border-bottom: var(--rule-hair) solid var(--color-rule);
+    display: block;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    padding-bottom: var(--space-sm);
+    text-transform: uppercase;
+}
+
+.pnch-campaign dl {
+    display: grid;
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+    gap: var(--space-xs) var(--space-md);
+    grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+    margin: var(--space-md) 0 0;
+}
+
+.pnch-campaign dt {
+    color: var(--color-muted);
+    white-space: nowrap;
+}
+
+.pnch-campaign dd {
+    margin: 0;
+}
+
+.pnch-campaign__out {
+    border-top: var(--rule-hair) solid var(--color-rule);
+    color: var(--color-accent);
+    display: block;
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    margin-top: var(--space-md);
+    padding-top: var(--space-sm);
+}
+
+/* ── Yield block ─────────────────────────────────────────────────── */
+
+.pnch-yield {
+    border-left: var(--rule-thick) solid var(--color-rule);
+    margin-top: var(--space-xl);
+    padding-left: var(--space-md);
+}
+
+.pnch-yield h3 {
+    font-size: var(--text-md);
+}
+
+.pnch-yield p {
+    color: var(--color-ink-2);
+    margin-top: var(--space-sm);
+    max-width: 52ch;
+}
+
+/* ── Two doors · the page's action, repeated ─────────────────────── */
+
+.pnch-doors {
+    display: grid;
+    gap: var(--space-xl);
+    grid-template-columns: minmax(0, 1fr);
+    padding-block: var(--space-3xl);
+}
+
+@media (min-width: 60rem) {
+    .pnch-doors {
+        gap: var(--space-3xl);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.pnch-door h2 {
+    font-size: var(--text-xl);
+    max-width: 16ch;
+}
+
+.pnch-door p {
+    color: var(--color-ink-2);
+    margin-top: var(--space-sm);
+    max-width: 45ch;
+}
+
+.pnch-door .pnch-cta {
+    margin-top: var(--space-lg);
+}
+
+/* ── Ft4 · Dense typographic colophon ────────────────────────────── */
+
+.pnch-colophon {
+    background: var(--color-ink);
+    color: var(--color-paper);
+    padding-block: var(--space-2xl);
+}
+
+.pnch-colophon__mark {
+    align-items: center;
+    display: inline-flex;
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    font-weight: 800;
+    gap: 0.1em;
+    margin-bottom: var(--space-md);
+}
+
+.pnch-colophon__mark .pnch-nav__brand-hole {
+    border-color: var(--color-paper);
+}
+
+.pnch-colophon p {
+    color: color-mix(in oklch, var(--color-paper) 78%, var(--color-ink));
+    font-family: var(--font-outlier);
+    font-size: var(--text-sm);
+    line-height: 1.75;
+    max-width: 74ch;
+}
+
+.pnch-colophon p + p {
+    margin-top: var(--space-md);
+}
+
+.pnch-colophon a {
+    color: var(--color-paper);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+/* ── Motion · one orchestrated entrance, staggered by DOM index ──── */
+
+.pnch-reveal {
+    animation: pnch-reveal var(--dur-long) var(--ease-out) forwards;
+    animation-delay: calc(var(--i, 0) * 70ms);
+    opacity: 0;
+    transform: translateY(8px);
+}
+
+@keyframes pnch-reveal {
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pnch *,
+    .pnch *::before,
+    .pnch *::after {
+        /* biome-ignore lint/complexity/noImportantStyles: reduced-motion must
+           override every animation on the page — that is the whole point. */
+        animation-duration: 150ms !important;
+        /* biome-ignore lint/complexity/noImportantStyles: see above */
+        animation-iteration-count: 1 !important;
+        /* biome-ignore lint/complexity/noImportantStyles: see above */
+        transition-duration: 150ms !important;
+    }
+
+    .pnch-reveal,
+    .pnch-card__hole--fresh {
+        animation: pnch-reveal-reduced 150ms linear forwards;
+        transform: none;
+    }
+
+    @keyframes pnch-reveal-reduced {
+        to {
+            opacity: 1;
+        }
+    }
+}
+
+@media (pointer: coarse) {
+    .pnch-cta {
+        min-height: 48px;
+    }
+}

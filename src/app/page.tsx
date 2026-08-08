@@ -1,7 +1,5 @@
-import { redirect } from "next/navigation";
-import { authenticate } from "@/server/auth/auth";
+import { PunchLanding } from "@/frontend/components/landing/punch-landing";
 
-export default async function HomePage() {
-    const session = await authenticate();
-    redirect(session ? "/projects" : "/auth/sign-in");
+export default function HomePage() {
+    return <PunchLanding />;
 }
