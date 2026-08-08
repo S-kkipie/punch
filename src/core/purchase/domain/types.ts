@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { purchaseOrderSchema } from "./schemas";
+import type { createPurchaseSchema, purchaseOrderSchema } from "./schemas";
 
 export type PurchaseOrderStatus =
     | "user_confirmed"
@@ -10,4 +10,5 @@ export type PurchaseOrderStatus =
     | "failed"
     | "expired";
 
+export type CreatePurchase = z.infer<typeof createPurchaseSchema>;
 export type PurchaseOrderView = z.infer<typeof purchaseOrderSchema>;
