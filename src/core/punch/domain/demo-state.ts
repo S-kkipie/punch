@@ -14,6 +14,12 @@ export function demoCampaignValues(now: number, cafeId: string) {
     };
 }
 
+export function canonicalDemoCrawlId(
+    rows: Array<{ id: string; name: string }>,
+): string | undefined {
+    return rows.find((row) => row.name === DEMO_CRAWL_NAME)?.id;
+}
+
 export function demoCrawlValues(now: number) {
     return {
         name: DEMO_CRAWL_NAME,

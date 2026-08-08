@@ -196,10 +196,7 @@ async function seedDemoState() {
         .select({ id: coffeeCrawl.id })
         .from(coffeeCrawl)
         .where(eq(coffeeCrawl.name, DEMO_CRAWL_NAME));
-    const [existingCrawl] = namedCrawl
-        ? [namedCrawl]
-        : await db.select({ id: coffeeCrawl.id }).from(coffeeCrawl);
-    let crawlId = existingCrawl?.id;
+    let crawlId = namedCrawl?.id;
     const crawlValues = demoCrawlValues(Date.now());
     if (!crawlId) {
         const [inserted] = await db

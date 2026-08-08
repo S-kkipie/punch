@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+    canonicalDemoCrawlId,
     DEMO_APPLICANT_EMAIL,
     DEMO_CAMPAIGN_NAME,
     DEMO_CRAWL_NAME,
@@ -25,6 +26,20 @@ describe("deterministic demo state", () => {
         expect(values.windowEnd.getTime() - values.windowStart.getTime()).toBe(
             37 * 86_400_000,
         );
+    });
+
+    it("selects only the canonical crawl and never an unrelated crawl", () => {
+        expect(
+            canonicalDemoCrawlId([
+                { id: "unrelated", name: "Ruta de otro colectivo" },
+            ]),
+        ).toBeUndefined();
+        expect(
+            canonicalDemoCrawlId([
+                { id: "unrelated", name: "Ruta de otro colectivo" },
+                { id: "canonical", name: DEMO_CRAWL_NAME },
+            ]),
+        ).toBe("canonical");
     });
 
     it("normalizes crawl metadata and exact ordered steps", () => {
