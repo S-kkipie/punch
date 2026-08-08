@@ -78,6 +78,32 @@ html:has(.pnch), body:has(.pnch) { background: var(--color-paper); overflow-x: c
 .pnch-solution__step p { max-width: 48ch; margin-top: var(--space-sm); color: var(--color-ink-2); }
 .pnch-note { max-width: 58ch; margin-top: var(--space-xl); padding: var(--space-md); border-left: .25rem solid var(--color-sun); background: var(--color-paper-3); color: var(--color-ink-2); }
 .pnch-journey { overflow: hidden; background: var(--color-paper); }
+.pnch-cafe-value { background: var(--color-paper-2); }
+.pnch-cafe-value__intro { display: grid; grid-template-columns: 1fr; gap: var(--space-xl); }
+.pnch-cafe-value__benefits { display: grid; gap: var(--space-md); margin: 0; padding: 0; list-style: none; }
+.pnch-cafe-value__benefits li { padding: var(--space-md) 0 var(--space-md) var(--space-xl); border-top: var(--rule-hair) solid var(--color-rule); color: var(--color-ink-2); }
+.pnch-cafe-value__benefits li::before { display: inline-block; width: 1rem; margin-left: -1.25rem; color: var(--color-accent); content: "✦"; }
+.pnch-plan-slip { max-width: 34rem; margin-top: var(--space-2xl); padding: var(--space-xl); border: var(--rule-thick) solid var(--color-ink); background: var(--color-sun); box-shadow: var(--shadow-print-sm); transform: rotate(-1deg); }
+.pnch-plan-slip__price { margin-top: var(--space-sm); font-family: var(--font-display); font-size: clamp(2rem, 5vw, 3.5rem); font-weight: 700; letter-spacing: -.04em; line-height: 1; }
+.pnch-plan-slip__body { max-width: 42ch; margin-top: var(--space-md); color: var(--color-sun-ink); }
+.pnch-plan-slip .pnch-cta { margin-top: var(--space-xl); }
+.pnch-trust { background: var(--color-paper-3); }
+.pnch-ledger { display: grid; grid-template-columns: 1fr; gap: var(--space-md); margin-top: var(--space-2xl); }
+.pnch-ledger__column { padding: var(--space-xl); border: var(--rule-thick) solid var(--color-ink); }
+.pnch-ledger__column--consumption { background: var(--color-paper); }
+.pnch-ledger__column--network { border-color: var(--color-cafe-blue); background: var(--color-accent-wash); }
+.pnch-ledger__label { color: var(--color-ink-2); font-family: var(--font-outlier); font-size: var(--text-xs); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.pnch-ledger__node { display: block; margin-top: var(--space-xl); padding-top: var(--space-md); border-top: var(--rule-hair) solid currentColor; font-family: var(--font-display); font-size: var(--text-lg); font-weight: 700; line-height: 1.05; }
+.pnch-ledger__arrow { display: block; margin-top: var(--space-sm); color: var(--color-cafe-blue-deep); font-size: var(--text-lg); }
+.pnch-trust__details { display: grid; grid-template-columns: 1fr; gap: var(--space-md); margin-top: var(--space-xl); }
+.pnch-trust__note { padding: var(--space-md); }
+.pnch-trust__note--campaign { border: 1px dashed var(--color-rule); background: var(--color-paper-2); }
+.pnch-trust__note--punch { border: var(--rule-thick) solid var(--color-cafe-blue); background: var(--color-paper); }
+.pnch-trust__note p:last-child { color: var(--color-ink-2); }
+.pnch-trust__technical { margin-top: var(--space-2xl); color: var(--color-cafe-blue-deep); font-family: var(--font-outlier); font-size: var(--text-sm); font-weight: 700; letter-spacing: .07em; }
+.pnch-trust .pnch-note { margin-top: var(--space-lg); }
+@media (min-width: 40rem) { .pnch-cafe-value__intro { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-3xl); align-items: start; } .pnch-ledger { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pnch-trust__details { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 22.5rem) { .pnch-ledger { overflow-x: auto; grid-template-columns: minmax(16rem, 1fr); } }
 .pnch-journey__grid { display: grid; grid-template-columns: 1fr; gap: var(--space-xl); }
 .pnch-route-label { margin-top: var(--space-lg); color: var(--color-cafe-blue-deep); font-family: var(--font-outlier); font-size: var(--text-sm); font-weight: 700; letter-spacing: .07em; }
 .pnch-network-map { position: relative; min-height: 18rem; border: var(--rule-hair) solid var(--color-rule); background: var(--color-paper-3); }

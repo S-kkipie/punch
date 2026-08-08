@@ -44,6 +44,17 @@ describe("PunchLanding", () => {
         );
     });
 
+    it("presents café value before technical trust", () => {
+        const html = render();
+        const cafeIndex = html.indexOf('id="para-tu-cafe"');
+        const modelIndex = html.indexOf('id="el-modelo"');
+        expect(cafeIndex).toBeGreaterThan(-1);
+        expect(modelIndex).toBeGreaterThan(cafeIndex);
+        expect(html).toContain("S/49 al mes");
+        expect(html).toContain("El cliente te paga directamente por Yape.");
+        expect(html).toContain("Arbitrum manda. Postgres proyecta.");
+    });
+
     it("does not server-render discarded economic claims", () => {
         const html = render();
         for (const claim of [
