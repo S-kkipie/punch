@@ -53,9 +53,18 @@ export const LANDING_COPY = {
         eyebrow: "Red en movimiento",
         title: "Más puertas para descubrir. Más razones para regresar.",
         outcomes: [
-            { title: "Más alcance", body: "La coalición crea oportunidades que un local aislado no puede crear solo." },
-            { title: "Visitas pagadas", body: "El valor aparece cuando una persona entra y compra, no cuando ve un anuncio." },
-            { title: "Retornos medibles", body: "La relación continúa dentro de una red, no en una tarjeta olvidada." },
+            {
+                title: "Más alcance",
+                body: "La coalición crea oportunidades que un local aislado no puede crear solo.",
+            },
+            {
+                title: "Visitas pagadas",
+                body: "El valor aparece cuando una persona entra y compra, no cuando ve un anuncio.",
+            },
+            {
+                title: "Retornos medibles",
+                body: "La relación continúa dentro de una red, no en una tarjeta olvidada.",
+            },
         ],
     },
     cafeValue: {
@@ -69,7 +78,8 @@ export const LANDING_COPY = {
         ],
         planLabel: "Plan de red",
         planPrice: "S/49 al mes",
-        planBody: "Incluye reserva de recompensas, aporte al fondo común y créditos de emisión según la configuración vigente.",
+        planBody:
+            "Incluye reserva de recompensas, aporte al fondo común y créditos de emisión según la configuración vigente.",
         cta: "Quiero sumar mi café",
     },
     trust: {
@@ -77,7 +87,8 @@ export const LANDING_COPY = {
         title: "Primero respaldo. Después beneficio.",
         body: "PUNCH usa reservas prefondadas y estados verificables para que la red no dependa de promesas informales entre cafés.",
         direct: "El pago de consumo va del cliente al café.",
-        invisible: "El consumidor no necesita wallet, gas ni conocimiento de blockchain.",
+        invisible:
+            "El consumidor no necesita wallet, gas ni conocimiento de blockchain.",
         technical: "Arbitrum manda. Postgres proyecta.",
     },
     consumer: {
@@ -87,19 +98,24 @@ export const LANDING_COPY = {
         cta: "Quiero descubrir la red",
     },
     finalCta: {
-        cafeTitle: "Tu café puede seguir siendo independiente sin competir solo.",
-        cafeBody: "Súmate a una red diseñada para mover demanda entre cafeterías independientes.",
+        cafeTitle:
+            "Tu café puede seguir siendo independiente sin competir solo.",
+        cafeBody:
+            "Súmate a una red diseñada para mover demanda entre cafeterías independientes.",
         cafeCta: "Quiero sumar mi café",
         consumerTitle: "¿Buscas mejor café, no otra cadena?",
         consumerBody: "Explora una red de lugares con identidad propia.",
         consumerCta: "Quiero descubrir la red",
     },
     footer: {
-        summary: "PUNCH — red de demanda y lealtad para cafeterías independientes.",
+        summary:
+            "PUNCH — red de demanda y lealtad para cafeterías independientes.",
         market: "Mercado inicial: Lima, Perú.",
         demo: "Demo en Arbitrum Sepolia. Los fondos y la actividad del demo son simulados; no representan tracción real.",
-        conditions: "Las condiciones de campaña, emisión y canje pueden variar según la configuración activa de la red.",
-        contracts: "CafeRegistry · PlanManager · ConsumptionLog · PunchVault · CampaignEscrow · MockPEN",
+        conditions:
+            "Las condiciones de campaña, emisión y canje pueden variar según la configuración activa de la red.",
+        contracts:
+            "CafeRegistry · PlanManager · ConsumptionLog · PunchVault · CampaignEscrow · MockPEN",
     },
 } as const;
 
