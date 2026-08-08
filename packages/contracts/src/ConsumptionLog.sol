@@ -3,7 +3,9 @@ pragma solidity ^0.8.30;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {IConsumptionLog} from "./interfaces/IConsumptionLog.sol";
 import {ICafeRegistry} from "./interfaces/ICafeRegistry.sol";
 import {IPlanManager} from "./interfaces/IPlanManager.sol";
@@ -16,6 +18,8 @@ error ProofExpired(uint256 expiry);
 error ExpiryTooFar(uint256 expiry);
 error TicketTooSmall(uint256 amount);
 error ProductNotEligible(uint256 cafeId, uint256 productId);
+error InvalidCafeSignature();
+error InvalidUserSignature();
 
 /// @notice Single entry point for PUNCH emission. Validates a consumption proof signed by
 /// both the café and the user, blocks replay, and orchestrates emission by calling
@@ -68,6 +72,35 @@ contract ConsumptionLog is IConsumptionLog, Ownable, Pausable, EIP712 {
         bytes calldata userSignature
     ) external whenNotPaused {
         _validateProof(proof);
+        _verifySignatures(proof, cafeSignature, userSignature);
+    }
+
+    /// @dev The two signatures are the only authorization: anyone may submit the
+    /// transaction, so a compromised relayer can withhold emissions but never forge one
+    /// (mother spec §20). `SignatureChecker` accepts EOA and EIP-1271 signatures, so the
+    /// custodial MVP and a future smart-account user both work without a redeploy.
+    function _verifySignatures(
+        ConsumptionProof calldata proof,
+        bytes calldata cafeSignature,
+        bytes calldata userSignature
+    ) private view {
+        bytes32 digest = _hashProof(proof);
+        address cafeSigner = _recoverCafeSigner(digest, cafeSignature);
+        if (cafeSigner == address(0) || !registry.isAuthorized(proof.cafeId, cafeSigner)) {
+            revert InvalidCafeSignature();
+        }
+        if (!SignatureChecker.isValidSignatureNow(proof.user, digest, userSignature)) {
+            revert InvalidUserSignature();
+        }
+    }
+
+    /// @dev The café side needs the signer's identity (to ask the registry about it), not
+    /// just a yes/no, so it recovers rather than using SignatureChecker. Café-side keys
+    /// are operator EOAs registered in CafeRegistry.
+    function _recoverCafeSigner(bytes32 digest, bytes calldata signature) private pure returns (address) {
+        (address signer, ECDSA.RecoverError err,) = ECDSA.tryRecover(digest, signature);
+        if (err != ECDSA.RecoverError.NoError) return address(0);
+        return signer;
     }
 
     /// @dev Cheapest checks first, and all of them before any state write

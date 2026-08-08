@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC1271} from "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import {
     ConsumptionLog,
     ZeroAddress,
@@ -13,7 +14,9 @@ import {
     ProofExpired,
     ExpiryTooFar,
     TicketTooSmall,
-    ProductNotEligible
+    ProductNotEligible,
+    InvalidCafeSignature,
+    InvalidUserSignature
 } from "../src/ConsumptionLog.sol";
 import {PlanManager} from "../src/PlanManager.sol";
 import {CafeRegistry} from "../src/CafeRegistry.sol";
@@ -50,6 +53,20 @@ contract MockPunchVault is IPunchVault {
 
     function balanceOf(address) external pure returns (uint256) {
         return 0;
+    }
+}
+
+/// @dev Minimal EIP-1271 smart account: approves a fixed digest, rejects everything else.
+/// Stands in for the post-MVP passkey / account-abstraction user (mother spec §20).
+contract MockSmartAccount is IERC1271 {
+    bytes32 public approvedDigest;
+
+    function approve(bytes32 digest) external {
+        approvedDigest = digest;
+    }
+
+    function isValidSignature(bytes32 digest, bytes memory) external view returns (bytes4) {
+        return digest == approvedDigest ? IERC1271.isValidSignature.selector : bytes4(0xffffffff);
     }
 }
 
@@ -274,5 +291,64 @@ contract ConsumptionLogTest is Test {
         proof.expiry = block.timestamp + offset;
         vm.expectRevert(abi.encodeWithSelector(ExpiryTooFar.selector, proof.expiry));
         consumptionLog.recordConsumption(proof, "", "");
+    }
+
+    function _sign(uint256 privateKey, IConsumptionLog.ConsumptionProof memory proof)
+        internal
+        view
+        returns (bytes memory)
+    {
+        bytes32 digest = consumptionLog.hashProof(proof);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
+        return abi.encodePacked(r, s, v);
+    }
+
+    function test_recordConsumption_badCafeSignatureReverts() public {
+        IConsumptionLog.ConsumptionProof memory proof = _proof(1);
+        (, uint256 strangerKey) = makeAddrAndKey("strangerSigner");
+        bytes memory cafeSig = _sign(strangerKey, proof);
+        bytes memory userSig = _sign(userKey, proof);
+        vm.expectRevert(InvalidCafeSignature.selector);
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
+    }
+
+    function test_recordConsumption_revokedOperatorReverts() public {
+        IConsumptionLog.ConsumptionProof memory proof = _proof(1);
+        bytes memory cafeSig = _sign(operatorKey, proof);
+        bytes memory userSig = _sign(userKey, proof);
+
+        vm.prank(cafeOwner);
+        registry.authorizeOperator(cafeId, operator, false);
+
+        vm.expectRevert(InvalidCafeSignature.selector);
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
+    }
+
+    function test_recordConsumption_badUserSignatureReverts() public {
+        IConsumptionLog.ConsumptionProof memory proof = _proof(1);
+        (, uint256 otherKey) = makeAddrAndKey("otherUser");
+        bytes memory cafeSig = _sign(operatorKey, proof);
+        bytes memory userSig = _sign(otherKey, proof);
+        vm.expectRevert(InvalidUserSignature.selector);
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
+    }
+
+    function test_recordConsumption_mutatedProofReverts() public {
+        IConsumptionLog.ConsumptionProof memory proof = _proof(1);
+        bytes memory cafeSig = _sign(operatorKey, proof);
+        bytes memory userSig = _sign(userKey, proof);
+        proof.amount = 50e6; // raised after both parties signed
+        vm.expectRevert(InvalidCafeSignature.selector);
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
+    }
+
+    function test_recordConsumption_eip1271UserRejected() public {
+        MockSmartAccount account = new MockSmartAccount();
+        IConsumptionLog.ConsumptionProof memory proof = _proof(1);
+        proof.user = address(account);
+        // No approve call: the account rejects the digest.
+        bytes memory cafeSig = _sign(operatorKey, proof);
+        vm.expectRevert(InvalidUserSignature.selector);
+        consumptionLog.recordConsumption(proof, cafeSig, "");
     }
 }
