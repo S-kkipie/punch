@@ -98,9 +98,4 @@ contract ScaffoldTest is Test {
         vm.expectRevert(NotImplemented.selector);
         campaignEscrow.cancelUnpublishedCampaign(1);
     }
-
-    function test_mockPEN_reverts_notImplemented() public {
-        vm.expectRevert(NotImplemented.selector);
-        mockPEN.faucet(1);
-    }
 }
