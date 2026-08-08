@@ -115,6 +115,27 @@ import {
     unlockCrawlVoucher,
 } from "@/core/punch/server/repository/crawls";
 
+async function finalizeEmission(key: string) {
+    const chain = new PostgresMockConsumerChain(() => Date.now(), 0);
+    const submission = await chain.submitConsumption({
+        proofId: "proof-1",
+        idempotencyKey: key,
+    });
+    vi.mocked(findTransactionById).mockResolvedValue({
+        id: submission.transactionId,
+        status: "pending",
+        operation: "emission",
+        proofId: "proof-1",
+        createdAt: new Date(0),
+    } as never);
+    vi.mocked(findProofById).mockResolvedValue({
+        id: "proof-1",
+        consumerUserId: "user-1",
+        cafeId: "cafe-target",
+    } as never);
+    await chain.getTransactionStatus(submission.transactionId);
+}
+
 describe("PostgresMockConsumerChain.submitConsumption campaign + crawl side effects", () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -304,31 +325,43 @@ describe("PostgresMockConsumerChain.submitConsumption campaign + crawl side effe
         expect(updateTransactionStatus).toHaveBeenCalledTimes(1);
     });
 
-    it.each([
-        "inactive",
-        "out-of-window",
-        "prior purchase",
-    ])("does not unlock a %s campaign", async () => {
+    it("does not unlock when there is no active campaign", async () => {
         vi.mocked(findActiveCampaignForCafe).mockResolvedValue(null);
         vi.mocked(findActiveCrawlForCafe).mockResolvedValue(null);
-        const chain = new PostgresMockConsumerChain(() => Date.now(), 0);
-        const submission = await chain.submitConsumption({
-            proofId: "proof-1",
-            idempotencyKey: `campaign-${Math.random()}`,
-        });
-        vi.mocked(findTransactionById).mockResolvedValue({
-            id: submission.transactionId,
-            status: "pending",
-            operation: "emission",
-            proofId: "proof-1",
-            createdAt: new Date(0),
-        } as never);
-        vi.mocked(findProofById).mockResolvedValue({
-            id: "proof-1",
-            consumerUserId: "user-1",
+        await finalizeEmission("campaign-inactive");
+        expect(findActiveCampaignForCafe).toHaveBeenCalledWith(
+            expect.anything(),
+            "cafe-target",
+        );
+        expect(hasPriorPaidPurchase).not.toHaveBeenCalled();
+        expect(unlockCampaignVoucher).not.toHaveBeenCalled();
+    });
+
+    it("does not unlock an active campaign when purchase is outside its window", async () => {
+        vi.mocked(findActiveCampaignForCafe).mockResolvedValue({
+            id: "campaign-window",
             cafeId: "cafe-target",
+            windowStart: new Date(Date.now() + 60_000),
+            windowEnd: new Date(Date.now() + 120_000),
         } as never);
-        await chain.getTransactionStatus(submission.transactionId);
+        vi.mocked(hasPriorPaidPurchase).mockResolvedValue(false);
+        vi.mocked(findActiveCrawlForCafe).mockResolvedValue(null);
+        await finalizeEmission("campaign-window");
+        expect(hasPriorPaidPurchase).toHaveBeenCalledTimes(1);
+        expect(unlockCampaignVoucher).not.toHaveBeenCalled();
+    });
+
+    it("does not unlock an in-window campaign after a prior purchase", async () => {
+        vi.mocked(findActiveCampaignForCafe).mockResolvedValue({
+            id: "campaign-prior",
+            cafeId: "cafe-target",
+            windowStart: new Date(Date.now() - 60_000),
+            windowEnd: new Date(Date.now() + 60_000),
+        } as never);
+        vi.mocked(hasPriorPaidPurchase).mockResolvedValue(true);
+        vi.mocked(findActiveCrawlForCafe).mockResolvedValue(null);
+        await finalizeEmission("campaign-prior");
+        expect(hasPriorPaidPurchase).toHaveBeenCalledTimes(1);
         expect(unlockCampaignVoucher).not.toHaveBeenCalled();
     });
 
