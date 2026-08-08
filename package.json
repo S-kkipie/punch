@@ -15,6 +15,7 @@
         "chain:abis": "pnpm contracts:build && tsx scripts/gen-abis.ts",
         "chain:anvil": "anvil",
         "chain:deploy": "pnpm contracts:build && tsx --env-file=.env scripts/dev-chain.ts",
+        "chain:bootstrap-local": "tsx --env-file=.env --conditions react-server scripts/bootstrap-local.ts",
         "contracts:test": "pnpm --dir packages/contracts test",
         "db:generate": "drizzle-kit generate",
         "db:migrate": "tsx --env-file=.env scripts/migrate.ts",

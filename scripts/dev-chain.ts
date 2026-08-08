@@ -178,6 +178,7 @@ export async function seedCafe(opts: {
     addresses: AddressMap;
     ownerWalletIndex: number;
     chainProductId?: bigint;
+    eligibleProductIds?: readonly bigint[];
 }): Promise<{ chainCafeId: bigint; ownerAddress: `0x${string}` }> {
     const rpcUrl = opts.rpcUrl ?? RPC;
     const pub = createPublicClient({ chain: foundry, transport: http(rpcUrl) });
@@ -195,7 +196,7 @@ export async function seedCafe(opts: {
         chain: foundry,
         transport: http(rpcUrl),
     });
-    const productId = opts.chainProductId ?? 1n;
+    const productIds = opts.eligibleProductIds ?? [opts.chainProductId ?? 1n];
 
     if (ownerAddress.toLowerCase() !== deployer.address.toLowerCase()) {
         await waitForWrite(
@@ -232,16 +233,18 @@ export async function seedCafe(opts: {
         }),
         "activate cafe",
     );
-    await waitForWrite(
-        pub,
-        await ownerWallet.writeContract({
-            address: opts.addresses.cafeRegistry,
-            abi: abis.cafeRegistry,
-            functionName: "setEligibleProduct",
-            args: [chainCafeId, productId, 0, true],
-        }),
-        "set eligible product",
-    );
+    for (const productId of productIds) {
+        await waitForWrite(
+            pub,
+            await ownerWallet.writeContract({
+                address: opts.addresses.cafeRegistry,
+                abi: abis.cafeRegistry,
+                functionName: "setEligibleProduct",
+                args: [chainCafeId, productId, 0, true],
+            }),
+            `set eligible product ${productId}`,
+        );
+    }
     await waitForWrite(
         pub,
         await deployerWallet.writeContract({
@@ -277,8 +280,6 @@ export async function seedCafe(opts: {
 
 if (process.argv[1]?.endsWith("dev-chain.ts")) {
     const map = await deployAll();
-    const ownerWalletIndex = Number(process.env.CAFE_OWNER_WALLET_INDEX ?? 0);
-    await seedCafe({ addresses: map, ownerWalletIndex });
     writeFileSync(
         join(import.meta.dirname, "../src/core/chain/addresses.local.json"),
         `${JSON.stringify(map, null, 4)}\n`,
