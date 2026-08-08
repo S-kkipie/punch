@@ -12,16 +12,25 @@ import {
 import { user } from "./auth-schema";
 import { cafe } from "./cafe-schema";
 
-export const punchBalanceProjection = pgTable("punch_balance_projection", {
-    userId: text("user_id")
-        .primaryKey()
-        .references(() => user.id, { onDelete: "cascade" }),
-    balance: integer("balance").default(0).notNull(),
-    updatedAt: timestamp("updated_at")
-        .defaultNow()
-        .$onUpdate(() => new Date())
-        .notNull(),
-});
+export const punchBalanceProjection = pgTable(
+    "punch_balance_projection",
+    {
+        userId: text("user_id")
+            .primaryKey()
+            .references(() => user.id, { onDelete: "cascade" }),
+        balance: integer("balance").default(0).notNull(),
+        updatedAt: timestamp("updated_at")
+            .defaultNow()
+            .$onUpdate(() => new Date())
+            .notNull(),
+    },
+    (table) => [
+        check(
+            "punch_balance_projection_balance_nonneg",
+            sql`${table.balance} >= 0`,
+        ),
+    ],
+);
 
 export const campaignKind = pgEnum("campaign_kind", ["verified_acquisition"]);
 
@@ -142,10 +151,6 @@ export const consumerCrawlProgress = pgTable(
         uniqueIndex("consumer_crawl_progress_uq").on(
             table.crawlId,
             table.consumerUserId,
-        ),
-        check(
-            "consumer_crawl_progress_balance_nonneg",
-            sql`array_length(${table.completedCafeIds}, 1) is null or array_length(${table.completedCafeIds}, 1) >= 0`,
         ),
     ],
 );
