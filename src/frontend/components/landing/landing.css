@@ -1,3 +1,4 @@
+/* Hallmark · macrostructure: Split Studio · genre: editorial · theme: custom light warm · nav: N12 banner+retract · footer: Ft4 dense colophon · pre-emit critique: P4 H4 E4 S5 R3 V5 */
 /* biome-ignore-all lint/complexity/noImportantStyles: reduced motion must override enhanced animations */
 @import "../../../../tokens.css";
 
@@ -505,7 +506,7 @@ body:has(.pnch) {
     max-width: 58ch;
     margin-top: var(--space-xl);
     padding: var(--space-md);
-    border-left: 0.25rem solid var(--color-sun);
+    border: var(--rule-hair) solid var(--color-sun);
     background: var(--color-paper-3);
     color: var(--color-ink-2);
 }
@@ -535,10 +536,12 @@ body:has(.pnch) {
 }
 .pnch-cafe-value__benefits li::before {
     display: inline-block;
-    width: 1rem;
+    width: 0.65rem;
+    height: 0.15rem;
     margin-left: -1.25rem;
-    color: var(--color-accent);
-    content: "✦";
+    background: var(--color-accent);
+    content: "";
+    vertical-align: middle;
 }
 .pnch-plan-slip {
     max-width: 34rem;
@@ -795,13 +798,16 @@ body:has(.pnch) {
     line-height: 0.98;
     text-wrap: balance;
 }
-.pnch-dual-cta p:not(.pnch-eyebrow) {
+.pnch-audience-label {
+    margin-bottom: var(--space-lg);
+    color: var(--color-sun);
+    font-size: var(--text-sm);
+    font-weight: 600;
+}
+.pnch-dual-cta p:not(.pnch-audience-label) {
     max-width: 40ch;
     margin-top: var(--space-lg);
     color: color-mix(in srgb, var(--color-paper) 78%, transparent);
-}
-.pnch-dual-cta .pnch-eyebrow {
-    color: var(--color-sun);
 }
 .pnch-dual-cta .pnch-cta {
     margin-top: var(--space-xl);
@@ -858,17 +864,6 @@ body:has(.pnch) {
         grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
     }
 }
-@keyframes pnch-section-enter {
-    from {
-        opacity: 0.35;
-        transform: translateY(1.25rem);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
 @keyframes pnch-route-draw {
     from {
         transform: rotate(-7deg) scaleX(0);
@@ -879,12 +874,6 @@ body:has(.pnch) {
 }
 
 @supports (animation-timeline: view()) {
-    .pnch-section {
-        animation: pnch-section-enter linear both;
-        animation-range: entry 0% cover 30%;
-        animation-timeline: view();
-    }
-
     .pnch-route__line {
         animation: pnch-route-draw linear both;
         animation-range: entry 0% cover 45%;

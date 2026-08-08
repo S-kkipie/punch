@@ -12,7 +12,6 @@ export function NetworkJourney() {
         >
             <div className="pnch-shell pnch-journey__grid">
                 <div>
-                    <p className="pnch-eyebrow">{journey.eyebrow}</p>
                     <h2 id="journey-title">{journey.title}</h2>
                     <p className="pnch-route-label">
                         VISITA → DESCUBRE → REGRESA
