@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Spec: `docs/superpowers/specs/2026-08-08-consumption-log-design.md`. Mother spec: `docs/superpowers/specs/2026-08-07-punch-master-spec.md`.
+- Spec: `docs/superpowers/specs/2026-08-08-consumption-consumptionLog-design.md`. Mother spec: `docs/superpowers/specs/2026-08-07-punch-master-spec.md`.
 - Work from `packages/contracts/`. All `forge` commands run from that directory.
 - **Never modify** `src/interfaces/IConsumptionLog.sol`, `src/interfaces/IPunchVault.sol`, `src/interfaces/IPlanManager.sol`, `src/interfaces/ICafeRegistry.sol`, `src/PunchVault.sol`, `src/NetworkFund.sol`, `src/CampaignEscrow.sol`, or `script/Deploy.s.sol`.
 - Files this plan may touch: `src/ConsumptionLog.sol`, `test/ConsumptionLog.t.sol`, `test/ConsumptionLogInvariant.t.sol`, `script/DeployConsumptionLog.s.sol`, and one surgical deletion in `test/Scaffold.t.sol` (Task 1).
@@ -119,7 +119,7 @@ contract ConsumptionLogTest is Test {
     CafeRegistry internal registry;
     PlanManager internal manager;
     MockPunchVault internal vault;
-    ConsumptionLog internal log;
+    ConsumptionLog internal consumptionLog;
 
     address internal admin = makeAddr("admin");
     address internal registrar = makeAddr("registrar");
@@ -160,8 +160,8 @@ contract ConsumptionLogTest is Test {
 
         vault = new MockPunchVault();
         manager = new PlanManager(IERC20(address(pen)), registry, address(vault), networkFund, treasury);
-        log = new ConsumptionLog(registry, manager, vault);
-        manager.setConsumptionLog(address(log));
+        consumptionLog = new ConsumptionLog(registry, manager, vault);
+        manager.setConsumptionLog(address(consumptionLog));
 
         vm.startPrank(cafeOwner);
         pen.faucet(1_000e6);
@@ -183,13 +183,13 @@ contract ConsumptionLogTest is Test {
     }
 
     function test_constructor_setsDependenciesAndDefaults() public view {
-        assertEq(address(log.registry()), address(registry));
-        assertEq(address(log.planManager()), address(manager));
-        assertEq(address(log.punchVault()), address(vault));
-        assertEq(log.minTicketAmount(), 8e6);
-        assertEq(log.maxDailyPerUserCafe(), 3);
-        assertEq(log.MAX_PROOF_TTL(), 15 minutes);
-        assertEq(log.owner(), address(this));
+        assertEq(address(consumptionLog.registry()), address(registry));
+        assertEq(address(consumptionLog.planManager()), address(manager));
+        assertEq(address(consumptionLog.punchVault()), address(vault));
+        assertEq(consumptionLog.minTicketAmount(), 8e6);
+        assertEq(consumptionLog.maxDailyPerUserCafe(), 3);
+        assertEq(consumptionLog.MAX_PROOF_TTL(), 15 minutes);
+        assertEq(consumptionLog.owner(), address(this));
     }
 
     function test_constructor_zeroAddressReverts() public {
@@ -225,51 +225,51 @@ contract ConsumptionLogTest is Test {
                 keccak256(bytes("PUNCH ConsumptionLog")),
                 keccak256(bytes("1")),
                 block.chainid,
-                address(log)
+                address(consumptionLog)
             )
         );
         bytes32 expected = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
-        assertEq(log.hashProof(proof), expected);
+        assertEq(consumptionLog.hashProof(proof), expected);
     }
 
     function test_setMinTicketAmount_ownerOnlyAndEmits() public {
         vm.expectEmit(false, false, false, true);
         emit ConsumptionLog.MinTicketAmountSet(10e6);
-        log.setMinTicketAmount(10e6);
-        assertEq(log.minTicketAmount(), 10e6);
+        consumptionLog.setMinTicketAmount(10e6);
+        assertEq(consumptionLog.minTicketAmount(), 10e6);
 
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
         vm.prank(stranger);
-        log.setMinTicketAmount(1e6);
+        consumptionLog.setMinTicketAmount(1e6);
     }
 
     function test_setMaxDailyPerUserCafe_ownerOnlyAndEmits() public {
         vm.expectEmit(false, false, false, true);
         emit ConsumptionLog.MaxDailyPerUserCafeSet(5);
-        log.setMaxDailyPerUserCafe(5);
-        assertEq(log.maxDailyPerUserCafe(), 5);
+        consumptionLog.setMaxDailyPerUserCafe(5);
+        assertEq(consumptionLog.maxDailyPerUserCafe(), 5);
 
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
         vm.prank(stranger);
-        log.setMaxDailyPerUserCafe(5);
+        consumptionLog.setMaxDailyPerUserCafe(5);
     }
 
     function test_setLimits_zeroReverts() public {
         vm.expectRevert(InvalidLimit.selector);
-        log.setMinTicketAmount(0);
+        consumptionLog.setMinTicketAmount(0);
         vm.expectRevert(InvalidLimit.selector);
-        log.setMaxDailyPerUserCafe(0);
+        consumptionLog.setMaxDailyPerUserCafe(0);
     }
 
     function test_pause_ownerOnly() public {
-        log.pause();
-        assertTrue(log.paused());
-        log.unpause();
-        assertFalse(log.paused());
+        consumptionLog.pause();
+        assertTrue(consumptionLog.paused());
+        consumptionLog.unpause();
+        assertFalse(consumptionLog.paused());
 
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
         vm.prank(stranger);
-        log.pause();
+        consumptionLog.pause();
     }
 }
 ```
@@ -456,45 +456,45 @@ Append these tests to `ConsumptionLogTest`:
 
 ```solidity
     function test_recordConsumption_pausedReverts() public {
-        log.pause();
+        consumptionLog.pause();
         IConsumptionLog.ConsumptionProof memory proof = _proof(1);
         vm.expectRevert(Pausable.EnforcedPause.selector);
-        log.recordConsumption(proof, "", "");
+        consumptionLog.recordConsumption(proof, "", "");
     }
 
     function test_recordConsumption_zeroUserReverts() public {
         IConsumptionLog.ConsumptionProof memory proof = _proof(1);
         proof.user = address(0);
         vm.expectRevert(InvalidUser.selector);
-        log.recordConsumption(proof, "", "");
+        consumptionLog.recordConsumption(proof, "", "");
     }
 
     function test_recordConsumption_expiredReverts() public {
         IConsumptionLog.ConsumptionProof memory proof = _proof(1);
         vm.warp(proof.expiry + 1);
         vm.expectRevert(abi.encodeWithSelector(ProofExpired.selector, proof.expiry));
-        log.recordConsumption(proof, "", "");
+        consumptionLog.recordConsumption(proof, "", "");
     }
 
     function test_recordConsumption_expiryTooFarReverts() public {
         IConsumptionLog.ConsumptionProof memory proof = _proof(1);
         proof.expiry = block.timestamp + 16 minutes;
         vm.expectRevert(abi.encodeWithSelector(ExpiryTooFar.selector, proof.expiry));
-        log.recordConsumption(proof, "", "");
+        consumptionLog.recordConsumption(proof, "", "");
     }
 
     function test_recordConsumption_ticketTooSmallReverts() public {
         IConsumptionLog.ConsumptionProof memory proof = _proof(1);
         proof.amount = 8e6 - 1;
         vm.expectRevert(abi.encodeWithSelector(TicketTooSmall.selector, proof.amount));
-        log.recordConsumption(proof, "", "");
+        consumptionLog.recordConsumption(proof, "", "");
     }
 
     function test_recordConsumption_productNotEligibleReverts() public {
         IConsumptionLog.ConsumptionProof memory proof = _proof(1);
         proof.productId = 99;
         vm.expectRevert(abi.encodeWithSelector(ProductNotEligible.selector, cafeId, uint256(99)));
-        log.recordConsumption(proof, "", "");
+        consumptionLog.recordConsumption(proof, "", "");
     }
 
     function test_recordConsumption_rewardProductNotEligibleForEmission() public {
@@ -503,7 +503,7 @@ Append these tests to `ConsumptionLogTest`:
         IConsumptionLog.ConsumptionProof memory proof = _proof(1);
         proof.productId = 42;
         vm.expectRevert(abi.encodeWithSelector(ProductNotEligible.selector, cafeId, uint256(42)));
-        log.recordConsumption(proof, "", "");
+        consumptionLog.recordConsumption(proof, "", "");
     }
 
     function testFuzz_recordConsumption_amountBelowFloorAlwaysReverts(uint256 amount) public {
@@ -511,7 +511,7 @@ Append these tests to `ConsumptionLogTest`:
         IConsumptionLog.ConsumptionProof memory proof = _proof(1);
         proof.amount = amount;
         vm.expectRevert(abi.encodeWithSelector(TicketTooSmall.selector, amount));
-        log.recordConsumption(proof, "", "");
+        consumptionLog.recordConsumption(proof, "", "");
     }
 
     function testFuzz_recordConsumption_expiryBeyondTtlAlwaysReverts(uint256 offset) public {
@@ -519,7 +519,7 @@ Append these tests to `ConsumptionLogTest`:
         IConsumptionLog.ConsumptionProof memory proof = _proof(1);
         proof.expiry = block.timestamp + offset;
         vm.expectRevert(abi.encodeWithSelector(ExpiryTooFar.selector, proof.expiry));
-        log.recordConsumption(proof, "", "");
+        consumptionLog.recordConsumption(proof, "", "");
     }
 ```
 
@@ -625,7 +625,7 @@ Add the signing helper and the tests to `ConsumptionLogTest`:
         view
         returns (bytes memory)
     {
-        bytes32 digest = log.hashProof(proof);
+        bytes32 digest = consumptionLog.hashProof(proof);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
         return abi.encodePacked(r, s, v);
     }
@@ -636,7 +636,7 @@ Add the signing helper and the tests to `ConsumptionLogTest`:
         bytes memory cafeSig = _sign(strangerKey, proof);
         bytes memory userSig = _sign(userKey, proof);
         vm.expectRevert(InvalidCafeSignature.selector);
-        log.recordConsumption(proof, cafeSig, userSig);
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
     }
 
     function test_recordConsumption_revokedOperatorReverts() public {
@@ -648,7 +648,7 @@ Add the signing helper and the tests to `ConsumptionLogTest`:
         registry.authorizeOperator(cafeId, operator, false);
 
         vm.expectRevert(InvalidCafeSignature.selector);
-        log.recordConsumption(proof, cafeSig, userSig);
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
     }
 
     function test_recordConsumption_badUserSignatureReverts() public {
@@ -657,7 +657,7 @@ Add the signing helper and the tests to `ConsumptionLogTest`:
         bytes memory cafeSig = _sign(operatorKey, proof);
         bytes memory userSig = _sign(otherKey, proof);
         vm.expectRevert(InvalidUserSignature.selector);
-        log.recordConsumption(proof, cafeSig, userSig);
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
     }
 
     function test_recordConsumption_mutatedProofReverts() public {
@@ -666,7 +666,7 @@ Add the signing helper and the tests to `ConsumptionLogTest`:
         bytes memory userSig = _sign(userKey, proof);
         proof.amount = 50e6; // raised after both parties signed
         vm.expectRevert(InvalidCafeSignature.selector);
-        log.recordConsumption(proof, cafeSig, userSig);
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
     }
 
     function test_recordConsumption_eip1271UserRejected() public {
@@ -676,7 +676,7 @@ Add the signing helper and the tests to `ConsumptionLogTest`:
         // No approve call: the account rejects the digest.
         bytes memory cafeSig = _sign(operatorKey, proof);
         vm.expectRevert(InvalidUserSignature.selector);
-        log.recordConsumption(proof, cafeSig, "");
+        consumptionLog.recordConsumption(proof, cafeSig, "");
     }
 ```
 
@@ -807,17 +807,17 @@ Add the happy-path signature tests deferred from Task 3, now that emission compl
         bytes memory userSig = _sign(userKey, proof);
         // Signatures pass; PlanManager stops it because that café never subscribed.
         vm.expectRevert(abi.encodeWithSelector(PlanNotActive.selector, otherCafe));
-        log.recordConsumption(proof, cafeSig, userSig);
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
     }
 
     function test_recordConsumption_eip1271UserAccepted() public {
         MockSmartAccount account = new MockSmartAccount();
         IConsumptionLog.ConsumptionProof memory proof = _proof(1);
         proof.user = address(account);
-        account.approve(log.hashProof(proof));
+        account.approve(consumptionLog.hashProof(proof));
 
         bytes memory cafeSig = _sign(operatorKey, proof);
-        log.recordConsumption(proof, cafeSig, "");
+        consumptionLog.recordConsumption(proof, cafeSig, "");
 
         assertEq(vault.issueCount(), 1);
         assertEq(vault.lastUser(), address(account));
@@ -831,7 +831,7 @@ Add the helper and the new tests:
         proof = _proof(nonce);
         bytes memory cafeSig = _sign(operatorKey, proof);
         bytes memory userSig = _sign(userKey, proof);
-        log.recordConsumption(proof, cafeSig, userSig);
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
     }
 
     function test_recordConsumption_happyPath() public {
@@ -845,15 +845,15 @@ Add the helper and the new tests:
         vm.expectEmit(true, true, true, false);
         emit IConsumptionLog.ConsumptionRecorded(cafeId, user, proof.receiptHash);
         vm.prank(stranger); // permissionless relayer
-        log.recordConsumption(proof, cafeSig, userSig);
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
 
         assertEq(vault.issueCount(), 1);
         assertEq(vault.lastUser(), user);
         assertEq(vault.lastCafeId(), cafeId);
         assertEq(manager.credits(cafeId), creditsBefore - 1);
         assertEq(pen.balanceOf(address(vault)) - vaultPenBefore, 300_000);
-        assertTrue(log.nonceUsed(cafeId, 1));
-        assertTrue(log.receiptUsed(cafeId, proof.receiptHash));
+        assertTrue(consumptionLog.nonceUsed(cafeId, 1));
+        assertTrue(consumptionLog.receiptUsed(cafeId, proof.receiptHash));
     }
 
     function test_recordConsumption_expiryAtDeadlineStillValid() public {
@@ -862,7 +862,7 @@ Add the helper and the new tests:
         bytes memory userSig = _sign(userKey, proof);
 
         vm.warp(proof.expiry); // exactly at the deadline: inclusive, still valid
-        log.recordConsumption(proof, cafeSig, userSig);
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
 
         assertEq(vault.issueCount(), 1);
     }
@@ -871,10 +871,10 @@ Add the helper and the new tests:
         IConsumptionLog.ConsumptionProof memory proof = _proof(1);
         bytes memory cafeSig = _sign(operatorKey, proof);
         bytes memory userSig = _sign(userKey, proof);
-        log.recordConsumption(proof, cafeSig, userSig);
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
 
         vm.expectRevert(abi.encodeWithSelector(NonceUsed.selector, cafeId, uint256(1)));
-        log.recordConsumption(proof, cafeSig, userSig);
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
     }
 
     function test_recordConsumption_reusedReceiptWithNewNonceReverts() public {
@@ -886,7 +886,7 @@ Add the helper and the new tests:
         bytes memory userSig = _sign(userKey, proof);
 
         vm.expectRevert(abi.encodeWithSelector(ReceiptUsed.selector, cafeId, first.receiptHash));
-        log.recordConsumption(proof, cafeSig, userSig);
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
     }
 
     function test_recordConsumption_noncesAreOutOfOrder() public {
@@ -916,7 +916,7 @@ Add the helper and the new tests:
         proof.receiptHash = first.receiptHash;
         bytes memory cafeSig = _sign(otherOperatorKey, proof);
         bytes memory userSig = _sign(userKey, proof);
-        log.recordConsumption(proof, cafeSig, userSig);
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
 
         assertEq(vault.issueCount(), 2);
     }
@@ -929,11 +929,11 @@ Add the helper and the new tests:
 
         uint256 creditsBefore = manager.credits(cafeId);
         vm.expectRevert(MockPunchVault.MockVaultReverted.selector);
-        log.recordConsumption(proof, cafeSig, userSig);
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
 
         assertEq(manager.credits(cafeId), creditsBefore);
-        assertFalse(log.nonceUsed(cafeId, 1));
-        assertFalse(log.receiptUsed(cafeId, proof.receiptHash));
+        assertFalse(consumptionLog.nonceUsed(cafeId, 1));
+        assertFalse(consumptionLog.receiptUsed(cafeId, proof.receiptHash));
     }
 
     function test_recordConsumption_planCancelledReverts() public {
@@ -944,14 +944,14 @@ Add the helper and the new tests:
         bytes memory cafeSig = _sign(operatorKey, proof);
         bytes memory userSig = _sign(userKey, proof);
         vm.expectRevert(abi.encodeWithSelector(PlanNotActive.selector, cafeId));
-        log.recordConsumption(proof, cafeSig, userSig);
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
     }
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
 
 Run: `cd packages/contracts && forge test --match-contract ConsumptionLogTest`
-Expected: compilation FAILS — `NonceUsed`, `ReceiptUsed`, `log.nonceUsed`, `log.receiptUsed` do not exist.
+Expected: compilation FAILS — `NonceUsed`, `ReceiptUsed`, `consumptionLog.nonceUsed`, `consumptionLog.receiptUsed` do not exist.
 
 - [ ] **Step 3: Write the implementation**
 
@@ -1041,9 +1041,9 @@ Extend the `ConsumptionLog` import with `DailyLimitReached` and add:
         bytes memory cafeSig = _sign(operatorKey, proof);
         bytes memory userSig = _sign(userKey, proof);
         vm.expectRevert(abi.encodeWithSelector(DailyLimitReached.selector, cafeId, user));
-        log.recordConsumption(proof, cafeSig, userSig);
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
 
-        assertEq(log.dailyCount(cafeId, user, block.timestamp / 1 days), 3);
+        assertEq(consumptionLog.dailyCount(cafeId, user, block.timestamp / 1 days), 3);
         assertEq(vault.issueCount(), 3);
     }
 
@@ -1077,7 +1077,7 @@ Extend the `ConsumptionLog` import with `DailyLimitReached` and add:
         proof.cafeId = otherCafe;
         bytes memory cafeSig = _sign(otherOperatorKey, proof);
         bytes memory userSig = _sign(userKey, proof);
-        log.recordConsumption(proof, cafeSig, userSig);
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
 
         assertEq(vault.issueCount(), 4);
     }
@@ -1092,7 +1092,7 @@ Extend the `ConsumptionLog` import with `DailyLimitReached` and add:
         proof.user = otherUser;
         bytes memory cafeSig = _sign(operatorKey, proof);
         bytes memory userSig = _sign(otherUserKey, proof);
-        log.recordConsumption(proof, cafeSig, userSig);
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
 
         assertEq(vault.issueCount(), 4);
     }
@@ -1101,7 +1101,7 @@ Extend the `ConsumptionLog` import with `DailyLimitReached` and add:
         _record(1);
         _record(2);
         _record(3);
-        log.setMaxDailyPerUserCafe(4);
+        consumptionLog.setMaxDailyPerUserCafe(4);
         _record(4);
         assertEq(vault.issueCount(), 4);
     }
@@ -1204,7 +1204,7 @@ contract CountingVault is IPunchVault {
 /// and user set, swallowing reverts so the fuzzer explores rejected paths too. Ghost
 /// counters record what actually succeeded.
 contract ConsumptionLogHandler is Test {
-    ConsumptionLog internal immutable log;
+    ConsumptionLog internal immutable consumptionLog;
     PlanManager internal immutable manager;
     CountingVault internal immutable vault;
 
@@ -1222,7 +1222,7 @@ contract ConsumptionLogHandler is Test {
         uint256[] memory operatorKeys_,
         uint256[] memory userKeys_
     ) {
-        log = log_;
+        consumptionLog = log_;
         manager = manager_;
         vault = vault_;
         cafeIds = cafeIds_;
@@ -1247,12 +1247,12 @@ contract ConsumptionLogHandler is Test {
             expiry: block.timestamp + 1 minutes
         });
 
-        bytes32 digest = log.hashProof(proof);
+        bytes32 digest = consumptionLog.hashProof(proof);
         uint256 cafeKey = validCafeSig ? operatorKeys[i] : userKey;
         (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(cafeKey, digest);
         (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(userKey, digest);
 
-        try log.recordConsumption(proof, abi.encodePacked(r1, s1, v1), abi.encodePacked(r2, s2, v2)) {
+        try consumptionLog.recordConsumption(proof, abi.encodePacked(r1, s1, v1), abi.encodePacked(r2, s2, v2)) {
             successfulRecords += 1;
         } catch {}
     }
@@ -1283,7 +1283,7 @@ contract ConsumptionLogInvariantTest is Test {
     CafeRegistry internal registry;
     PlanManager internal manager;
     CountingVault internal vault;
-    ConsumptionLog internal log;
+    ConsumptionLog internal consumptionLog;
     ConsumptionLogHandler internal handler;
 
     address internal admin = makeAddr("admin");
@@ -1303,8 +1303,8 @@ contract ConsumptionLogInvariantTest is Test {
 
         vault = new CountingVault();
         manager = new PlanManager(IERC20(address(pen)), registry, address(vault), networkFund, treasury);
-        log = new ConsumptionLog(registry, manager, vault);
-        manager.setConsumptionLog(address(log));
+        consumptionLog = new ConsumptionLog(registry, manager, vault);
+        manager.setConsumptionLog(address(consumptionLog));
 
         uint256[] memory cafeIds = new uint256[](3);
         uint256[] memory operatorKeys = new uint256[](3);
@@ -1333,7 +1333,7 @@ contract ConsumptionLogInvariantTest is Test {
         (, userKeys[0]) = makeAddrAndKey("invUser0");
         (, userKeys[1]) = makeAddrAndKey("invUser1");
 
-        handler = new ConsumptionLogHandler(log, manager, vault, cafeIds, operatorKeys, userKeys);
+        handler = new ConsumptionLogHandler(consumptionLog, manager, vault, cafeIds, operatorKeys, userKeys);
         targetContract(address(handler));
     }
 
@@ -1355,10 +1355,10 @@ contract ConsumptionLogInvariantTest is Test {
     /// @dev The daily cap is never exceeded for any (café, user) pair on the current day.
     function invariant_dailyCapNeverExceeded() public view {
         uint256 day = block.timestamp / 1 days;
-        uint256 cap = log.maxDailyPerUserCafe();
+        uint256 cap = consumptionLog.maxDailyPerUserCafe();
         for (uint256 i = 0; i < handler.cafeCount(); i++) {
             for (uint256 j = 0; j < handler.userCount(); j++) {
-                assertLe(log.dailyCount(handler.cafeIdAt(i), handler.userAt(j), day), cap);
+                assertLe(consumptionLog.dailyCount(handler.cafeIdAt(i), handler.userAt(j), day), cap);
             }
         }
     }
@@ -1393,7 +1393,7 @@ git commit -m "test(contracts): add ConsumptionLog invariant suite"
 
 **Interfaces:**
 - Consumes: the finished `ConsumptionLog` constructor.
-- Produces: `DeployConsumptionLog.run() returns (ConsumptionLog log)`.
+- Produces: `DeployConsumptionLog.run() returns (ConsumptionLog consumptionLog)`.
 
 - [ ] **Step 1: Write the script**
 
@@ -1410,16 +1410,16 @@ import {IPlanManager} from "../src/interfaces/IPlanManager.sol";
 import {IPunchVault} from "../src/interfaces/IPunchVault.sol";
 
 /// @notice Deploys ConsumptionLog. Emission stays off until the PlanManager owner runs
-/// `planManager.setConsumptionLog(address(log))` — a separate transaction this script
+/// `planManager.setConsumptionLog(address(consumptionLog))` — a separate transaction this script
 /// deliberately does not send, since the broadcaster is not necessarily that owner.
 contract DeployConsumptionLog is Script {
-    function run() external returns (ConsumptionLog log) {
+    function run() external returns (ConsumptionLog consumptionLog) {
         ICafeRegistry registry = ICafeRegistry(vm.envAddress("CAFE_REGISTRY_ADDRESS"));
         IPlanManager planManager = IPlanManager(vm.envAddress("PLAN_MANAGER_ADDRESS"));
         IPunchVault punchVault = IPunchVault(vm.envAddress("PUNCH_VAULT_ADDRESS"));
 
         vm.startBroadcast();
-        log = new ConsumptionLog(registry, planManager, punchVault);
+        consumptionLog = new ConsumptionLog(registry, planManager, punchVault);
         vm.stopBroadcast();
     }
 }
