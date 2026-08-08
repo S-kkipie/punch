@@ -1,7 +1,7 @@
 # PUNCH Landing Page Design
 
 **Date:** 2026-08-07  
-**Status:** Design approved; written spec awaiting review  
+**Status:** Approved  
 **Source of truth:** `docs/superpowers/specs/2026-08-07-punch-master-spec.md`, refined by the approved positioning decisions recorded here
 
 ## 1. Goal
