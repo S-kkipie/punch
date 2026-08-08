@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, or } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { type DbClient, db } from "@/server/drizzle/db";
 import {
     type ConsumptionProofRow,
@@ -26,20 +26,40 @@ export async function findProofById(
     return row ?? null;
 }
 
+export class ProofRepositoryError extends Error {
+    constructor(
+        public code: "PROOF_COLLISION" | "PROOF_EXPIRED" | "PROOF_NOT_ISSUED",
+        message: string,
+    ) {
+        super(message);
+        this.name = "ProofRepositoryError";
+    }
+}
+
 export async function findProofByNonceOrReceipt(
     nonce: string,
     receiptHash: string,
+    client: DbClient = db,
 ): Promise<ConsumptionProofRow | null> {
-    const [row] = await db
-        .select()
-        .from(consumptionProof)
-        .where(
-            or(
-                eq(consumptionProof.nonce, nonce),
-                eq(consumptionProof.receiptHash, receiptHash),
-            ),
+    const [nonceMatch, receiptMatch] = await Promise.all([
+        client
+            .select()
+            .from(consumptionProof)
+            .where(eq(consumptionProof.nonce, nonce)),
+        client
+            .select()
+            .from(consumptionProof)
+            .where(eq(consumptionProof.receiptHash, receiptHash)),
+    ]);
+    const nonceProof = nonceMatch[0];
+    const receiptProof = receiptMatch[0];
+    if (nonceProof && receiptProof && nonceProof.id !== receiptProof.id) {
+        throw new ProofRepositoryError(
+            "PROOF_COLLISION",
+            "Nonce and receipt hash identify different proofs",
         );
-    return row ?? null;
+    }
+    return nonceProof ?? receiptProof ?? null;
 }
 
 export async function bindProofSignatures(
@@ -47,8 +67,9 @@ export async function bindProofSignatures(
     consumerUserId: string,
     cafeSignature: string,
     consumerSignature: string,
+    client: DbClient = db,
 ): Promise<ConsumptionProofRow> {
-    const [row] = await db
+    const [row] = await client
         .update(consumptionProof)
         .set({
             status: "confirmed",
@@ -60,10 +81,27 @@ export async function bindProofSignatures(
             and(
                 eq(consumptionProof.id, id),
                 eq(consumptionProof.status, "issued"),
+                sql`${consumptionProof.expiresAt} > now()`,
             ),
         )
         .returning();
-    if (!row)
-        throw new Error("bindProofSignatures: proof not issued or not found");
-    return row;
+    if (row) return row;
+
+    const [existing] = await client
+        .select({
+            status: consumptionProof.status,
+            expiresAt: consumptionProof.expiresAt,
+        })
+        .from(consumptionProof)
+        .where(eq(consumptionProof.id, id));
+    if (existing?.status === "issued" && existing.expiresAt <= new Date()) {
+        throw new ProofRepositoryError(
+            "PROOF_EXPIRED",
+            `Proof ${id} has expired`,
+        );
+    }
+    throw new ProofRepositoryError(
+        "PROOF_NOT_ISSUED",
+        `Proof ${id} is not issued or does not exist`,
+    );
 }

@@ -1,5 +1,6 @@
 import "server-only";
-import { eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
+import { canTransitionTransaction } from "@/core/consumption/domain/transitions";
 import type { ConsumerTransactionStatus } from "@/core/consumption/domain/types";
 import { type DbClient, db } from "@/server/drizzle/db";
 import {
@@ -22,8 +23,9 @@ export async function createTransaction(
 
 export async function findTransactionByIdempotencyKey(
     key: string,
+    client: DbClient = db,
 ): Promise<ConsumerTransactionRow | null> {
-    const [row] = await db
+    const [row] = await client
         .select()
         .from(consumerTransaction)
         .where(eq(consumerTransaction.idempotencyKey, key));
@@ -65,17 +67,55 @@ export async function findTransactionById(
     return row ?? null;
 }
 
+export class TransactionRepositoryError extends Error {
+    constructor(
+        public code: "TRANSACTION_NOT_FOUND" | "INVALID_TRANSITION",
+        message: string,
+    ) {
+        super(message);
+        this.name = "TransactionRepositoryError";
+    }
+}
+
 export async function updateTransactionStatus(
     client: DbClient,
     id: string,
     status: ConsumerTransactionStatus,
     rejectionReason: string | null = null,
 ): Promise<ConsumerTransactionRow> {
-    const [row] = await client
-        .update(consumerTransaction)
-        .set({ status, rejectionReason })
-        .where(eq(consumerTransaction.id, id))
-        .returning();
-    if (!row) throw new Error("updateTransactionStatus: transaction not found");
-    return row;
+    const transitionableFrom = (
+        ["pending", "confirmed", "rejected", "failed"] as const
+    ).filter((current) => canTransitionTransaction(current, status));
+    const [row] = transitionableFrom.length
+        ? await client
+              .update(consumerTransaction)
+              .set({ status, rejectionReason })
+              .where(
+                  and(
+                      eq(consumerTransaction.id, id),
+                      or(
+                          ...transitionableFrom.map((current) =>
+                              eq(consumerTransaction.status, current),
+                          ),
+                      ),
+                  ),
+              )
+              .returning()
+        : [];
+    if (row) return row;
+
+    const [existing] = await client
+        .select({ status: consumerTransaction.status })
+        .from(consumerTransaction)
+        .where(eq(consumerTransaction.id, id));
+    if (!existing) {
+        throw new TransactionRepositoryError(
+            "TRANSACTION_NOT_FOUND",
+            `Transaction ${id} not found`,
+        );
+    }
+    throw new TransactionRepositoryError(
+        "INVALID_TRANSITION",
+        `Cannot transition transaction ${id} from ${existing.status} to ${status}`,
+    );
 }
