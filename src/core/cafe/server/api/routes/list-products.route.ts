@@ -1,6 +1,7 @@
 import { Elysia } from "elysia";
 import { z } from "zod";
 import { productSchema } from "@/core/cafe/domain/schemas";
+import { auth } from "@/server/auth/auth";
 import {
     CommonResponse,
     errorResponseSchema,
@@ -10,8 +11,12 @@ import {
 import { listProductsService } from "../../services/list-products-service";
 export const listProductsRoute = new Elysia().get(
     "/:id/products",
-    async ({ params, status }) => {
-        const result = await listProductsService(null, params.id);
+    async ({ request, params, status }) => {
+        const session = await auth.api.getSession({ headers: request.headers });
+        const viewer = session
+            ? { id: session.user.id, isOps: session.user.isOps }
+            : null;
+        const result = await listProductsService(viewer, params.id);
         if (!result.ok) return status(500, errorToResponse(result.error));
         return status(
             200,

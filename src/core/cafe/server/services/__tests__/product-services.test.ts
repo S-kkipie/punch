@@ -160,6 +160,17 @@ describe("product services", () => {
         expect(r.ok).toBe(false);
         if (!r.ok) expect(r.error.status).toBe(409);
     });
+    it("owner list includes pending and inactive products", async () => {
+        vi.mocked(requireCafeRole).mockResolvedValue(okResult(membership));
+        vi.mocked(listProductsByCafe).mockResolvedValue([
+            productRow,
+            { ...productRow, id: "p2", approvalStatus: "pending" },
+            { ...productRow, id: "p3", active: false },
+        ]);
+        const r = await listProductsService({ id: "u1", isOps: false }, "c1");
+        expect(r.ok).toBe(true);
+        if (r.ok) expect(r.data.map((p) => p.id)).toEqual(["p1", "p2", "p3"]);
+    });
     it("public list excludes pending and inactive", async () => {
         vi.mocked(listProductsByCafe).mockResolvedValue([
             productRow,
