@@ -35,9 +35,34 @@ describe("listVouchersService", () => {
         );
         const result = await listVouchersService("user-1");
         expect(listConsumerVouchersForUser).toHaveBeenCalledWith("user-1");
-        expect(result.ok && result.data.map((voucher) => voucher.id)).toEqual([
-            "voucher-1",
+        expect(result.ok && result.data).toEqual([
+            expect.objectContaining({
+                id: "voucher-1",
+                campaignId: "campaign-1",
+                crawlId: null,
+            }),
         ]);
+    });
+
+    it("projects crawl provenance without inventing a café", async () => {
+        vi.mocked(listConsumerVouchersForUser).mockResolvedValue([
+            row({
+                id: "crawl-voucher",
+                source: "crawl",
+                campaignId: null,
+                crawlId: "crawl-1",
+                cafeId: null,
+            }),
+        ] as never);
+        const result = await listVouchersService("user-1");
+        expect(result.ok && result.data[0]).toEqual(
+            expect.objectContaining({
+                source: "crawl",
+                campaignId: null,
+                crawlId: "crawl-1",
+                cafeId: null,
+            }),
+        );
     });
 
     it("maps available vouchers past server time to expired without mutating storage", async () => {

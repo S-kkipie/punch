@@ -61,16 +61,41 @@ export const useConfirmPurchase = () => {
     return useMutation(
         withError({
             ...client.purchases.confirm.post.mutationOptions(),
-            onSuccess: () => {
+            onSuccess: (result: unknown) => {
                 void queryClient.invalidateQueries({
                     queryKey: punchDashboardQueryKey,
                 });
                 void queryClient.invalidateQueries({
                     queryKey: punchVouchersQueryKey,
                 });
+                const response = (
+                    result as {
+                        response?: {
+                            transactionId?: string;
+                            status?: string;
+                            rejectionReason?: string;
+                        };
+                    }
+                ).response;
+                if (response?.transactionId && response.status) {
+                    queryClient.setQueryData(
+                        consumptionTransactionQueryKey(response.transactionId),
+                        { response },
+                    );
+                }
             },
         }),
     );
+};
+
+export const transactionPollingInterval = (query: {
+    state: { data: unknown };
+}) => {
+    const data = query.state.data as
+        | { status?: string; response?: { status?: string } }
+        | undefined;
+    const status = data?.response?.status ?? data?.status;
+    return status === "pending" ? 2000 : false;
 };
 export const useTransactionStatus = (transactionId: string | undefined) => {
     const client = useElysia().consumption;
@@ -81,11 +106,7 @@ export const useTransactionStatus = (transactionId: string | undefined) => {
         queryKey: consumptionTransactionQueryKey(transactionId),
         select: unwrap,
         enabled: Boolean(transactionId),
-        refetchInterval: (query) =>
-            query.state.data &&
-            (query.state.data as { status: string }).status === "pending"
-                ? 2000
-                : false,
+        refetchInterval: transactionPollingInterval,
     });
 };
 export const useRequestPunchRedemption = (cafeId: string) => {

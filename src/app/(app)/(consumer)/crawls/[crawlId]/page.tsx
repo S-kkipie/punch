@@ -21,19 +21,18 @@ export default function CrawlDetailPage() {
         name: string;
         steps: Array<{ stepIndex: number; cafeId: string }>;
     };
-    const cafeIds = new Set(crawl.steps.map((step) => step.cafeId));
+    const eligibleCafeId = crawl.steps[0]?.cafeId;
     const voucher = (
         (vouchersQuery.data ?? []) as Array<{
             id: string;
+            crawlId: string | null;
             cafeId: string | null;
             source: string;
             status: string;
         }>
     ).find(
         (item) =>
-            item.id &&
-            item.cafeId !== null &&
-            cafeIds.has(item.cafeId) &&
+            item.crawlId === crawlId &&
             item.source === "crawl" &&
             item.status === "available",
     );
@@ -57,10 +56,10 @@ export default function CrawlDetailPage() {
                         </div>
                     ))}
                 </div>
-                {voucher && (
+                {voucher && eligibleCafeId && (
                     <Link
                         className="font-semibold text-[var(--color-accent)] underline"
-                        href={`/redeem/${voucher.id}?cafeId=${voucher.cafeId}&voucherId=${voucher.id}`}
+                        href={`/redeem/${voucher.id}?cafeId=${eligibleCafeId}&voucherId=${voucher.id}&source=crawl`}
                     >
                         Usar tu voucher
                     </Link>

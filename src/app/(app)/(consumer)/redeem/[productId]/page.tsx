@@ -16,6 +16,7 @@ export default function RedeemPage() {
     const searchParams = useSearchParams();
     const cafeId = searchParams.get("cafeId") ?? "";
     const voucherId = searchParams.get("voucherId");
+    const voucherSource = searchParams.get("source");
     const dashboard = useDashboard();
     const products = useCafeProducts(cafeId);
     const vouchers = useVouchers();
@@ -36,9 +37,17 @@ export default function RedeemPage() {
         ? (
               (vouchers.data ?? []) as Array<{
                   id: string;
+                  source: "campaign" | "crawl";
+                  status: string;
                   cafeId: string | null;
               }>
-          ).find((item) => item.id === voucherId && item.cafeId === cafeId)
+          ).find(
+              (item) =>
+                  item.id === voucherId &&
+                  item.status === "available" &&
+                  (voucherSource === null || item.source === voucherSource) &&
+                  (item.cafeId === null || item.cafeId === cafeId),
+          )
         : undefined;
     const eligible = canRedeem(balance);
     const isVoucherFlow = Boolean(voucherId);
@@ -70,7 +79,7 @@ export default function RedeemPage() {
                         Tu progreso: {balance} / 12
                     </p>
                 )}
-                {!voucher && !eligible && (
+                {!isVoucherFlow && !eligible && (
                     <p className="text-amber-700 text-sm">
                         Necesitas 12 PUNCH para canjear.
                     </p>

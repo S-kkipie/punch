@@ -38,6 +38,8 @@ export const campaignSchema = z.object({
 export const consumerVoucherSchema = z.object({
     id: z.string(),
     source: z.enum(["campaign", "crawl"]),
+    campaignId: z.string().nullable(),
+    crawlId: z.string().nullable(),
     cafeId: z.string().nullable(),
     status: campaignStatusSchema,
     expiresAt: z.string(),

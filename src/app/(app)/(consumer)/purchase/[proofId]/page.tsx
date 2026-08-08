@@ -11,16 +11,6 @@ import { TransactionStatus } from "@/core/consumption/client/ui/transaction-stat
 import { Button } from "@/frontend/components/ui/button";
 import { Spinner } from "@/frontend/components/ui/spinner";
 
-export function immediateTransactionState(response: {
-    status?: "pending" | "confirmed" | "rejected" | "failed";
-    rejectionReason?: string;
-}) {
-    return {
-        status: response.status ?? "pending",
-        rejectionReason: response.rejectionReason,
-    } as const;
-}
-
 export default function PurchaseConfirmPage() {
     const { proofId } = useParams<{ proofId: string }>();
     const router = useRouter();
@@ -81,7 +71,10 @@ export default function PurchaseConfirmPage() {
                     ).response;
                     if (response?.transactionId) {
                         setTransactionId(response.transactionId);
-                        setLocalStatus(immediateTransactionState(response));
+                        setLocalStatus({
+                            status: response.status ?? "pending",
+                            rejectionReason: response.rejectionReason,
+                        });
                     }
                 },
             },
@@ -121,7 +114,17 @@ export default function PurchaseConfirmPage() {
                     Sin conexión. Reconéctate para confirmar la compra.
                 </p>
             )}
-            {transaction ? (
+            {statusQuery.isError ? (
+                <div className="grid gap-3 text-destructive text-sm">
+                    <p>No pudimos actualizar el estado de tu compra.</p>
+                    <Button
+                        variant="outline"
+                        onClick={() => statusQuery.refetch()}
+                    >
+                        Reintentar estado
+                    </Button>
+                </div>
+            ) : transaction ? (
                 <TransactionStatus
                     status={transaction.status}
                     rejectionReason={transaction.rejectionReason}
