@@ -3,6 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+export function isBottomNavPathActive(pathname: string, href: string): boolean {
+    return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 const TABS = [
     { href: "/home", label: "Inicio", icon: "⌂", central: false },
     { href: "/discover", label: "Descubre", icon: "✦", central: false },
@@ -17,9 +21,7 @@ export function BottomNav() {
         <nav aria-label="Navegación principal" className="consumer-nav">
             <div className="consumer-nav__inner">
                 {TABS.map((tab) => {
-                    const active =
-                        pathname === tab.href ||
-                        pathname.startsWith(`${tab.href}/`);
+                    const active = isBottomNavPathActive(pathname, tab.href);
                     return (
                         <Link
                             key={tab.href}

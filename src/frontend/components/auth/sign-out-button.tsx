@@ -18,7 +18,7 @@ export function SignOutButton() {
                 router.push("/auth/sign-in");
             }}
         >
-            Sign out
+            Cerrar sesión
         </Button>
     );
 }
