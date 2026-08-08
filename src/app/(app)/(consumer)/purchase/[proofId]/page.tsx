@@ -11,12 +11,26 @@ import { TransactionStatus } from "@/core/consumption/client/ui/transaction-stat
 import { Button } from "@/frontend/components/ui/button";
 import { Spinner } from "@/frontend/components/ui/spinner";
 
+export function immediateTransactionState(response: {
+    status?: "pending" | "confirmed" | "rejected" | "failed";
+    rejectionReason?: string;
+}) {
+    return {
+        status: response.status ?? "pending",
+        rejectionReason: response.rejectionReason,
+    } as const;
+}
+
 export default function PurchaseConfirmPage() {
     const { proofId } = useParams<{ proofId: string }>();
     const router = useRouter();
     const proofQuery = usePurchaseProof(proofId);
     const confirmPurchase = useConfirmPurchase();
     const [transactionId, setTransactionId] = useState<string>();
+    const [localStatus, setLocalStatus] = useState<{
+        status: "pending" | "confirmed" | "rejected" | "failed";
+        rejectionReason?: string;
+    }>();
     const statusQuery = useTransactionStatus(transactionId);
     const [isOnline, setIsOnline] = useState(true);
 
@@ -51,15 +65,29 @@ export default function PurchaseConfirmPage() {
         confirmPurchase.mutate(
             { proofId: proof.id },
             {
-                onSuccess: (result) =>
-                    setTransactionId(
-                        (result as { response?: { transactionId?: string } })
-                            .response?.transactionId,
-                    ),
+                onSuccess: (result) => {
+                    const response = (
+                        result as {
+                            response?: {
+                                transactionId?: string;
+                                status?:
+                                    | "pending"
+                                    | "confirmed"
+                                    | "rejected"
+                                    | "failed";
+                                rejectionReason?: string;
+                            };
+                        }
+                    ).response;
+                    if (response?.transactionId) {
+                        setTransactionId(response.transactionId);
+                        setLocalStatus(immediateTransactionState(response));
+                    }
+                },
             },
         );
     };
-    const transaction = statusQuery.data as
+    const transaction = (statusQuery.data ?? localStatus) as
         | {
               status: "pending" | "confirmed" | "rejected" | "failed";
               rejectionReason?: string;

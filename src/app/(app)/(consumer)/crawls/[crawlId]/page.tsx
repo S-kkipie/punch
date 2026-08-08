@@ -1,12 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCrawl } from "@/core/punch/client/hooks";
+import { useCrawl, useVouchers } from "@/core/punch/client/hooks";
 import { Spinner } from "@/frontend/components/ui/spinner";
 
 export default function CrawlDetailPage() {
     const { crawlId } = useParams<{ crawlId: string }>();
     const query = useCrawl(crawlId);
+    const vouchersQuery = useVouchers();
     if (query.isPending)
         return (
             <div className="flex min-h-64 items-center justify-center">
@@ -19,6 +21,22 @@ export default function CrawlDetailPage() {
         name: string;
         steps: Array<{ stepIndex: number; cafeId: string }>;
     };
+    const cafeIds = new Set(crawl.steps.map((step) => step.cafeId));
+    const voucher = (
+        (vouchersQuery.data ?? []) as Array<{
+            id: string;
+            cafeId: string | null;
+            source: string;
+            status: string;
+        }>
+    ).find(
+        (item) =>
+            item.id &&
+            item.cafeId !== null &&
+            cafeIds.has(item.cafeId) &&
+            item.source === "crawl" &&
+            item.status === "available",
+    );
     return (
         <div className="mx-auto grid w-full max-w-md gap-5">
             <div className="consumer-panel grid gap-4 p-6">
@@ -39,6 +57,14 @@ export default function CrawlDetailPage() {
                         </div>
                     ))}
                 </div>
+                {voucher && (
+                    <Link
+                        className="font-semibold text-[var(--color-accent)] underline"
+                        href={`/redeem/${voucher.id}?cafeId=${voucher.cafeId}&voucherId=${voucher.id}`}
+                    >
+                        Usar tu voucher
+                    </Link>
+                )}
             </div>
         </div>
     );
