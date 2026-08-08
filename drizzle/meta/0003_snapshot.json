@@ -941,7 +941,7 @@
                     "type": "bigint",
                     "primaryKey": false,
                     "notNull": true,
-                    "default": 0
+                    "default": "0"
                 },
                 "updated_at": {
                     "name": "updated_at",

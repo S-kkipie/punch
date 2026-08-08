@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
     bigint,
     boolean,
@@ -52,7 +53,7 @@ export const projectionStatus = pgTable("projection_status", {
     projection: text("projection").primaryKey(),
     paused: boolean("paused").default(false).notNull(),
     lastGoodBlock: bigint("last_good_block", { mode: "bigint" })
-        .default(0n)
+        .default(sql`0`)
         .notNull(),
     updatedAt: timestamp("updated_at")
         .defaultNow()
