@@ -18,10 +18,30 @@ const labels: Record<string, string> = {
 type HistoryEntry = {
     id: string;
     operation: string;
+    cafeName?: string | null;
+    productName?: string | null;
+    campaignName?: string | null;
+    crawlName?: string | null;
     status: string;
     rejectionReason: string | null;
     createdAt: string;
 };
+
+function provenance(entry: HistoryEntry): string | null {
+    const cafe = entry.cafeName ?? "Café no disponible";
+    if (entry.operation === "emission") {
+        return `${cafe} · ${entry.productName ?? "Producto no disponible"}`;
+    }
+    if (entry.operation === "punch_redemption") {
+        return `${cafe} · ${entry.productName ?? "Recompensa no disponible"}`;
+    }
+    const source = entry.campaignName
+        ? `Campaña: ${entry.campaignName}`
+        : entry.crawlName
+          ? `Recorrido: ${entry.crawlName}`
+          : "Voucher sin origen disponible";
+    return `${cafe} · ${source}`;
+}
 
 const statuses: Record<string, string> = {
     pending: "En proceso",
@@ -76,6 +96,10 @@ export default function HistoryPage() {
         id: string;
         operation: string;
         status: string;
+        cafeName?: string | null;
+        productName?: string | null;
+        campaignName?: string | null;
+        crawlName?: string | null;
         rejectionReason: string | null;
         createdAt: string;
     }>;
@@ -106,6 +130,9 @@ export default function HistoryPage() {
                         <div>
                             <p className="font-semibold">
                                 {labels[entry.operation] ?? "Actividad"}
+                            </p>
+                            <p className="text-[var(--color-ink-2)] text-sm">
+                                {provenance(entry)}
                             </p>
                             <p className="text-[var(--color-ink-2)] text-sm">
                                 {new Date(entry.createdAt).toLocaleString(

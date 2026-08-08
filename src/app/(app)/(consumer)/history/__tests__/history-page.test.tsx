@@ -18,6 +18,38 @@ import HistoryPage from "../page";
 describe("HistoryPage states", () => {
     beforeEach(() => useHistory.mockReset());
 
+    it("renders distinct café and provenance details", () => {
+        useHistory.mockReturnValue({
+            isPending: false,
+            isError: false,
+            data: [
+                {
+                    id: "purchase",
+                    operation: "emission",
+                    status: "confirmed",
+                    cafeName: "Brújula Café",
+                    productName: "Espresso",
+                    rejectionReason: null,
+                    createdAt: "2026-08-08T12:00:00Z",
+                },
+                {
+                    id: "voucher",
+                    operation: "voucher_redemption",
+                    status: "confirmed",
+                    cafeName: "Patio 9",
+                    crawlName: "Ruta del café",
+                    rejectionReason: null,
+                    createdAt: "2026-08-08T13:00:00Z",
+                },
+            ],
+        });
+        const markup = renderToStaticMarkup(<HistoryPage />);
+        expect(markup).toContain("Brújula Café · Espresso");
+        expect(markup).toContain("Patio 9 · Recorrido: Ruta del café");
+        expect(markup).toContain("PUNCH ganado");
+        expect(markup).toContain("Voucher usado");
+    });
+
     it("shows loading, error retry, and empty states", () => {
         useHistory.mockReturnValue({ isPending: true });
         expect(renderToStaticMarkup(<HistoryPage />)).toContain("Cargando");
