@@ -17,12 +17,24 @@ export type CrawlAdvanceResult =
 
 /** Ordered A→B→C progression: only the next distinct café's purchase advances the crawl. */
 export function advanceCrawl(input: CrawlProgressInput): CrawlAdvanceResult {
-    if (input.now > input.crawlExpiresAt)
+    if (input.now >= input.crawlExpiresAt) {
         return { advanced: false, reason: "expired" };
-    if (input.completedCafeIds.length >= input.steps.length) {
+    }
+
+    const steps = [...input.steps].sort((a, b) => a.stepIndex - b.stepIndex);
+    const validDefinition = steps.every(
+        (step, index) => step.stepIndex === index && step.cafeId.length > 0,
+    );
+    const validProgress = input.completedCafeIds.every(
+        (cafeId, index) => cafeId === steps[index]?.cafeId,
+    );
+    if (!validDefinition || !validProgress) {
+        return { advanced: false, reason: "not_next_step" };
+    }
+    if (input.completedCafeIds.length >= steps.length) {
         return { advanced: false, reason: "already_completed" };
     }
-    const nextStep = input.steps[input.completedCafeIds.length];
+    const nextStep = steps[input.completedCafeIds.length];
     if (!nextStep || nextStep.cafeId !== input.purchaseCafeId) {
         return { advanced: false, reason: "not_next_step" };
     }
@@ -30,6 +42,6 @@ export function advanceCrawl(input: CrawlProgressInput): CrawlAdvanceResult {
     return {
         advanced: true,
         nextStepIndex,
-        crawlCompleted: nextStepIndex === input.steps.length,
+        crawlCompleted: nextStepIndex === steps.length,
     };
 }

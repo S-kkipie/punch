@@ -45,4 +45,15 @@ describe("canRedeem / balanceAfterRedemption", () => {
             "Insufficient PUNCH balance for redemption",
         );
     });
+    it.each([
+        12.5,
+        Number.NaN,
+        Number.POSITIVE_INFINITY,
+        -1,
+    ])("rejects invalid balance %s", (balance) => {
+        expect(() => canRedeem(balance)).toThrow("Invalid PUNCH balance");
+        expect(() => balanceAfterRedemption(balance)).toThrow(
+            "Invalid PUNCH balance",
+        );
+    });
 });

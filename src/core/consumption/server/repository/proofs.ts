@@ -9,8 +9,12 @@ import {
 
 export async function createProof(
     input: Omit<NewConsumptionProofRow, "id" | "createdAt" | "updatedAt">,
+    client: DbClient = db,
 ): Promise<ConsumptionProofRow> {
-    const [row] = await db.insert(consumptionProof).values(input).returning();
+    const [row] = await client
+        .insert(consumptionProof)
+        .values(input)
+        .returning();
     if (!row) throw new Error("createProof: insert returned no row");
     return row;
 }
