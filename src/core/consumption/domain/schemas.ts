@@ -5,12 +5,12 @@ const bytes32Hex = z
     .regex(/^0x[0-9a-fA-F]{64}$/, "Hash inválido (bytes32)");
 
 export const createPurchaseProofSchema = z.object({
-    productId: z.string().min(1),
+    productId: z.string().min(1, "Selecciona un producto"),
     receiptHash: bytes32Hex,
 });
 
 export const confirmPurchaseSchema = z.object({
-    proofId: z.string().min(1),
+    proofId: z.string().min(1, "Indica el comprobante de compra"),
 });
 
 export const consumerTransactionStatusSchema = z.enum([
@@ -57,11 +57,11 @@ export const consumerTransactionSchema = z.object({
 });
 
 export const requestPunchRedemptionSchema = z.object({
-    productId: z.string().min(1),
+    productId: z.string().min(1, "Selecciona un producto"),
 });
 
 export const requestVoucherRedemptionSchema = z.object({
-    voucherId: z.string().min(1),
+    voucherId: z.string().min(1, "Indica el voucher a canjear"),
 });
 
 export const decideRedemptionRequestSchema = z
