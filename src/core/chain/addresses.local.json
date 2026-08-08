@@ -1,9 +1,9 @@
 {
-    "cafeRegistry": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
-    "planManager": "0xdc64a140aa3e981100a9beca4e685f962f0cf6c9",
-    "consumptionLog": "0x5fc8d32690cc91d4c39d9d3abcbd16989f875707",
-    "punchVault": "0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9",
-    "networkFund": "0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0",
-    "campaignEscrow": "0x0165878a594ca255338adfa4d48449f69242eb8f",
-    "mockPEN": "0x5fbdb2315678afecb367f032d93f642f64180aa3"
+    "cafeRegistry": "0xf5059a5d33d5853360d16c683c16e67980206f36",
+    "planManager": "0x70e0ba845a1a0f2da3359c97e0285013525ffc49",
+    "consumptionLog": "0x4826533b4897376654bb4d4ad88b7fafd0c98528",
+    "punchVault": "0x998abeb3e57409262ae5b751f60747921b33613e",
+    "networkFund": "0x95401dc811bb5740090279ba06cfa8fcf6113778",
+    "campaignEscrow": "0x99bba657f2bbc93c02d617f8ba121cb8fc104acf",
+    "mockPEN": "0x851356ae760d987e095750cceb3bc6014560891c"
 }

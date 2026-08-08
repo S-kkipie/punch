@@ -37,4 +37,29 @@ Deployment order is MockPEN, CafeRegistry, NetworkFund, PunchVault, PlanManager,
 - Address map check — 7 non-zero addresses.
 - `cast call <PlanManager> 'credits(uint256)(uint256)' 1 --rpc-url http://127.0.0.1:8545` — `100`.
 
-`pnpm chain:deploy` was also attempted exactly as specified, but this checkout has no `.env` file and tsx exits before running with `node: .env: not found`. Running the same script directly succeeds; the package command will work when the repository's expected `.env` exists.
+`pnpm chain:deploy` was also attempted exactly as specified, but the initial checkout had no `.env` file and tsx exited before running with `node: .env: not found`. The command subsequently ran successfully after the local `.env` was provisioned.
+
+## Review fix
+
+- Changed `seedCafe` to accept `ownerWalletIndex` and return the derived `ownerAddress`, removing the hidden 20-account limit.
+- Seed now funds the derived owner with 1 ETH from the deployer so arbitrary high wallet indexes can submit owner-only setup transactions on anvil.
+- Added `CHAIN_ENV="local"` and `CHAIN_RPC_URL="http://127.0.0.1:8545"` to `.env.example`.
+
+Fix verification:
+
+- `pnpm typecheck` — passed.
+- `pnpm exec biome check scripts/dev-chain.ts .env.example` — passed for the checked script (the env example is not a Biome source file).
+- `pnpm chain:deploy` — passed; wrote 7 non-zero addresses.
+- High-index fixture via `seedCafe({ ownerWalletIndex: 25 })` — returned café 2 and owner `0xDf37F81dAAD2b0327A0A50003740e1C935C70913`.
+- `cast call CafeRegistry getCafe(2)` — status `1` (`Active`).
+- `cast call PlanManager credits(2)` — `100`.
+- Address map check — `7`.
+
+The deployment and high-index verification ran against the already-running anvil at `http://127.0.0.1:8545`.
+
+## Files touched by the review fix
+
+- `scripts/dev-chain.ts`
+- `.env.example`
+- `src/core/chain/addresses.local.json`
+- This report

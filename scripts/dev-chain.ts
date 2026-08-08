@@ -7,6 +7,7 @@ import {
     type Hex,
     http,
     keccak256,
+    parseEther,
     parseUnits,
     toBytes,
 } from "viem";
@@ -152,9 +153,9 @@ export async function deployAll(rpcUrl = RPC): Promise<AddressMap> {
 export async function seedCafe(opts: {
     rpcUrl?: string;
     addresses: AddressMap;
-    ownerAddress: `0x${string}`;
+    ownerWalletIndex: number;
     chainProductId?: bigint;
-}): Promise<{ chainCafeId: bigint }> {
+}): Promise<{ chainCafeId: bigint; ownerAddress: `0x${string}` }> {
     const rpcUrl = opts.rpcUrl ?? RPC;
     const pub = createPublicClient({ chain: foundry, transport: http(rpcUrl) });
     const deployerWallet = createWalletClient({
@@ -162,16 +163,10 @@ export async function seedCafe(opts: {
         chain: foundry,
         transport: http(rpcUrl),
     });
-    const owner = Array.from({ length: 20 }, (_, addressIndex) =>
-        mnemonicToAccount(mnemonic, { addressIndex }),
-    ).find(
-        (account) =>
-            account.address.toLowerCase() === opts.ownerAddress.toLowerCase(),
-    );
-    if (!owner)
-        throw new Error(
-            "ownerAddress must be derived from WALLET_MASTER_MNEMONIC",
-        );
+    const owner = mnemonicToAccount(mnemonic, {
+        addressIndex: opts.ownerWalletIndex,
+    });
+    const ownerAddress = owner.address as `0x${string}`;
     const ownerWallet = createWalletClient({
         account: owner,
         chain: foundry,
@@ -181,11 +176,18 @@ export async function seedCafe(opts: {
 
     await waitForWrite(
         pub,
+        await deployerWallet.sendTransaction({
+            to: ownerAddress,
+            value: parseEther("1"),
+        }),
+    );
+    await waitForWrite(
+        pub,
         await deployerWallet.writeContract({
             address: opts.addresses.cafeRegistry,
             abi: abis.cafeRegistry,
             functionName: "registerCafe",
-            args: [opts.ownerAddress],
+            args: [ownerAddress],
         }),
     );
     const chainCafeId = (await pub.readContract({
@@ -217,7 +219,7 @@ export async function seedCafe(opts: {
             address: opts.addresses.mockPEN,
             abi: abis.mockPEN,
             functionName: "mint",
-            args: [opts.ownerAddress, parseUnits("49", 6)],
+            args: [ownerAddress, parseUnits("49", 6)],
         }),
     );
     await waitForWrite(
@@ -238,14 +240,13 @@ export async function seedCafe(opts: {
             args: [chainCafeId],
         }),
     );
-    return { chainCafeId };
+    return { chainCafeId, ownerAddress };
 }
 
 if (process.argv[1]?.endsWith("dev-chain.ts")) {
     const map = await deployAll();
-    const ownerAddress = (process.env.CAFE_OWNER_ADDRESS ??
-        deployer.address) as `0x${string}`;
-    await seedCafe({ addresses: map, ownerAddress });
+    const ownerWalletIndex = Number(process.env.CAFE_OWNER_WALLET_INDEX ?? 0);
+    await seedCafe({ addresses: map, ownerWalletIndex });
     writeFileSync(
         join(import.meta.dirname, "../src/core/chain/addresses.local.json"),
         `${JSON.stringify(map, null, 4)}\n`,
