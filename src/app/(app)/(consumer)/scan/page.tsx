@@ -1,0 +1,111 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { Button } from "@/frontend/components/ui/button";
+import { Input } from "@/frontend/components/ui/input";
+
+export default function ScanPage() {
+    const router = useRouter();
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const [pastedCode, setPastedCode] = useState("");
+    const [cameraError, setCameraError] = useState<string | null>(null);
+    const [supportsCamera] = useState(
+        () =>
+            typeof window !== "undefined" &&
+            "BarcodeDetector" in window &&
+            Boolean(navigator.mediaDevices),
+    );
+
+    useEffect(() => {
+        if (!supportsCamera) return;
+        let stream: MediaStream | undefined;
+        let cancelled = false;
+        const start = async () => {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                });
+                if (cancelled) return;
+                if (videoRef.current) videoRef.current.srcObject = stream;
+                const Detector = (
+                    window as unknown as {
+                        BarcodeDetector: new (opts: {
+                            formats: string[];
+                        }) => {
+                            detect: (
+                                source: HTMLVideoElement,
+                            ) => Promise<{ rawValue: string }[]>;
+                        };
+                    }
+                ).BarcodeDetector;
+                const detector = new Detector({ formats: ["qr_code"] });
+                const tick = async () => {
+                    if (cancelled || !videoRef.current) return;
+                    const codes = await detector.detect(videoRef.current);
+                    const proofId = codes[0]?.rawValue?.split("/purchase/")[1];
+                    if (proofId) {
+                        router.push(`/purchase/${proofId}`);
+                        return;
+                    }
+                    requestAnimationFrame(() => void tick());
+                };
+                requestAnimationFrame(() => void tick());
+            } catch {
+                setCameraError("No se pudo acceder a la cámara.");
+            }
+        };
+        void start();
+        return () => {
+            cancelled = true;
+            stream?.getTracks().forEach((track) => {
+                track.stop();
+            });
+        };
+    }, [router, supportsCamera]);
+
+    const openPastedCode = () => {
+        const proofId = pastedCode.trim().split("/purchase/").pop();
+        if (proofId) router.push(`/purchase/${proofId}`);
+    };
+
+    return (
+        <div className="mx-auto grid w-full max-w-md gap-5">
+            <section className="grid gap-2">
+                <span className="consumer-eyebrow">Tu visita cuenta</span>
+                <h1 className="consumer-title text-4xl font-bold">
+                    Escanear compra
+                </h1>
+                <p>
+                    Escanea el código que te dio el barista para registrar tu
+                    visita.
+                </p>
+            </section>
+            {supportsCamera && !cameraError ? (
+                <video
+                    ref={videoRef}
+                    autoPlay
+                    muted
+                    playsInline
+                    aria-label="Vista de la cámara para escanear"
+                    className="w-full rounded-3xl border border-[var(--color-line)] bg-black"
+                />
+            ) : (
+                <div className="consumer-panel p-5 text-[var(--color-ink-2)] text-sm">
+                    {cameraError ??
+                        "Tu navegador no soporta escaneo con cámara."}{" "}
+                    Pega el enlace o código que te dio el barista.
+                </div>
+            )}
+            <div className="flex gap-2">
+                <Input
+                    value={pastedCode}
+                    onChange={(event) => setPastedCode(event.target.value)}
+                    placeholder="Pega el enlace o código"
+                    aria-label="Código de compra"
+                />
+                <Button onClick={openPastedCode}>Abrir</Button>
+            </div>
+        </div>
+    );
+}
