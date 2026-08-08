@@ -11,6 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { user } from "./auth-schema";
 import { cafe, cafeProduct } from "./cafe-schema";
+import { consumerVoucher } from "./punch-schema";
 
 export const purchaseProofStatus = pgEnum("purchase_proof_status", [
     "issued",
@@ -54,6 +55,10 @@ export const consumptionProof = pgTable(
             "consumption_proof_amount_positive",
             sql`${table.amountCentimos} > 0`,
         ),
+        check(
+            "consumption_proof_confirmed_binding",
+            sql`${table.status} <> 'confirmed' OR (${table.consumerUserId} IS NOT NULL AND ${table.cafeSignature} IS NOT NULL AND ${table.consumerSignature} IS NOT NULL)`,
+        ),
     ],
 );
 
@@ -83,7 +88,9 @@ export const consumerTransaction = pgTable(
             .notNull()
             .references(() => cafe.id),
         proofId: text("proof_id").references(() => consumptionProof.id),
-        redemptionRequestId: text("redemption_request_id"),
+        redemptionRequestId: text("redemption_request_id").references(
+            () => redemptionRequest.id,
+        ),
         chainTxId: text("chain_tx_id").notNull(),
         status: consumerTransactionStatus("status")
             .default("pending")
@@ -100,8 +107,17 @@ export const consumerTransaction = pgTable(
         uniqueIndex("consumer_transaction_idempotency_uq").on(
             table.idempotencyKey,
         ),
+        uniqueIndex("consumer_transaction_proof_id_uq")
+            .on(table.proofId)
+            .where(sql`${table.proofId} IS NOT NULL`),
+        uniqueIndex("consumer_transaction_redemption_request_id_uq")
+            .on(table.redemptionRequestId)
+            .where(sql`${table.redemptionRequestId} IS NOT NULL`),
         index("consumer_transaction_consumer_id_idx").on(table.consumerUserId),
-        index("consumer_transaction_proof_id_idx").on(table.proofId),
+        check(
+            "consumer_transaction_operation_shape",
+            sql`(${table.operation} = 'emission' AND ${table.proofId} IS NOT NULL AND ${table.redemptionRequestId} IS NULL) OR (${table.operation} IN ('punch_redemption', 'voucher_redemption') AND ${table.proofId} IS NULL AND ${table.redemptionRequestId} IS NOT NULL)`,
+        ),
     ],
 );
 
@@ -129,7 +145,7 @@ export const redemptionRequest = pgTable(
             .notNull()
             .references(() => cafe.id),
         productId: text("product_id").references(() => cafeProduct.id),
-        voucherId: text("voucher_id"),
+        voucherId: text("voucher_id").references(() => consumerVoucher.id),
         status: redemptionRequestStatus("status").default("pending").notNull(),
         rejectionReason: text("rejection_reason"),
         decidedByUserId: text("decided_by_user_id").references(() => user.id),
@@ -142,6 +158,10 @@ export const redemptionRequest = pgTable(
     (table) => [
         index("redemption_request_cafe_id_idx").on(table.cafeId),
         index("redemption_request_consumer_id_idx").on(table.consumerUserId),
+        check(
+            "redemption_request_kind_shape",
+            sql`(${table.kind} = 'punch_reward' AND ${table.productId} IS NOT NULL AND ${table.voucherId} IS NULL) OR (${table.kind} = 'voucher' AND ${table.productId} IS NULL AND ${table.voucherId} IS NOT NULL)`,
+        ),
     ],
 );
 
