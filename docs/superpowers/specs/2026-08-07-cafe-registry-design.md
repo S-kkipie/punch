@@ -14,7 +14,7 @@ Replace the `CafeRegistry` scaffold stub with the working on-chain roster of mem
 
 It moves no value: no PUNCH, no reserve, no PEN. Identity and permissions only. This is why it is the first real contract — `PlanManager`, `ConsumptionLog`, `PunchVault`, `NetworkFund` and `CampaignEscrow` all read from it.
 
-Master-spec grounding: invariant §13 ("Arbitrum manda; Postgres proyecta") is the reason the roster lives on-chain at all. If the authorized-café list lived only in Postgres, compromising the backend would be enough to inject a phantom café that emits PUNCH with no plan and no reserve behind it.
+Master-spec grounding: invariant §13 ("Arbitrum manda; Postgres proyecta") is the reason the roster lives on-chain at all. Keeping the authorized-café list on-chain makes registrations and status changes auditable through events and `cafeCount`, and gives the admin a direct role-revocation path if the ops backend is compromised; it does not by itself prevent the registrar from adding and activating a phantom café.
 
 ## Scope
 

@@ -82,6 +82,34 @@ contract CafeRegistryTest is Test {
         registry.registerCafe(owner1);
     }
 
+    function test_revokeRegistrarRoleStopsRegistrarWrites() public {
+        address compromised = makeAddr("compromised");
+        bytes32 registrarRole = registry.REGISTRAR_ROLE();
+        vm.startPrank(admin);
+        registry.grantRole(registrarRole, compromised);
+        vm.stopPrank();
+
+        vm.prank(compromised);
+        uint256 cafeId = registry.registerCafe(owner1);
+        vm.prank(compromised);
+        registry.setCafeStatus(cafeId, ICafeRegistry.CafeStatus.Active);
+
+        vm.prank(admin);
+        registry.revokeRole(registrarRole, compromised);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, compromised, registrarRole)
+        );
+        vm.prank(compromised);
+        registry.registerCafe(owner2);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, compromised, registrarRole)
+        );
+        vm.prank(compromised);
+        registry.setCafeStatus(cafeId, ICafeRegistry.CafeStatus.Suspended);
+    }
+
     function test_getCafe_unknownIdReverts() public {
         vm.expectRevert(abi.encodeWithSelector(CafeNotFound.selector, uint256(7)));
         registry.getCafe(7);
@@ -256,6 +284,13 @@ contract CafeRegistryTest is Test {
         registry.authorizeOperator(cafeId, address(0), true);
     }
 
+    function test_authorizeOperator_ownerSelfAuthorizationReverts() public {
+        uint256 cafeId = _register(owner1);
+        vm.expectRevert(NoStateChange.selector);
+        vm.prank(owner1);
+        registry.authorizeOperator(cafeId, owner1, true);
+    }
+
     function test_authorizeOperator_redundantWriteReverts() public {
         uint256 cafeId = _register(owner1);
         vm.expectRevert(NoStateChange.selector);
@@ -407,6 +442,24 @@ contract CafeRegistryTest is Test {
         registry.authorizeOperator(cafeId, operator, true);
     }
 
+    function test_acceptOwnership_clearsOperatorBitFromOutgoingOwner() public {
+        uint256 cafeId = _register(owner1);
+        vm.startPrank(owner1);
+        registry.authorizeOperator(cafeId, owner2, true);
+        registry.proposeOwner(cafeId, owner2);
+        vm.stopPrank();
+
+        vm.prank(owner2);
+        registry.acceptOwnership(cafeId);
+        assertTrue(registry.isAuthorized(cafeId, owner2));
+
+        vm.prank(owner2);
+        registry.proposeOwner(cafeId, stranger);
+        vm.prank(stranger);
+        registry.acceptOwnership(cafeId);
+        assertFalse(registry.isAuthorized(cafeId, owner2));
+    }
+
     function test_acceptOwnership_operatorsAndProductsSurvive() public {
         uint256 cafeId = _register(owner1);
         vm.startPrank(owner1);
@@ -465,6 +518,21 @@ contract CafeRegistryTest is Test {
         vm.expectRevert(abi.encodeWithSelector(CafeNotFound.selector, uint256(1)));
         vm.prank(owner2);
         registry.acceptOwnership(1);
+    }
+
+    function test_acceptOwnership_exitedCafeRevertsAndClearsPendingOwner() public {
+        uint256 cafeId = _register(owner1);
+        vm.prank(owner1);
+        registry.proposeOwner(cafeId, owner2);
+
+        _setStatus(cafeId, ICafeRegistry.CafeStatus.Exited);
+
+        vm.expectRevert(abi.encodeWithSelector(CafeNotConfigurable.selector, cafeId, ICafeRegistry.CafeStatus.Exited));
+        vm.prank(owner2);
+        registry.acceptOwnership(cafeId);
+
+        bytes32 cafeStorage = keccak256(abi.encode(cafeId, uint256(0)));
+        assertEq(vm.load(address(registry), bytes32(uint256(cafeStorage) + 1)), bytes32(0));
     }
 
     function test_proposeOwner_nonOwnerReverts() public {
@@ -535,15 +603,25 @@ contract CafeRegistryTest is Test {
         assertFalse(registry.isAuthorized(cafeId, who));
     }
 
-    function testFuzz_setEligibleProduct_reflectsLastWrite(uint256 productId, bool eligible) public {
+    function testFuzz_setEligibleProduct_reflectsLastWrite(uint256 productId, bool firstEligible, bool secondEligible)
+        public
+    {
         uint256 cafeId = _register(owner1);
+        bool finalEligible;
 
-        if (eligible) {
+        if (firstEligible) {
             vm.prank(owner1);
             registry.setEligibleProduct(cafeId, productId, ICafeRegistry.ProductKind.Emission, true);
+            finalEligible = true;
         }
 
-        assertEq(registry.isEligible(cafeId, productId, ICafeRegistry.ProductKind.Emission), eligible);
+        if (secondEligible != finalEligible) {
+            vm.prank(owner1);
+            registry.setEligibleProduct(cafeId, productId, ICafeRegistry.ProductKind.Emission, secondEligible);
+            finalEligible = secondEligible;
+        }
+
+        assertEq(registry.isEligible(cafeId, productId, ICafeRegistry.ProductKind.Emission), finalEligible);
         assertFalse(registry.isEligible(cafeId, productId, ICafeRegistry.ProductKind.Reward));
     }
 }

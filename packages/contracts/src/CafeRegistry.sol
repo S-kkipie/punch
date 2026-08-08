@@ -20,8 +20,8 @@ contract CafeRegistry is ICafeRegistry, AccessControl {
 
     struct Cafe {
         address owner;
-        address pendingOwner;
         CafeStatus status;
+        address pendingOwner;
     }
 
     mapping(uint256 cafeId => Cafe) private _cafes;
@@ -85,6 +85,9 @@ contract CafeRegistry is ICafeRegistry, AccessControl {
         }
 
         cafe.status = status;
+        if (status == CafeStatus.Exited) {
+            cafe.pendingOwner = address(0);
+        }
         emit CafeStatusChanged(cafeId, status);
     }
 
@@ -95,6 +98,7 @@ contract CafeRegistry is ICafeRegistry, AccessControl {
         configurable(cafeId)
     {
         if (operator == address(0)) revert ZeroAddress();
+        if (operator == _cafes[cafeId].owner) revert NoStateChange();
         if (_operators[cafeId][operator] == authorized) revert NoStateChange();
 
         _operators[cafeId][operator] = authorized;
@@ -102,6 +106,7 @@ contract CafeRegistry is ICafeRegistry, AccessControl {
     }
 
     /// @inheritdoc ICafeRegistry
+    /// @dev Does not consider café status; combine with `isOperational` before allowing activity.
     function isAuthorized(uint256 cafeId, address account) external view returns (bool) {
         if (account == address(0)) return false;
         return _cafes[cafeId].owner == account || _operators[cafeId][account];
@@ -122,13 +127,14 @@ contract CafeRegistry is ICafeRegistry, AccessControl {
     }
 
     /// @inheritdoc ICafeRegistry
+    /// @dev Does not consider café status; combine with `isOperational` before allowing activity.
     function isEligible(uint256 cafeId, uint256 productId, ProductKind kind) external view returns (bool) {
         return _eligible[cafeId][productId][kind];
     }
 
     /// @inheritdoc ICafeRegistry
     function isOperational(uint256 cafeId) external view returns (bool) {
-        return _cafes[cafeId].status == CafeStatus.Active && _cafes[cafeId].owner != address(0);
+        return _cafes[cafeId].status == CafeStatus.Active;
     }
 
     /// @dev Exited is terminal; a café that leaves re-registers under a new id.
@@ -161,11 +167,18 @@ contract CafeRegistry is ICafeRegistry, AccessControl {
     function acceptOwnership(uint256 cafeId) external {
         Cafe storage cafe = _cafes[cafeId];
         if (cafe.owner == address(0)) revert CafeNotFound(cafeId);
+        if (cafe.status == CafeStatus.Exited) {
+            revert CafeNotConfigurable(cafeId, CafeStatus.Exited);
+        }
         if (cafe.pendingOwner != msg.sender) revert NotPendingOwner(cafeId, msg.sender);
 
         address previous = cafe.owner;
         cafe.owner = msg.sender;
         cafe.pendingOwner = address(0);
+        if (_operators[cafeId][previous]) {
+            _operators[cafeId][previous] = false;
+            emit OperatorAuthorized(cafeId, previous, false);
+        }
         emit CafeOwnerTransferred(cafeId, previous, msg.sender);
     }
 }
