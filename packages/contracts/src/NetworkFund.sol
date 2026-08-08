@@ -140,10 +140,7 @@ contract NetworkFund is INetworkFund, Ownable, Pausable {
     /// double count steals credit from every other café. `referralId` (the backend's
     /// receipt/campaign identifier) makes this idempotent. Op lives outside the frozen
     /// interface, which has no room for the id.
-    function recordReferralWithProof(uint256 epoch, uint256 originCafeId, bytes32 referralId)
-        external
-        whenNotPaused
-    {
+    function recordReferralWithProof(uint256 epoch, uint256 originCafeId, bytes32 referralId) external whenNotPaused {
         if (msg.sender != referralRecorder) revert NotReferralRecorder(msg.sender);
         if (referralId == bytes32(0)) revert ReferralProofRequired();
         if (usedReferralId[referralId]) revert ReferralIdUsed(referralId);

@@ -12,9 +12,7 @@ interface IConsumptionLog {
         uint256 expiry;
     }
 
-    event ConsumptionRecorded(
-        uint256 indexed cafeId, address indexed user, bytes32 indexed receiptHash
-    );
+    event ConsumptionRecorded(uint256 indexed cafeId, address indexed user, bytes32 indexed receiptHash);
 
     function recordConsumption(
         ConsumptionProof calldata proof,
