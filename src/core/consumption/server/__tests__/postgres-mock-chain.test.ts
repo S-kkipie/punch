@@ -36,17 +36,20 @@ vi.mock("@/core/punch/domain/campaign", async (importOriginal) => {
 
 import { isEligibleForAcquisitionCampaign } from "@/core/punch/domain/campaign";
 import {
+    decrementBalance,
     getBalance,
     incrementBalance,
 } from "@/core/punch/server/repository/balance";
 import { ConsumerChainError } from "../chain-port";
 import { PostgresMockConsumerChain } from "../postgres-mock-chain";
 import { findProofById } from "../repository/proofs";
+import { findRedemptionRequestById } from "../repository/redemption-requests";
 import {
     createTransaction,
     findTransactionById,
     findTransactionByIdempotencyKey,
     findTransactionByProofId,
+    findTransactionByRedemptionRequestId,
     updateTransactionStatus,
 } from "../repository/transactions";
 
@@ -693,5 +696,42 @@ describe("PostgresMockConsumerChain.getTransactionStatus", () => {
         await expect(chain.getTransactionStatus("missing")).rejects.toThrow(
             ConsumerChainError,
         );
+    });
+});
+
+
+describe("PostgresMockConsumerChain PUNCH redemptions", () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        vi.mocked(findTransactionByIdempotencyKey).mockResolvedValue(null);
+        vi.mocked(findTransactionByRedemptionRequestId).mockResolvedValue(null);
+        vi.mocked(createTransaction).mockResolvedValue({ id: "tx-punch", status: "pending" } as never);
+        vi.mocked(findRedemptionRequestById).mockResolvedValue({ id: "req", status: "approved", consumerUserId: "u", cafeId: "c" } as never);
+        vi.mocked(updateTransactionStatus).mockImplementation(async (_tx, id, status, rejectionReason) => ({ id, status, rejectionReason } as never));
+    });
+    it("rejects pending requests", async () => {
+        vi.mocked(findRedemptionRequestById).mockResolvedValue({ id: "req", status: "pending" } as never);
+        await expect(new PostgresMockConsumerChain().submitPunchRedemption({ redemptionRequestId: "req", idempotencyKey: "k" })).rejects.toMatchObject({ code: "REQUEST_NOT_APPROVED" });
+    });
+    it("submits approved redemption without immediate burn", async () => {
+        const result = await new PostgresMockConsumerChain().submitPunchRedemption({ redemptionRequestId: "req", idempotencyKey: "k" });
+        expect(result).toEqual({ transactionId: "tx-punch", status: "pending" });
+        expect(decrementBalance).not.toHaveBeenCalled();
+    });
+    it("burns exactly 12 once on delayed confirmation", async () => {
+        const chain = new PostgresMockConsumerChain(() => Date.now(), 0);
+        await chain.submitPunchRedemption({ redemptionRequestId: "req", idempotencyKey: "k" });
+        vi.mocked(findTransactionById).mockResolvedValue({ id: "tx-punch", status: "pending", operation: "punch_redemption", redemptionRequestId: "req", consumerUserId: "u", createdAt: new Date(0) } as never);
+        await chain.getTransactionStatus("tx-punch");
+        await chain.getTransactionStatus("tx-punch");
+        expect(decrementBalance).toHaveBeenCalledTimes(1);
+        expect(decrementBalance).toHaveBeenCalledWith(expect.anything(), "u", 12);
+    });
+    it("rejects safely when balance is insufficient", async () => {
+        vi.mocked(decrementBalance).mockRejectedValue({ code: "INSUFFICIENT_BALANCE" });
+        const chain = new PostgresMockConsumerChain(() => Date.now(), 0);
+        vi.mocked(findTransactionById).mockResolvedValue({ id: "tx-punch", status: "pending", operation: "punch_redemption", redemptionRequestId: "req", consumerUserId: "u", createdAt: new Date(0) } as never);
+        const result = await chain.getTransactionStatus("tx-punch");
+        expect(result).toMatchObject({ status: "rejected", rejectionReason: "Necesitas 12 PUNCH para canjear." });
     });
 });

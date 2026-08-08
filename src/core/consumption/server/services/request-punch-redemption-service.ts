@@ -16,7 +16,15 @@ export async function requestPunchRedemptionService(
     if (!product || product.cafeId !== cafeId) {
         return err(AppErrors.notFound({ targets: ["productId"] }));
     }
-    if (product.type !== "reward" || product.approvalStatus !== "approved" || !product.active) {
+    const price = Number(product.priceSoles);
+    if (
+        product.type !== "reward" ||
+        product.approvalStatus !== "approved" ||
+        !product.active ||
+        !Number.isFinite(price) ||
+        price <= 0 ||
+        price > 12
+    ) {
         return err(AppErrors.unprocessableEntity({ targets: ["productId"] }));
     }
     const balance = await getBalance(consumerUserId);
