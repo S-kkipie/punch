@@ -2,8 +2,16 @@ import "server-only";
 
 import type { PurchaseOrderStatus } from "@/core/purchase/domain/types";
 import { requireCafeRole } from "@/server/auth/membership/require-cafe-role";
-import { AppErrors, err, ok, type AsyncAppResult } from "@/server/common/responses";
-import { purchaseRepository, type PurchaseOrderWithChain } from "../repository/purchase-repository";
+import {
+    AppErrors,
+    type AsyncAppResult,
+    err,
+    ok,
+} from "@/server/common/responses";
+import {
+    type PurchaseOrderWithChain,
+    purchaseRepository,
+} from "../repository/purchase-repository";
 import { toPurchaseView } from "./purchase-view";
 
 type ListDeps = {
@@ -20,7 +28,10 @@ const defaults: ListDeps = {
 
 const views = (rows: PurchaseOrderWithChain[]) => rows.map(toPurchaseView);
 
-export async function listMyPurchasesService(userId: string, deps: Partial<ListDeps> = {}): AsyncAppResult<ReturnType<typeof views>> {
+export async function listMyPurchasesService(
+    userId: string,
+    deps: Partial<ListDeps> = {},
+): AsyncAppResult<ReturnType<typeof views>> {
     try {
         const d = { ...defaults, ...deps };
         return ok(views(await d.listByUser(userId)));
@@ -29,13 +40,23 @@ export async function listMyPurchasesService(userId: string, deps: Partial<ListD
     }
 }
 
-export async function listCafePurchasesService(userId: string, cafeId: string, status?: PurchaseOrderStatus, deps: Partial<ListDeps> = {}): AsyncAppResult<ReturnType<typeof views>> {
+export async function listCafePurchasesService(
+    userId: string,
+    cafeId: string,
+    status?: PurchaseOrderStatus,
+    deps: Partial<ListDeps> = {},
+): AsyncAppResult<ReturnType<typeof views>> {
     try {
         const d = { ...defaults, ...deps };
-        const membership = await d.requireMember(userId, cafeId, ["owner", "barista"]);
+        const membership = await d.requireMember(userId, cafeId, [
+            "owner",
+            "barista",
+        ]);
         if (!membership.ok) return membership;
         return ok(views(await d.listByCafe(cafeId, status)));
     } catch {
-        return err(AppErrors.unexpected(new Error("cafe purchase listing failed")));
+        return err(
+            AppErrors.unexpected(new Error("cafe purchase listing failed")),
+        );
     }
 }

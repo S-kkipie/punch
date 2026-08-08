@@ -221,7 +221,9 @@ export async function updateOrderAndQueue(
     }
 }
 
-export async function listByUser(userId: string): Promise<PurchaseOrderWithChain[]> {
+export async function listByUser(
+    userId: string,
+): Promise<PurchaseOrderWithChain[]> {
     return db
         .select({
             id: purchaseOrder.id,
