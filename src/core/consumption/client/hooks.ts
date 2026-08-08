@@ -3,6 +3,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useElysia } from "@/frontend/lib/eden";
 
+export const punchDashboardQueryKey = ["punch", "dashboard"] as const;
+export const punchVouchersQueryKey = ["punch", "vouchers"] as const;
+export const consumptionTransactionQueryKey = (
+    transactionId: string | undefined,
+) => ["consumption", "transactions", transactionId] as const;
+export const consumptionRedemptionInboxQueryKey = (cafeId: string) =>
+    ["consumption", "redemption-inbox", cafeId] as const;
+
 const unwrap = (result: unknown) => (result as { response: unknown }).response;
 const onError = (error: unknown) =>
     toast.error(
@@ -43,10 +51,10 @@ export const useConfirmPurchase = () => {
             ...client.purchases.confirm.post.mutationOptions(),
             onSuccess: () => {
                 void queryClient.invalidateQueries({
-                    queryKey: ["punch", "dashboard"],
+                    queryKey: punchDashboardQueryKey,
                 });
                 void queryClient.invalidateQueries({
-                    queryKey: ["consumption", "history"],
+                    queryKey: punchVouchersQueryKey,
                 });
             },
         }),
@@ -58,7 +66,7 @@ export const useTransactionStatus = (transactionId: string | undefined) => {
         ...(client
             .transactions({ transactionId: transactionId ?? "" })
             .get.queryOptions() as unknown as Record<string, unknown>),
-        queryKey: ["consumption", "transactions", transactionId],
+        queryKey: consumptionTransactionQueryKey(transactionId),
         select: unwrap,
         enabled: Boolean(transactionId),
         refetchInterval: (query) =>
@@ -76,7 +84,7 @@ export const useRequestPunchRedemption = (cafeId: string) => {
             ...client({ cafeId })["punch-redemptions"].post.mutationOptions(),
             onSuccess: () =>
                 queryClient.invalidateQueries({
-                    queryKey: ["punch", "dashboard"],
+                    queryKey: punchDashboardQueryKey,
                 }),
         }),
     );
@@ -99,10 +107,21 @@ export const useDecidePunchRedemption = (cafeId: string) => {
                     }
                 ).mutationFn(body as never);
             },
-            onSuccess: () =>
-                queryClient.invalidateQueries({
-                    queryKey: ["consumption", "redemption-inbox", cafeId],
-                }),
+            onSuccess: (result: unknown) => {
+                void queryClient.invalidateQueries({
+                    queryKey: punchDashboardQueryKey,
+                });
+                void queryClient.invalidateQueries({
+                    queryKey: consumptionRedemptionInboxQueryKey(cafeId),
+                });
+                const transactionId = (
+                    result as { response?: { transactionId?: string } }
+                )?.response?.transactionId;
+                if (transactionId)
+                    void queryClient.invalidateQueries({
+                        queryKey: consumptionTransactionQueryKey(transactionId),
+                    });
+            },
         }),
     );
 };
@@ -114,7 +133,7 @@ export const useRequestVoucherRedemption = (cafeId: string) => {
             ...client({ cafeId })["voucher-redemptions"].post.mutationOptions(),
             onSuccess: () =>
                 queryClient.invalidateQueries({
-                    queryKey: ["punch", "vouchers"],
+                    queryKey: punchVouchersQueryKey,
                 }),
         }),
     );
@@ -137,10 +156,24 @@ export const useDecideVoucherRedemption = (cafeId: string) => {
                     }
                 ).mutationFn(body as never);
             },
-            onSuccess: () =>
-                queryClient.invalidateQueries({
-                    queryKey: ["consumption", "redemption-inbox", cafeId],
-                }),
+            onSuccess: (result: unknown) => {
+                void queryClient.invalidateQueries({
+                    queryKey: punchDashboardQueryKey,
+                });
+                void queryClient.invalidateQueries({
+                    queryKey: punchVouchersQueryKey,
+                });
+                void queryClient.invalidateQueries({
+                    queryKey: consumptionRedemptionInboxQueryKey(cafeId),
+                });
+                const transactionId = (
+                    result as { response?: { transactionId?: string } }
+                )?.response?.transactionId;
+                if (transactionId)
+                    void queryClient.invalidateQueries({
+                        queryKey: consumptionTransactionQueryKey(transactionId),
+                    });
+            },
         }),
     );
 };
@@ -150,7 +183,7 @@ export const useCafeRedemptionInbox = (cafeId: string) => {
         ...(client({ cafeId })[
             "redemption-inbox"
         ].get.queryOptions() as unknown as Record<string, unknown>),
-        queryKey: ["consumption", "redemption-inbox", cafeId],
+        queryKey: consumptionRedemptionInboxQueryKey(cafeId),
         select: unwrap,
         refetchInterval: 5000,
     });
