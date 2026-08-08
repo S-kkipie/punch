@@ -159,7 +159,7 @@ export class PostgresMockConsumerChain implements ConsumerChainPort {
                     tx,
                     proof.consumerUserId,
                     proof.cafeId,
-                    row.id,
+                    { id: row.id, createdAt: row.createdAt },
                 );
                 const purchaseAt = new Date();
                 const eligible = isEligibleForAcquisitionCampaign({

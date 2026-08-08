@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, gte, lte } from "drizzle-orm";
+import { and, eq, gte, lt, lte, or } from "drizzle-orm";
 import type { DbClient } from "@/server/drizzle/db";
 import { consumerTransaction } from "@/server/drizzle/schemas/consumption-schema";
 import {
@@ -32,7 +32,7 @@ export async function hasPriorPaidPurchase(
     client: DbClient,
     consumerUserId: string,
     cafeId: string,
-    excludingTransactionId: string,
+    currentTransaction: { id: string; createdAt: Date },
 ): Promise<boolean> {
     const rows = await client
         .select({ id: consumerTransaction.id })
@@ -43,9 +43,22 @@ export async function hasPriorPaidPurchase(
                 eq(consumerTransaction.cafeId, cafeId),
                 eq(consumerTransaction.operation, "emission"),
                 eq(consumerTransaction.status, "confirmed"),
+                or(
+                    lt(
+                        consumerTransaction.createdAt,
+                        currentTransaction.createdAt,
+                    ),
+                    and(
+                        eq(
+                            consumerTransaction.createdAt,
+                            currentTransaction.createdAt,
+                        ),
+                        lt(consumerTransaction.id, currentTransaction.id),
+                    ),
+                ),
             ),
         );
-    return rows.some((row) => row.id !== excludingTransactionId);
+    return rows.length > 0;
 }
 
 export async function unlockCampaignVoucher(
