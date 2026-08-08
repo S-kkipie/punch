@@ -16,7 +16,9 @@ import { Input } from "@/frontend/components/ui/input";
 import { Spinner } from "@/frontend/components/ui/spinner";
 
 type Request = { id: string; kind: "punch_reward" | "voucher"; status: string };
-type Decision = {
+type Settlement = {
+    requestId: string;
+    kind: Request["kind"];
     transactionId?: string;
     status: ConsumerTransactionStatus;
     rejectionReason?: string;
@@ -25,14 +27,14 @@ function FulfillmentItem({
     decision,
     onRetry,
 }: {
-    decision?: Decision;
+    decision?: Settlement;
     onRetry: () => void;
 }) {
     const transactionQuery = useTransactionStatus(
         decision?.transactionId ?? "",
     );
     const transaction = (transactionQuery.data ?? decision) as
-        | Decision
+        | Settlement
         | undefined;
     if (!transaction) return null;
     return (
@@ -55,7 +57,7 @@ export default function CafeRedemptionsPage() {
     const decidePunch = useDecidePunchRedemption(cafeId);
     const decideVoucher = useDecideVoucherRedemption(cafeId);
     const [reasons, setReasons] = useState<Record<string, string>>({});
-    const [decisions, setDecisions] = useState<Record<string, Decision>>({});
+    const [decisions, setDecisions] = useState<Record<string, Settlement>>({});
     const [message, setMessage] = useState("");
 
     if (inboxQuery.isPending)
@@ -76,14 +78,19 @@ export default function CafeRedemptionsPage() {
         );
 
     const requests = (inboxQuery.data ?? []) as Request[];
-    const visibleRequests = [
+    const visibleRequests: Request[] = [
         ...requests,
-        ...Object.keys(decisions)
-            .filter((id) => !requests.some((request) => request.id === id))
-            .map((id) => ({
-                id,
-                kind: "punch_reward" as const,
-                status: "approved",
+        ...Object.values(decisions)
+            .filter(
+                (settlement) =>
+                    !requests.some(
+                        (request) => request.id === settlement.requestId,
+                    ),
+            )
+            .map((settlement) => ({
+                id: settlement.requestId,
+                kind: settlement.kind,
+                status: settlement.status,
             })),
     ];
     const applyDecision = (
@@ -101,11 +108,18 @@ export default function CafeRedemptionsPage() {
             },
             {
                 onSuccess: (result) => {
-                    const response = (result as { response?: Decision })
-                        .response;
+                    const response = (
+                        result as { response?: Partial<Settlement> }
+                    ).response;
                     setDecisions((current) => ({
                         ...current,
-                        [request.id]: response ?? { status: "pending" },
+                        [request.id]: {
+                            requestId: request.id,
+                            kind: request.kind,
+                            status: response?.status ?? "pending",
+                            transactionId: response?.transactionId,
+                            rejectionReason: response?.rejectionReason,
+                        },
                     }));
                     setMessage("Solicitud actualizada.");
                 },
