@@ -4,7 +4,10 @@ import { requireCafeRole } from "@/server/auth/membership/require-cafe-role";
 import { AppErrors, type AsyncAppResult, err, ok } from "@/server/common/responses";
 import type { ChainSubmission } from "../chain-port";
 import { PostgresMockConsumerChain } from "../postgres-mock-chain";
-import { decideRedemptionRequest } from "../repository/redemption-requests";
+import {
+    decideRedemptionRequest,
+    findRedemptionRequestById,
+} from "../repository/redemption-requests";
 import { toRedemptionRequest } from "../repository/utils";
 
 export async function decidePunchRedemptionService(
@@ -15,6 +18,10 @@ export async function decidePunchRedemptionService(
 ): AsyncAppResult<ChainSubmission | RedemptionRequest> {
     const membershipResult = await requireCafeRole(deciderUserId, cafeId, ["owner", "barista"]);
     if (!membershipResult.ok) return err(membershipResult.error);
+    const existing = await findRedemptionRequestById(requestId);
+    if (!existing || existing.cafeId !== cafeId || existing.kind !== "punch_reward") {
+        return err(AppErrors.notFound({ targets: ["requestId"] }));
+    }
     try {
         const request = await decideRedemptionRequest(
             requestId,

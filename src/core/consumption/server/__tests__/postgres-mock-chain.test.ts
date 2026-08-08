@@ -19,6 +19,13 @@ vi.mock("../repository/redemption-requests", () => ({
     findRedemptionRequestById: vi.fn(),
 }));
 vi.mock("@/core/punch/server/repository/balance", () => ({
+    BalanceRepositoryError: class BalanceRepositoryError extends Error {
+        code: string;
+        constructor(code: string, message: string) {
+            super(message);
+            this.code = code;
+        }
+    },
     getBalance: vi.fn(),
     incrementBalance: vi.fn(),
     decrementBalance: vi.fn(),
@@ -36,6 +43,7 @@ vi.mock("@/core/punch/domain/campaign", async (importOriginal) => {
 
 import { isEligibleForAcquisitionCampaign } from "@/core/punch/domain/campaign";
 import {
+    BalanceRepositoryError,
     decrementBalance,
     getBalance,
     incrementBalance,
@@ -721,14 +729,19 @@ describe("PostgresMockConsumerChain PUNCH redemptions", () => {
     it("burns exactly 12 once on delayed confirmation", async () => {
         const chain = new PostgresMockConsumerChain(() => Date.now(), 0);
         await chain.submitPunchRedemption({ redemptionRequestId: "req", idempotencyKey: "k" });
-        vi.mocked(findTransactionById).mockResolvedValue({ id: "tx-punch", status: "pending", operation: "punch_redemption", redemptionRequestId: "req", consumerUserId: "u", createdAt: new Date(0) } as never);
+        vi.mocked(findTransactionById)
+            .mockResolvedValueOnce({ id: "tx-punch", status: "pending", operation: "punch_redemption", redemptionRequestId: "req", consumerUserId: "u", createdAt: new Date(0) } as never)
+            .mockResolvedValueOnce({ id: "tx-punch", status: "pending", operation: "punch_redemption", redemptionRequestId: "req", consumerUserId: "u", createdAt: new Date(0) } as never)
+            .mockResolvedValue({ id: "tx-punch", status: "confirmed", operation: "punch_redemption", redemptionRequestId: "req", consumerUserId: "u", createdAt: new Date(0) } as never);
         await chain.getTransactionStatus("tx-punch");
         await chain.getTransactionStatus("tx-punch");
         expect(decrementBalance).toHaveBeenCalledTimes(1);
         expect(decrementBalance).toHaveBeenCalledWith(expect.anything(), "u", 12);
     });
     it("rejects safely when balance is insufficient", async () => {
-        vi.mocked(decrementBalance).mockRejectedValue({ code: "INSUFFICIENT_BALANCE" });
+        vi.mocked(decrementBalance).mockRejectedValue(
+            new BalanceRepositoryError("INSUFFICIENT_BALANCE", "insufficient"),
+        );
         const chain = new PostgresMockConsumerChain(() => Date.now(), 0);
         vi.mocked(findTransactionById).mockResolvedValue({ id: "tx-punch", status: "pending", operation: "punch_redemption", redemptionRequestId: "req", consumerUserId: "u", createdAt: new Date(0) } as never);
         const result = await chain.getTransactionStatus("tx-punch");
