@@ -1,6 +1,6 @@
 import "server-only";
 
-import { keccak256, toBytes } from "viem";
+import { isAddress, keccak256, toBytes } from "viem";
 import { getAddresses } from "@/core/chain/addresses";
 import { chainForEnv } from "@/core/chain/chain";
 import { deriveUserAccount } from "@/core/chain/server/wallet/derive";
@@ -85,16 +85,74 @@ export function serializeProof(
     };
 }
 
-export function deserializeProof(
-    raw: SerializedConsumptionProof,
-): ConsumptionProof {
+const PROOF_FIELDS = [
+    "cafeId",
+    "user",
+    "productId",
+    "amount",
+    "receiptHash",
+    "nonce",
+    "expiry",
+] as const;
+
+const UINT256_MAX = 2n ** 256n - 1n;
+
+function invalidProofField(field: string): never {
+    throw new Error(`Invalid proof field: ${field}`);
+}
+
+function parseUint256Field(
+    raw: Record<string, unknown>,
+    field: string,
+): bigint {
+    const value = raw[field];
+    if (typeof value !== "string" || !/^\d+$/.test(value)) {
+        return invalidProofField(field);
+    }
+
+    const parsed = BigInt(value);
+    if (parsed > UINT256_MAX) return invalidProofField(field);
+    return parsed;
+}
+
+export function deserializeProof(raw: unknown): ConsumptionProof {
+    if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+        return invalidProofField("proof");
+    }
+
+    const record = raw as Record<string, unknown>;
+    const keys = Object.keys(record);
+    if (
+        keys.length !== PROOF_FIELDS.length ||
+        PROOF_FIELDS.some((field) => !Object.hasOwn(record, field)) ||
+        keys.some(
+            (field) =>
+                !PROOF_FIELDS.includes(field as (typeof PROOF_FIELDS)[number]),
+        )
+    ) {
+        return invalidProofField("proof");
+    }
+
+    const user = record.user;
+    if (typeof user !== "string" || !isAddress(user)) {
+        return invalidProofField("user");
+    }
+
+    const receiptHash = record.receiptHash;
+    if (
+        typeof receiptHash !== "string" ||
+        !/^0x[0-9a-fA-F]{64}$/.test(receiptHash)
+    ) {
+        return invalidProofField("receiptHash");
+    }
+
     return {
-        cafeId: BigInt(raw.cafeId),
-        user: raw.user,
-        productId: BigInt(raw.productId),
-        amount: BigInt(raw.amount),
-        receiptHash: raw.receiptHash,
-        nonce: BigInt(raw.nonce),
-        expiry: BigInt(raw.expiry),
+        cafeId: parseUint256Field(record, "cafeId"),
+        user: user as `0x${string}`,
+        productId: parseUint256Field(record, "productId"),
+        amount: parseUint256Field(record, "amount"),
+        receiptHash: receiptHash as `0x${string}`,
+        nonce: parseUint256Field(record, "nonce"),
+        expiry: parseUint256Field(record, "expiry"),
     };
 }
