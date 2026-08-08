@@ -10,3 +10,6 @@ export const db = drizzle({
     schema,
     casing: "snake_case",
 });
+
+export type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type DbClient = typeof db | DbTransaction;
