@@ -64,7 +64,7 @@ export function TransactionStatus({
                         : copy.hint}
                 </span>
             </div>
-            {status === "failed" && onRetry ? (
+            {(status === "failed" || status === "rejected") && onRetry ? (
                 <button
                     type="button"
                     className="transaction-status__action"
