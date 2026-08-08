@@ -288,4 +288,82 @@ contract CafeRegistryTest is Test {
         vm.prank(owner1);
         registry.authorizeOperator(cafeId, operator, true);
     }
+
+    function test_setEligibleProduct_approvesAndEmits() public {
+        uint256 cafeId = _register(owner1);
+        vm.expectEmit(true, true, false, true);
+        emit ICafeRegistry.ProductEligibilityChanged(cafeId, 47, ICafeRegistry.ProductKind.Emission, true);
+        vm.prank(owner1);
+        registry.setEligibleProduct(cafeId, 47, ICafeRegistry.ProductKind.Emission, true);
+        assertTrue(registry.isEligible(cafeId, 47, ICafeRegistry.ProductKind.Emission));
+    }
+
+    function test_setEligibleProduct_revokes() public {
+        uint256 cafeId = _register(owner1);
+        vm.startPrank(owner1);
+        registry.setEligibleProduct(cafeId, 47, ICafeRegistry.ProductKind.Emission, true);
+        registry.setEligibleProduct(cafeId, 47, ICafeRegistry.ProductKind.Emission, false);
+        vm.stopPrank();
+        assertFalse(registry.isEligible(cafeId, 47, ICafeRegistry.ProductKind.Emission));
+    }
+
+    /// @dev Approving a product for emission must NOT approve it as a reward.
+    function test_setEligibleProduct_kindsAreIndependent() public {
+        uint256 cafeId = _register(owner1);
+        vm.prank(owner1);
+        registry.setEligibleProduct(cafeId, 47, ICafeRegistry.ProductKind.Emission, true);
+        assertTrue(registry.isEligible(cafeId, 47, ICafeRegistry.ProductKind.Emission));
+        assertFalse(registry.isEligible(cafeId, 47, ICafeRegistry.ProductKind.Reward));
+    }
+
+    function test_setEligibleProduct_isScopedPerCafe() public {
+        uint256 cafeA = _register(owner1);
+        uint256 cafeB = _register(owner2);
+        vm.prank(owner1);
+        registry.setEligibleProduct(cafeA, 47, ICafeRegistry.ProductKind.Emission, true);
+        assertFalse(registry.isEligible(cafeB, 47, ICafeRegistry.ProductKind.Emission));
+    }
+
+    function test_isEligible_unknownCafeIsFalse() public view {
+        assertFalse(registry.isEligible(999, 47, ICafeRegistry.ProductKind.Emission));
+    }
+
+    function test_setEligibleProduct_nonOwnerReverts() public {
+        uint256 cafeId = _register(owner1);
+        vm.expectRevert(abi.encodeWithSelector(NotCafeOwner.selector, cafeId, stranger));
+        vm.prank(stranger);
+        registry.setEligibleProduct(cafeId, 47, ICafeRegistry.ProductKind.Emission, true);
+    }
+
+    function test_setEligibleProduct_unknownCafeReverts() public {
+        vm.expectRevert(abi.encodeWithSelector(CafeNotFound.selector, uint256(1)));
+        vm.prank(owner1);
+        registry.setEligibleProduct(1, 47, ICafeRegistry.ProductKind.Emission, true);
+    }
+
+    function test_setEligibleProduct_redundantWriteReverts() public {
+        uint256 cafeId = _register(owner1);
+        vm.expectRevert(NoStateChange.selector);
+        vm.prank(owner1);
+        registry.setEligibleProduct(cafeId, 47, ICafeRegistry.ProductKind.Emission, false);
+    }
+
+    function test_setEligibleProduct_suspendedCafeReverts() public {
+        uint256 cafeId = _register(owner1);
+        _setStatus(cafeId, ICafeRegistry.CafeStatus.Active);
+        _setStatus(cafeId, ICafeRegistry.CafeStatus.Suspended);
+        vm.expectRevert(
+            abi.encodeWithSelector(CafeNotConfigurable.selector, cafeId, ICafeRegistry.CafeStatus.Suspended)
+        );
+        vm.prank(owner1);
+        registry.setEligibleProduct(cafeId, 47, ICafeRegistry.ProductKind.Emission, true);
+    }
+
+    function test_setEligibleProduct_exitedCafeReverts() public {
+        uint256 cafeId = _register(owner1);
+        _setStatus(cafeId, ICafeRegistry.CafeStatus.Exited);
+        vm.expectRevert(abi.encodeWithSelector(CafeNotConfigurable.selector, cafeId, ICafeRegistry.CafeStatus.Exited));
+        vm.prank(owner1);
+        registry.setEligibleProduct(cafeId, 47, ICafeRegistry.ProductKind.Emission, true);
+    }
 }

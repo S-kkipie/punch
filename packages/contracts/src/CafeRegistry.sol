@@ -109,12 +109,23 @@ contract CafeRegistry is ICafeRegistry, AccessControl {
         return _cafes[cafeId].owner == account || _operators[cafeId][account];
     }
 
-    function setEligibleProduct(uint256, uint256, ProductKind, bool) external {
-        revert("todo: task 4");
+    /// @inheritdoc ICafeRegistry
+    /// @dev Records PUNCH's approval decision only. Retail price and COGS stay off-chain;
+    /// no contract reads a price to settle (payout and reserve are fixed).
+    function setEligibleProduct(uint256 cafeId, uint256 productId, ProductKind kind, bool eligible)
+        external
+        onlyCafeOwner(cafeId)
+        configurable(cafeId)
+    {
+        if (_eligible[cafeId][productId][kind] == eligible) revert NoStateChange();
+
+        _eligible[cafeId][productId][kind] = eligible;
+        emit ProductEligibilityChanged(cafeId, productId, kind, eligible);
     }
 
-    function isEligible(uint256, uint256, ProductKind) external view returns (bool) {
-        return false;
+    /// @inheritdoc ICafeRegistry
+    function isEligible(uint256 cafeId, uint256 productId, ProductKind kind) external view returns (bool) {
+        return _eligible[cafeId][productId][kind];
     }
 
     /// @inheritdoc ICafeRegistry
