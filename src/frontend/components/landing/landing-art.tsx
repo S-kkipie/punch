@@ -9,6 +9,31 @@ export function RouteLine({ label }: { label: string }) {
     );
 }
 
+export function NetworkMap() {
+    const cafes = ["Barranco", "Miraflores", "Surquillo"];
+
+    return (
+        <div
+            aria-label="Tres cafeterías independientes conectadas por una ruta compartida"
+            className="pnch-network-map"
+            role="img"
+        >
+            <span aria-hidden="true" className="pnch-network-map__route" />
+            {cafes.map((cafe, index) => (
+                <span
+                    aria-hidden="true"
+                    className={`pnch-network-map__node pnch-network-map__node--${index + 1}`}
+                    key={cafe}
+                >
+                    Café
+                    <br />
+                    {cafe}
+                </span>
+            ))}
+        </div>
+    );
+}
+
 export function CafeCustomerCollage() {
     return (
         <div

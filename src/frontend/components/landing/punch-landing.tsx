@@ -1,6 +1,9 @@
 import { LandingNav } from "./landing-nav";
-import { HeroNetwork } from "./sections/hero-network";
 import "./landing.css";
+import { HeroNetwork } from "./sections/hero-network";
+import { NetworkJourney } from "./sections/network-journey";
+import { PunchSolution } from "./sections/punch-solution";
+import { StructuralProblem } from "./sections/structural-problem";
 
 export function PunchLanding() {
     return (
@@ -8,6 +11,9 @@ export function PunchLanding() {
             <LandingNav />
             <main>
                 <HeroNetwork />
+                <StructuralProblem />
+                <PunchSolution />
+                <NetworkJourney />
             </main>
         </div>
     );
