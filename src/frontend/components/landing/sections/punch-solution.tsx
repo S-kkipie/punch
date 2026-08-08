@@ -10,7 +10,6 @@ export function PunchSolution() {
             id="como-funciona"
         >
             <div className="pnch-shell">
-                <p className="pnch-eyebrow">{solution.eyebrow}</p>
                 <h2 id="solution-title">{solution.title}</h2>
                 <ol className="pnch-solution__steps">
                     {solution.steps.map((step, index) => (

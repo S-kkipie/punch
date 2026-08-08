@@ -10,7 +10,6 @@ export function CafeValue() {
             id="para-tu-cafe"
         >
             <div className="pnch-shell">
-                <p className="pnch-eyebrow">{cafeValue.eyebrow}</p>
                 <div className="pnch-cafe-value__intro">
                     <h2 id="cafe-value-title">{cafeValue.title}</h2>
                     <ul className="pnch-cafe-value__benefits">

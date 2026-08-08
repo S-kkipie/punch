@@ -30,7 +30,6 @@ export function StructuralProblem() {
             className="pnch-section pnch-problem"
         >
             <div className="pnch-shell">
-                <p className="pnch-eyebrow">{problem.eyebrow}</p>
                 <h2 id="problem-title">{problem.title}</h2>
                 <p className="pnch-section__lede">{problem.body}</p>
                 <div className="pnch-diptych">

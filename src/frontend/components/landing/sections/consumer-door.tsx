@@ -11,7 +11,6 @@ export function ConsumerDoor() {
         >
             <div className="pnch-shell pnch-consumer-door__inner">
                 <div>
-                    <p className="pnch-eyebrow">{consumer.eyebrow}</p>
                     <h2 id="consumer-door-title">{consumer.title}</h2>
                 </div>
                 <div className="pnch-consumer-door__copy">

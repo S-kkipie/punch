@@ -10,7 +10,6 @@ export function OperatingTrust() {
             id="el-modelo"
         >
             <div className="pnch-shell">
-                <p className="pnch-eyebrow">{trust.eyebrow}</p>
                 <h2 id="operating-trust-title">{trust.title}</h2>
                 <p className="pnch-section__lede">{trust.body}</p>
                 <div className="pnch-ledger">
