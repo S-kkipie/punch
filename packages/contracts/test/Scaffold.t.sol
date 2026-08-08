@@ -3,7 +3,6 @@ pragma solidity ^0.8.30;
 
 import {Test} from "forge-std/Test.sol";
 import {NotImplemented} from "../src/NotImplemented.sol";
-import {PlanManager} from "../src/PlanManager.sol";
 import {ConsumptionLog} from "../src/ConsumptionLog.sol";
 import {PunchVault} from "../src/PunchVault.sol";
 import {NetworkFund} from "../src/NetworkFund.sol";
@@ -12,7 +11,6 @@ import {MockPEN} from "../src/MockPEN.sol";
 import {IConsumptionLog} from "../src/interfaces/IConsumptionLog.sol";
 
 contract ScaffoldTest is Test {
-    PlanManager internal planManager;
     ConsumptionLog internal consumptionLog;
     PunchVault internal punchVault;
     NetworkFund internal networkFund;
@@ -20,25 +18,11 @@ contract ScaffoldTest is Test {
     MockPEN internal mockPEN;
 
     function setUp() public {
-        planManager = new PlanManager();
         consumptionLog = new ConsumptionLog();
         punchVault = new PunchVault();
         networkFund = new NetworkFund();
         campaignEscrow = new CampaignEscrow();
         mockPEN = new MockPEN();
-    }
-
-    function test_planManager_reverts_notImplemented() public {
-        vm.expectRevert(NotImplemented.selector);
-        planManager.subscribe(1);
-        vm.expectRevert(NotImplemented.selector);
-        planManager.buyPack(1);
-        vm.expectRevert(NotImplemented.selector);
-        planManager.consumeCredit(1);
-        vm.expectRevert(NotImplemented.selector);
-        planManager.cancel(1);
-        vm.expectRevert(NotImplemented.selector);
-        planManager.withdrawUnusedReserve(1);
     }
 
     function test_consumptionLog_reverts_notImplemented() public {
