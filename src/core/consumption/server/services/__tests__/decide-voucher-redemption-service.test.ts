@@ -5,15 +5,26 @@ const {
     findRedemptionRequestById,
     decideRedemptionRequest,
     submitVoucherRedemption,
+    getBalance,
+    incrementBalance,
+    decrementBalance,
 } = vi.hoisted(() => ({
     requireCafeRole: vi.fn(),
     findRedemptionRequestById: vi.fn(),
     decideRedemptionRequest: vi.fn(),
     submitVoucherRedemption: vi.fn(),
+    getBalance: vi.fn(),
+    incrementBalance: vi.fn(),
+    decrementBalance: vi.fn(),
 }));
 
 vi.mock("@/server/auth/membership/require-cafe-role", () => ({
     requireCafeRole,
+}));
+vi.mock("@/core/punch/server/repository/balance", () => ({
+    getBalance,
+    incrementBalance,
+    decrementBalance,
 }));
 vi.mock("../../repository/redemption-requests", () => ({
     findRedemptionRequestById,
@@ -69,6 +80,9 @@ describe("decideVoucherRedemptionService", () => {
         expect(result).toEqual({ ok: false, error });
         expect(findRedemptionRequestById).not.toHaveBeenCalled();
         expect(submitVoucherRedemption).not.toHaveBeenCalled();
+        expect(getBalance).not.toHaveBeenCalled();
+        expect(incrementBalance).not.toHaveBeenCalled();
+        expect(decrementBalance).not.toHaveBeenCalled();
     });
 
     it("returns 404 for missing, foreign-café, and wrong-kind requests", async () => {
@@ -90,6 +104,9 @@ describe("decideVoucherRedemptionService", () => {
             expect(result.ok || result.error.status).toBe(404);
             expect(decideRedemptionRequest).not.toHaveBeenCalled();
             expect(submitVoucherRedemption).not.toHaveBeenCalled();
+            expect(getBalance).not.toHaveBeenCalled();
+            expect(incrementBalance).not.toHaveBeenCalled();
+            expect(decrementBalance).not.toHaveBeenCalled();
         }
     });
 
@@ -107,6 +124,9 @@ describe("decideVoucherRedemptionService", () => {
             { decision: "rejected", rejectionReason: "Voucher no disponible" },
         );
         expect(result.ok).toBe(true);
+        expect(getBalance).not.toHaveBeenCalled();
+        expect(incrementBalance).not.toHaveBeenCalled();
+        expect(decrementBalance).not.toHaveBeenCalled();
     });
 
     it("rejects without chain or PUNCH effects and preserves voucher", async () => {
@@ -127,6 +147,9 @@ describe("decideVoucherRedemptionService", () => {
         );
         expect(result.ok && result.data).toMatchObject({ status: "rejected" });
         expect(submitVoucherRedemption).not.toHaveBeenCalled();
+        expect(getBalance).not.toHaveBeenCalled();
+        expect(incrementBalance).not.toHaveBeenCalled();
+        expect(decrementBalance).not.toHaveBeenCalled();
         expect(decideRedemptionRequest).toHaveBeenCalledWith(
             "req-1",
             "barista",
@@ -163,6 +186,9 @@ describe("decideVoucherRedemptionService", () => {
         );
         expect(different.ok || different.error.status).toBe(409);
         expect(decideRedemptionRequest).not.toHaveBeenCalled();
+        expect(getBalance).not.toHaveBeenCalled();
+        expect(incrementBalance).not.toHaveBeenCalled();
+        expect(decrementBalance).not.toHaveBeenCalled();
     });
 
     it("reuses approved chain submission and rejects approved-to-rejected", async () => {
@@ -194,5 +220,8 @@ describe("decideVoucherRedemptionService", () => {
         );
         expect(conflict.ok || conflict.error.status).toBe(409);
         expect(submitVoucherRedemption).toHaveBeenCalledTimes(1);
+        expect(getBalance).not.toHaveBeenCalled();
+        expect(incrementBalance).not.toHaveBeenCalled();
+        expect(decrementBalance).not.toHaveBeenCalled();
     });
 });
