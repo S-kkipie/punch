@@ -15,6 +15,7 @@ import { PostgresMockConsumerChain } from "../postgres-mock-chain";
 import {
     decideRedemptionRequest,
     findRedemptionRequestById,
+    RedemptionRequestRepositoryError,
 } from "../repository/redemption-requests";
 import { toRedemptionRequest } from "../repository/utils";
 
@@ -29,6 +30,7 @@ export async function decidePunchRedemptionService(
         "barista",
     ]);
     if (!membershipResult.ok) return err(membershipResult.error);
+
     const existing = await findRedemptionRequestById(requestId);
     if (
         !existing ||
@@ -37,6 +39,31 @@ export async function decidePunchRedemptionService(
     ) {
         return err(AppErrors.notFound({ targets: ["requestId"] }));
     }
+
+    if (existing.status === "rejected") {
+        if (
+            input.decision === "rejected" &&
+            input.rejectionReason === existing.rejectionReason
+        ) {
+            return ok(toRedemptionRequest(existing));
+        }
+        return err(AppErrors.conflict({ targets: ["requestId"] }));
+    }
+
+    const chain = new PostgresMockConsumerChain();
+    if (existing.status === "approved" && input.decision === "approved") {
+        try {
+            return ok(
+                await chain.submitPunchRedemption({
+                    redemptionRequestId: existing.id,
+                    idempotencyKey: `punch_redemption:${existing.id}`,
+                }),
+            );
+        } catch (cause) {
+            return err(AppErrors.unexpected(cause));
+        }
+    }
+
     try {
         const request = await decideRedemptionRequest(
             requestId,
@@ -44,15 +71,22 @@ export async function decidePunchRedemptionService(
             input.decision,
             input.rejectionReason ?? null,
         );
-        if (request.status === "rejected")
+        if (request.status === "rejected") {
             return ok(toRedemptionRequest(request));
-        const submission =
-            await new PostgresMockConsumerChain().submitPunchRedemption({
+        }
+        return ok(
+            await chain.submitPunchRedemption({
                 redemptionRequestId: request.id,
                 idempotencyKey: `punch_redemption:${request.id}`,
-            });
-        return ok(submission);
+            }),
+        );
     } catch (cause) {
+        if (cause instanceof RedemptionRequestRepositoryError) {
+            if (cause.code === "REQUEST_NOT_FOUND") {
+                return err(AppErrors.notFound({ targets: ["requestId"] }));
+            }
+            return err(AppErrors.conflict({ targets: ["requestId"] }));
+        }
         return err(AppErrors.unexpected(cause));
     }
 }

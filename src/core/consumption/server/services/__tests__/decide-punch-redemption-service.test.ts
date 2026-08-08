@@ -74,6 +74,38 @@ describe("decidePunchRedemptionService", () => {
         expect(decideRedemptionRequest).not.toHaveBeenCalled();
     });
 
+    it("retries approved requests through the same chain idempotency key", async () => {
+        vi.mocked(findRedemptionRequestById).mockResolvedValue({
+            ...rejectedRequest,
+            status: "approved",
+            rejectionReason: null,
+        } as never);
+        const result = await decidePunchRedemptionService("u", "c", "r", {
+            decision: "approved",
+        });
+        expect(result.ok).toBe(true);
+        expect(decideRedemptionRequest).not.toHaveBeenCalled();
+    });
+
+    it("returns conflict for an already rejected request with a different decision", async () => {
+        vi.mocked(findRedemptionRequestById).mockResolvedValue(rejectedRequest as never);
+        const result = await decidePunchRedemptionService("u", "c", "r", {
+            decision: "approved",
+        });
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.error.code).toBe("CONFLICT");
+    });
+
+    it("makes the same rejection idempotent", async () => {
+        vi.mocked(findRedemptionRequestById).mockResolvedValue(rejectedRequest as never);
+        const result = await decidePunchRedemptionService("u", "c", "r", {
+            decision: "rejected",
+            rejectionReason: "Sin stock",
+        });
+        expect(result.ok).toBe(true);
+        expect(decideRedemptionRequest).not.toHaveBeenCalled();
+    });
+
     it("rejects with actionable reason without chain", async () => {
         vi.mocked(requireCafeRole).mockResolvedValue(ok({} as never));
         vi.mocked(decideRedemptionRequest).mockResolvedValue(
