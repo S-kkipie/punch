@@ -12,6 +12,18 @@ export const consumptionRedemptionInboxQueryKey = (cafeId: string) =>
     ["consumption", "redemption-inbox", cafeId] as const;
 
 const unwrap = (result: unknown) => (result as { response: unknown }).response;
+
+export const useHistory = () => {
+    const client = useElysia().consumption;
+    return useQuery({
+        ...(client.history.get.queryOptions() as unknown as Record<
+            string,
+            unknown
+        >),
+        queryKey: ["consumption", "history"],
+        select: unwrap,
+    });
+};
 const onError = (error: unknown) =>
     toast.error(
         error instanceof Error ? error.message : "Ocurrió un error inesperado",
