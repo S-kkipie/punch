@@ -1,4 +1,17 @@
-import { boolean, index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import {
+    boolean,
+    index,
+    integer,
+    pgSequence,
+    pgTable,
+    text,
+    timestamp,
+} from "drizzle-orm/pg-core";
+
+export const walletIndexSeq = pgSequence("wallet_index_seq", {
+    startWith: 0,
+    minValue: 0,
+});
 
 export const user = pgTable("user", {
     id: text("id")
@@ -13,6 +26,9 @@ export const user = pgTable("user", {
         .defaultNow()
         .$onUpdate(() => new Date())
         .notNull(),
+    walletIndex: integer("wallet_index").unique(),
+    walletAddress: text("wallet_address").unique(),
+    isOps: boolean("is_ops").default(false).notNull(),
 });
 
 export const session = pgTable(
