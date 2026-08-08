@@ -1,8 +1,25 @@
 import "server-only";
+import { isEligibleForAcquisitionCampaign } from "@/core/punch/domain/campaign";
+import {
+    advanceCrawl,
+    type CrawlStepDefinition,
+} from "@/core/punch/domain/crawl";
 import {
     getBalance,
     incrementBalance,
 } from "@/core/punch/server/repository/balance";
+import {
+    findActiveCampaignForCafe,
+    hasPriorPaidPurchase,
+    unlockCampaignVoucher,
+} from "@/core/punch/server/repository/campaigns";
+import {
+    advanceCrawlProgress,
+    findActiveCrawlForCafe,
+    getCrawlSteps,
+    getOrCreateCrawlProgress,
+    unlockCrawlVoucher,
+} from "@/core/punch/server/repository/crawls";
 import { db } from "@/server/drizzle/db";
 import type {
     ChainSubmission,
@@ -132,6 +149,78 @@ export class PostgresMockConsumerChain implements ConsumerChainPort {
                 throw new ConsumerChainError("PROOF_NOT_CONFIRMED");
             }
             await incrementBalance(tx, proof.consumerUserId, 1);
+
+            const activeCampaign = await findActiveCampaignForCafe(
+                tx,
+                proof.cafeId,
+            );
+            if (activeCampaign) {
+                const priorPurchase = await hasPriorPaidPurchase(
+                    tx,
+                    proof.consumerUserId,
+                    proof.cafeId,
+                    row.id,
+                );
+                const purchaseAt = new Date();
+                const eligible = isEligibleForAcquisitionCampaign({
+                    campaignCafeId: activeCampaign.cafeId,
+                    purchaseCafeId: proof.cafeId,
+                    hadPriorPaidPurchaseAtCafe: priorPurchase,
+                    purchaseAt,
+                    campaignWindowStart: activeCampaign.windowStart,
+                    campaignWindowEnd: activeCampaign.windowEnd,
+                });
+                if (eligible) {
+                    await unlockCampaignVoucher(tx, {
+                        campaignId: activeCampaign.id,
+                        consumerUserId: proof.consumerUserId,
+                        cafeId: proof.cafeId,
+                        expiresAt: activeCampaign.windowEnd,
+                    });
+                }
+            }
+
+            const activeCrawl = await findActiveCrawlForCafe(tx, proof.cafeId);
+            if (activeCrawl) {
+                const steps: CrawlStepDefinition[] = (
+                    await getCrawlSteps(tx, activeCrawl.id)
+                ).map((step) => ({
+                    stepIndex: step.stepIndex,
+                    cafeId: step.cafeId,
+                }));
+                const progress = await getOrCreateCrawlProgress(
+                    tx,
+                    activeCrawl.id,
+                    proof.consumerUserId,
+                );
+                const crawlAdvance = advanceCrawl({
+                    steps,
+                    completedCafeIds: progress.completedCafeIds,
+                    purchaseCafeId: proof.cafeId,
+                    now: new Date(),
+                    crawlExpiresAt: activeCrawl.expiresAt,
+                });
+                if (crawlAdvance.advanced) {
+                    const nextCompleted = [
+                        ...progress.completedCafeIds,
+                        proof.cafeId,
+                    ];
+                    await advanceCrawlProgress(
+                        tx,
+                        progress.id,
+                        nextCompleted,
+                        crawlAdvance.crawlCompleted,
+                    );
+                    if (crawlAdvance.crawlCompleted) {
+                        await unlockCrawlVoucher(tx, {
+                            crawlId: activeCrawl.id,
+                            consumerUserId: proof.consumerUserId,
+                            expiresAt: activeCrawl.expiresAt,
+                        });
+                    }
+                }
+            }
+
             const confirmed = await updateTransactionStatus(
                 tx,
                 row.id,
