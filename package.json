@@ -13,6 +13,8 @@
         "test": "vitest run",
         "contracts:build": "pnpm --dir packages/contracts build",
         "chain:abis": "pnpm contracts:build && tsx scripts/gen-abis.ts",
+        "chain:anvil": "anvil",
+        "chain:deploy": "tsx --env-file=.env scripts/dev-chain.ts",
         "contracts:test": "pnpm --dir packages/contracts test",
         "db:generate": "drizzle-kit generate",
         "db:migrate": "tsx --env-file=.env scripts/migrate.ts",
