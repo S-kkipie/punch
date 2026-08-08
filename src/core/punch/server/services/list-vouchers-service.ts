@@ -1,5 +1,4 @@
 import "server-only";
-import { eq } from "drizzle-orm";
 import type { ConsumerVoucher } from "@/core/punch/domain/types";
 import {
     AppErrors,
@@ -7,18 +6,14 @@ import {
     err,
     ok,
 } from "@/server/common/responses";
-import { db } from "@/server/drizzle/db";
-import { consumerVoucher } from "@/server/drizzle/schemas/punch-schema";
+import { listConsumerVouchersForUser } from "../repository/dashboard";
 
 export async function listVouchersService(
     userId: string,
 ): AsyncAppResult<ConsumerVoucher[]> {
     try {
         const now = new Date();
-        const rows = await db
-            .select()
-            .from(consumerVoucher)
-            .where(eq(consumerVoucher.consumerUserId, userId));
+        const rows = await listConsumerVouchersForUser(userId);
         return ok(
             rows.map((row) => ({
                 id: row.id,
