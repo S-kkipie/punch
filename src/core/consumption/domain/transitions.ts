@@ -1,8 +1,7 @@
-export type ConsumerTransactionStatus =
-    | "pending"
-    | "confirmed"
-    | "rejected"
-    | "failed";
+import type {
+    ConsumerTransactionStatus,
+    FulfillmentRequestStatus,
+} from "./types";
 
 const ALLOWED_TX: Record<
     ConsumerTransactionStatus,
@@ -20,8 +19,6 @@ export function canTransitionTransaction(
 ): boolean {
     return ALLOWED_TX[from].includes(to);
 }
-
-export type FulfillmentRequestStatus = "pending" | "approved" | "rejected";
 
 const ALLOWED_FULFILLMENT: Record<
     FulfillmentRequestStatus,

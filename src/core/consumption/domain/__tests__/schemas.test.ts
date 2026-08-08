@@ -3,6 +3,7 @@ import {
     confirmPurchaseSchema,
     createPurchaseProofSchema,
     purchaseProofSchema,
+    requestVoucherRedemptionSchema,
 } from "../schemas";
 
 describe("createPurchaseProofSchema", () => {
@@ -22,6 +23,18 @@ describe("createPurchaseProofSchema", () => {
             }),
         ).toThrow();
     });
+    it("explains how to provide a product", () => {
+        const result = createPurchaseProofSchema.safeParse({
+            productId: "",
+            receiptHash: `0x${"ab".repeat(32)}`,
+        });
+        expect(result.success).toBe(false);
+        if (!result.success) {
+            expect(result.error.issues[0]?.message).toBe(
+                "Selecciona un producto",
+            );
+        }
+    });
 });
 
 describe("confirmPurchaseSchema", () => {
@@ -29,6 +42,29 @@ describe("confirmPurchaseSchema", () => {
         expect(() =>
             confirmPurchaseSchema.parse({ proofId: "proof-1" }),
         ).not.toThrow();
+    });
+    it("explains how to provide a proof", () => {
+        const result = confirmPurchaseSchema.safeParse({ proofId: "" });
+        expect(result.success).toBe(false);
+        if (!result.success) {
+            expect(result.error.issues[0]?.message).toBe(
+                "Indica el comprobante de compra",
+            );
+        }
+    });
+});
+
+describe("requestVoucherRedemptionSchema", () => {
+    it("explains how to provide a voucher", () => {
+        const result = requestVoucherRedemptionSchema.safeParse({
+            voucherId: "",
+        });
+        expect(result.success).toBe(false);
+        if (!result.success) {
+            expect(result.error.issues[0]?.message).toBe(
+                "Indica el voucher a canjear",
+            );
+        }
     });
 });
 
