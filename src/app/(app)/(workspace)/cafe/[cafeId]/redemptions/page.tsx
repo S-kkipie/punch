@@ -15,7 +15,14 @@ import { Card, CardContent } from "@/frontend/components/ui/card";
 import { Input } from "@/frontend/components/ui/input";
 import { Spinner } from "@/frontend/components/ui/spinner";
 
-type Request = { id: string; kind: "punch_reward" | "voucher"; status: string };
+type Request = {
+    id: string;
+    kind: "punch_reward" | "voucher";
+    status: string;
+    rejectionReason?: string | null;
+    transactionId?: string | null;
+    transactionStatus?: ConsumerTransactionStatus | null;
+};
 type Settlement = {
     requestId: string;
     kind: Request["kind"];
@@ -160,7 +167,18 @@ export default function CafeRedemptionsPage() {
                 </Card>
             ) : (
                 visibleRequests.map((request) => {
-                    const decision = decisions[request.id];
+                    const decision =
+                        decisions[request.id] ??
+                        (request.transactionId && request.transactionStatus
+                            ? {
+                                  requestId: request.id,
+                                  kind: request.kind,
+                                  transactionId: request.transactionId,
+                                  status: request.transactionStatus,
+                                  rejectionReason:
+                                      request.rejectionReason ?? undefined,
+                              }
+                            : undefined);
                     const pending =
                         decidePunch.isPending || decideVoucher.isPending;
                     return (

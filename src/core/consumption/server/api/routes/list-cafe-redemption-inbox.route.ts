@@ -8,7 +8,7 @@ import {
     errorToResponse,
     successResponseSchema,
 } from "@/server/common/responses";
-import { listPendingRequestsForCafe } from "../../repository/redemption-requests";
+import { listFulfillmentRequestsForCafe } from "../../repository/redemption-requests";
 import { toRedemptionRequest } from "../../repository/utils";
 
 export const listCafeRedemptionInboxRoute = new Elysia().use(authed).get(
@@ -23,11 +23,17 @@ export const listCafeRedemptionInboxRoute = new Elysia().use(authed).get(
                 membership.error.status as 500,
                 errorToResponse(membership.error),
             );
-        const rows = await listPendingRequestsForCafe(params.cafeId);
+        const rows = await listFulfillmentRequestsForCafe(params.cafeId);
         return status(
             200,
             CommonResponse.successful({
-                response: rows.map(toRedemptionRequest),
+                response: rows.map(
+                    ({ request, transactionId, transactionStatus }) => ({
+                        ...toRedemptionRequest(request),
+                        transactionId,
+                        transactionStatus,
+                    }),
+                ),
             }),
         );
     },

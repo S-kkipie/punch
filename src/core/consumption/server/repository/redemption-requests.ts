@@ -1,7 +1,8 @@
 import "server-only";
-import { and, desc, eq, or } from "drizzle-orm";
+import { and, desc, eq, inArray, or } from "drizzle-orm";
 import { type DbClient, db } from "@/server/drizzle/db";
 import {
+    consumerTransaction,
     type NewRedemptionRequestRow,
     type RedemptionRequestRow,
     redemptionRequest,
@@ -95,16 +96,29 @@ export async function decideRedemptionRequest(
     );
 }
 
-export async function listPendingRequestsForCafe(
-    cafeId: string,
-): Promise<RedemptionRequestRow[]> {
+export async function listFulfillmentRequestsForCafe(cafeId: string) {
     return db
-        .select()
+        .select({
+            request: redemptionRequest,
+            transactionId: consumerTransaction.id,
+            transactionStatus: consumerTransaction.status,
+        })
         .from(redemptionRequest)
+        .leftJoin(
+            consumerTransaction,
+            eq(consumerTransaction.redemptionRequestId, redemptionRequest.id),
+        )
         .where(
             and(
                 eq(redemptionRequest.cafeId, cafeId),
-                eq(redemptionRequest.status, "pending"),
+                or(
+                    eq(redemptionRequest.status, "pending"),
+                    inArray(consumerTransaction.status, [
+                        "pending",
+                        "failed",
+                        "rejected",
+                    ]),
+                ),
             ),
         )
         .orderBy(desc(redemptionRequest.createdAt));

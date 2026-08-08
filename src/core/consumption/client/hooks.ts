@@ -114,7 +114,7 @@ export const useTransactionStatus = (
         ...(client
             .transactions({ transactionId: transactionId ?? "" })
             .get.queryOptions({
-                query: cafeId ? { cafeId } : undefined,
+                cafeId,
             }) as unknown as Record<string, unknown>),
         queryKey: [...consumptionTransactionQueryKey(transactionId), cafeId],
         select: unwrap,
