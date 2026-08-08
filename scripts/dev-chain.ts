@@ -16,10 +16,15 @@ import { foundry } from "viem/chains";
 import { abis } from "../src/core/chain/abis";
 
 const RPC = process.env.CHAIN_RPC_URL ?? "http://127.0.0.1:8545";
-const DEFAULT_MNEMONIC =
+const ANVIL_MNEMONIC =
     "test test test test test test test test test test test junk";
-const mnemonic = process.env.WALLET_MASTER_MNEMONIC ?? DEFAULT_MNEMONIC;
-const deployer = mnemonicToAccount(mnemonic, { addressIndex: 0 });
+const appMnemonic = process.env.WALLET_MASTER_MNEMONIC ?? ANVIL_MNEMONIC;
+const deployer = mnemonicToAccount(ANVIL_MNEMONIC, { addressIndex: 0 });
+
+export const anvilDeployerAddress = deployer.address;
+export function ownerAddressForIndex(index: number, mnemonic = appMnemonic) {
+    return mnemonicToAccount(mnemonic, { addressIndex: index }).address;
+}
 
 export type AddressMap = {
     cafeRegistry: Address;
@@ -45,11 +50,20 @@ function artifact(name: string): Artifact {
     ) as Artifact;
 }
 
-async function waitForWrite(
-    pub: ReturnType<typeof createPublicClient>,
+export async function waitForWrite(
+    pub: Pick<
+        ReturnType<typeof createPublicClient>,
+        "waitForTransactionReceipt"
+    >,
     hash: Hex,
+    operation: string,
 ): Promise<void> {
-    await pub.waitForTransactionReceipt({ hash });
+    const receipt = await pub.waitForTransactionReceipt({ hash });
+    if (receipt.status !== "success") {
+        throw new Error(
+            `${operation} failed with reverted transaction ${hash}`,
+        );
+    }
 }
 
 export async function deployAll(rpcUrl = RPC): Promise<AddressMap> {
@@ -71,6 +85,11 @@ export async function deployAll(rpcUrl = RPC): Promise<AddressMap> {
             args: [...args],
         });
         const receipt = await pub.waitForTransactionReceipt({ hash });
+        if (receipt.status !== "success") {
+            throw new Error(
+                `deploy ${name} failed with reverted transaction ${hash}`,
+            );
+        }
         if (!receipt.contractAddress)
             throw new Error(`Deployment produced no address: ${name}`);
         return receipt.contractAddress;
@@ -110,6 +129,7 @@ export async function deployAll(rpcUrl = RPC): Promise<AddressMap> {
             functionName: "grantRole",
             args: [keccak256(toBytes("REGISTRAR_ROLE")), deployer.address],
         }),
+        "grant registrar role",
     );
     await waitForWrite(
         pub,
@@ -119,6 +139,7 @@ export async function deployAll(rpcUrl = RPC): Promise<AddressMap> {
             functionName: "setConsumptionLog",
             args: [consumptionLog],
         }),
+        "set consumption log",
     );
     await waitForWrite(
         pub,
@@ -128,6 +149,7 @@ export async function deployAll(rpcUrl = RPC): Promise<AddressMap> {
             functionName: "setConsumptionLog",
             args: [consumptionLog],
         }),
+        "set consumption log",
     );
     await waitForWrite(
         pub,
@@ -137,6 +159,7 @@ export async function deployAll(rpcUrl = RPC): Promise<AddressMap> {
             functionName: "setCampaignEscrow",
             args: [campaignEscrow],
         }),
+        "set campaign escrow",
     );
 
     return {
@@ -163,7 +186,7 @@ export async function seedCafe(opts: {
         chain: foundry,
         transport: http(rpcUrl),
     });
-    const owner = mnemonicToAccount(mnemonic, {
+    const owner = mnemonicToAccount(appMnemonic, {
         addressIndex: opts.ownerWalletIndex,
     });
     const ownerAddress = owner.address as `0x${string}`;
@@ -174,13 +197,16 @@ export async function seedCafe(opts: {
     });
     const productId = opts.chainProductId ?? 1n;
 
-    await waitForWrite(
-        pub,
-        await deployerWallet.sendTransaction({
-            to: ownerAddress,
-            value: parseEther("1"),
-        }),
-    );
+    if (ownerAddress.toLowerCase() !== deployer.address.toLowerCase()) {
+        await waitForWrite(
+            pub,
+            await deployerWallet.sendTransaction({
+                to: ownerAddress,
+                value: parseEther("1"),
+            }),
+            "fund cafe owner",
+        );
+    }
     await waitForWrite(
         pub,
         await deployerWallet.writeContract({
@@ -189,6 +215,7 @@ export async function seedCafe(opts: {
             functionName: "registerCafe",
             args: [ownerAddress],
         }),
+        "register cafe",
     );
     const chainCafeId = (await pub.readContract({
         address: opts.addresses.cafeRegistry,
@@ -203,6 +230,7 @@ export async function seedCafe(opts: {
             functionName: "setCafeStatus",
             args: [chainCafeId, 1],
         }),
+        "activate cafe",
     );
     await waitForWrite(
         pub,
@@ -212,6 +240,7 @@ export async function seedCafe(opts: {
             functionName: "setEligibleProduct",
             args: [chainCafeId, productId, 0, true],
         }),
+        "set eligible product",
     );
     await waitForWrite(
         pub,
@@ -221,6 +250,7 @@ export async function seedCafe(opts: {
             functionName: "mint",
             args: [ownerAddress, parseUnits("49", 6)],
         }),
+        "mint owner PEN",
     );
     await waitForWrite(
         pub,
@@ -230,6 +260,7 @@ export async function seedCafe(opts: {
             functionName: "approve",
             args: [opts.addresses.planManager, parseUnits("49", 6)],
         }),
+        "approve PEN",
     );
     await waitForWrite(
         pub,
@@ -239,6 +270,7 @@ export async function seedCafe(opts: {
             functionName: "subscribe",
             args: [chainCafeId],
         }),
+        "subscribe cafe",
     );
     return { chainCafeId, ownerAddress };
 }
