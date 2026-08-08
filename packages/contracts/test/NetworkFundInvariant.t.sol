@@ -180,4 +180,18 @@ contract NetworkFundInvariantTest is Test {
             assertLe(e.originPaid, e.originPool);
         }
     }
+
+    /// @dev Paid origin credit plus every tracked café's remaining credit stays within the
+    /// frozen pool, including states with multiple cafés holding unclaimed credit.
+    function invariant_originCreditsWithinPool() public view {
+        for (uint256 i = 0; i < epochIds.length; i++) {
+            uint256 epoch = epochIds[i];
+            NetworkFund.Epoch memory e = fund.getEpoch(epoch);
+            uint256 credits = e.originPaid;
+            for (uint256 j = 0; j < cafeIds.length; j++) {
+                credits += fund.pendingOriginCredit(epoch, cafeIds[j]);
+            }
+            assertLe(credits, e.originPool);
+        }
+    }
 }

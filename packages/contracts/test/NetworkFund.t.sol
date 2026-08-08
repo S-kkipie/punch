@@ -532,6 +532,19 @@ contract NetworkFundTest is Test {
         fund.withdrawBucket(EPOCH, NetworkFund.Bucket.Acquisition, stranger, 1e6);
     }
 
+    function test_withdrawBucket_revertsWhenPausedAndSucceedsAfterUnpause() public {
+        _seed(100e6);
+        fund.fundEpoch(EPOCH, 100e6);
+        fund.pause();
+
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        fund.withdrawBucket(EPOCH, NetworkFund.Bucket.Acquisition, ops, 1e6);
+
+        fund.unpause();
+        fund.withdrawBucket(EPOCH, NetworkFund.Bucket.Acquisition, ops, 1e6);
+        assertEq(pen.balanceOf(ops), 1e6);
+    }
+
     function testFuzz_prorate_neverExceedsPool(uint96 amount, uint8 refsA, uint8 refsB) public {
         amount = uint96(bound(amount, 1e6, 1_000e6));
         refsA = uint8(bound(refsA, 1, 20));

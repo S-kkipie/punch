@@ -144,7 +144,7 @@ uint256 public totalBudgeted; // suma de todos los buckets vivos
 | `claimOriginCredit(epoch, cafeId)` | cualquiera, `whenNotPaused` | Finalizado, no liberado, no reclamado, `referrals > 0`, café operacional. `amount = originPool × referrals / totalReferrals`; paga al owner del registry. |
 | `releaseUnclaimedOrigin(epoch)` | owner | Finalizado, no liberado, remanente `> 0`. Devuelve `originPool − originPaid` a saldo libre y marca `originReleased`; claims posteriores revierten. |
 | `allocateCampaignBudget(epoch, amount)` | owner, `whenNotPaused` | `campaignEscrow` seteado, `amount > 0`, `amount <= crawlPool`. Debita crawls y transfiere al escrow. |
-| `withdrawBucket(epoch, bucket, to, amount)` | owner | `bucket ∈ {Acquisition, Contingency}`, `to != 0`, `amount > 0` y disponible en el bucket. Gasto operativo, fuera de escrow; admite retiros parciales. |
+| `withdrawBucket(epoch, bucket, to, amount)` | owner, whenNotPaused | `bucket ∈ {Acquisition, Contingency}`, `to != 0`, `amount > 0` y disponible en el bucket. Gasto operativo, fuera de escrow; admite retiros parciales. |
 | `setReferralRecorder(address)` | owner | Rota la llave del backend sin migrar el contrato. `address(0)` desconecta el registro. |
 | `setCampaignEscrow(address)` | owner | Apunta al `CampaignEscrow` (sub-proyecto 7). |
 | `pause()` / `unpause()` | owner | Congela todas las ops que mueven mPEN, incluidos los claims. |

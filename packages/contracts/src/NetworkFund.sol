@@ -240,7 +240,7 @@ contract NetworkFund is INetworkFund, Ownable, Pausable {
 
     /// @notice Spends an operational bucket of an epoch. Origin and crawl are unreachable
     /// here by construction: origin is claimed by cafés, crawl goes through CampaignEscrow.
-    function withdrawBucket(uint256 epoch, Bucket bucket, address to, uint256 amount) external onlyOwner {
+    function withdrawBucket(uint256 epoch, Bucket bucket, address to, uint256 amount) external onlyOwner whenNotPaused {
         if (to == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
 
