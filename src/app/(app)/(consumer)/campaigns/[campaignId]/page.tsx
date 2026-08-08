@@ -27,13 +27,14 @@ export default function CampaignDetailPage() {
     const voucher = (
         (vouchersQuery.data ?? []) as Array<{
             id: string;
+            campaignId: string | null;
             cafeId: string | null;
             source: string;
             status: string;
         }>
     ).find(
         (item) =>
-            item.id &&
+            item.campaignId === campaignId &&
             item.cafeId === campaign.cafeId &&
             item.source === "campaign" &&
             item.status === "available",
@@ -56,7 +57,7 @@ export default function CampaignDetailPage() {
                 {voucher && (
                     <Link
                         className="font-semibold text-[var(--color-accent)] underline"
-                        href={`/redeem/${voucher.id}?cafeId=${campaign.cafeId}&voucherId=${voucher.id}`}
+                        href={`/redeem/${voucher.id}?cafeId=${campaign.cafeId}&voucherId=${voucher.id}&source=campaign`}
                     >
                         Usar tu voucher
                     </Link>

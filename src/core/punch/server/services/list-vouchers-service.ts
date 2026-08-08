@@ -18,6 +18,8 @@ export async function listVouchersService(
             rows.map((row) => ({
                 id: row.id,
                 source: row.source,
+                campaignId: row.campaignId,
+                crawlId: row.crawlId,
                 cafeId: row.cafeId,
                 status:
                     row.status === "available" && row.expiresAt <= now

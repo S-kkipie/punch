@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/frontend/components/ui/button";
 import { Input } from "@/frontend/components/ui/input";
 
-export function extractProofId(value: string): string | undefined {
+function extractProofId(value: string): string | undefined {
     const proofId = value.trim().split("/purchase/").pop();
     return proofId || undefined;
 }
