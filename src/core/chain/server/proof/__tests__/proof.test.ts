@@ -62,4 +62,51 @@ describe("proof module", () => {
         expect(sameDigest).toBe(digest);
         expect(changedDigest).not.toBe(digest);
     });
+
+    const invalidCases: Array<[string, Record<string, unknown>, string]> = [
+        ["invalid user", { user: "0x1234" }, "user"],
+        ["short receipt hash", { receiptHash: "0x12" }, "receiptHash"],
+        ["negative nonce", { nonce: "-1" }, "nonce"],
+        ["decimal amount", { amount: "1.5" }, "amount"],
+        ["uint256 overflow", { expiry: (2n ** 256n).toString() }, "expiry"],
+        ["missing field", {}, "proof"],
+    ];
+
+    it.each(invalidCases)("rejects %s from JSONB", (_case, override, field) => {
+        const serialized = serializeProof(proof) as Record<string, unknown>;
+        Object.assign(serialized, override);
+        if (_case === "missing field") delete serialized.amount;
+
+        expect(() => deserializeProof(serialized)).toThrow(field);
+    });
+
+    it.each([
+        null,
+        "proof",
+        42,
+        [],
+    ])("rejects non-object payload %p", (payload) => {
+        expect(() => deserializeProof(payload)).toThrow("proof");
+    });
+
+    it("accepts zero and maximum uint256 values", () => {
+        const max = (2n ** 256n - 1n).toString();
+        const serialized = {
+            ...serializeProof(proof),
+            cafeId: "0",
+            productId: max,
+            amount: "0",
+            nonce: max,
+            expiry: "0",
+        };
+
+        expect(deserializeProof(serialized)).toEqual({
+            ...proof,
+            cafeId: 0n,
+            productId: 2n ** 256n - 1n,
+            amount: 0n,
+            nonce: 2n ** 256n - 1n,
+            expiry: 0n,
+        });
+    });
 });

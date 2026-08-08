@@ -22,3 +22,13 @@ Added tests at `src/core/chain/server/proof/__tests__/proof.test.ts` covering re
 - `pnpm exec biome check src/core/chain/server/proof/proof.ts src/core/chain/server/proof/__tests__/proof.test.ts` — passed.
 
 The first requested failing-test run could not start because this isolated worktree had no local `node_modules`; after linking the repository's existing dependency installation, the test command ran successfully.
+
+## Review fix
+
+Hardened `deserializeProof` as an untrusted JSONB boundary. It now accepts `unknown`, rejects null/non-object payloads and unexpected or missing keys, validates the EVM address and exact bytes32 receipt hash shape, and validates every uint256 field as a decimal integer within the inclusive `[0, 2^256 - 1]` range. Errors identify the invalid field without including payload contents. Added table-driven malformed-payload tests plus zero/max uint256 boundary coverage.
+
+Review-fix verification:
+
+- `pnpm test src/core/chain/server/proof` — passed: 1 file, 16 tests.
+- `pnpm typecheck` — passed.
+- `pnpm exec biome check src/core/chain/server/proof/proof.ts src/core/chain/server/proof/__tests__/proof.test.ts` — passed.
