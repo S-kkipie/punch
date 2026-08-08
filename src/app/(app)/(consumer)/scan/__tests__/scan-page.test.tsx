@@ -17,11 +17,13 @@ vi.mock("@/frontend/components/ui/button", () => ({
     Button: ({
         children,
         onClick,
+        className,
     }: {
         children: React.ReactNode;
         onClick: () => void;
+        className?: string;
     }) => (
-        <button type="button" onClick={onClick}>
+        <button className={className} type="button" onClick={onClick}>
             {children}
         </button>
     ),
@@ -39,6 +41,36 @@ afterEach(() => {
     document.body.innerHTML = "";
 });
 
+describe("ScanPage camera privacy", () => {
+    it("waits for explicit intent before requesting camera access", async () => {
+        const getUserMedia = vi.fn(async () => ({
+            getTracks: () => [{ stop: vi.fn() }],
+        }));
+        Object.defineProperty(navigator, "mediaDevices", {
+            configurable: true,
+            value: { getUserMedia },
+        });
+        Object.defineProperty(window, "BarcodeDetector", {
+            configurable: true,
+            value: class {
+                detect = async () => [];
+            },
+        });
+        const container = document.createElement("div");
+        document.body.append(container);
+        const root = createRoot(container);
+        await act(async () => root.render(<ScanPage />));
+        expect(getUserMedia).not.toHaveBeenCalled();
+        await act(async () =>
+            Array.from(container.querySelectorAll("button"))
+                .find((candidate) => candidate.textContent === "Abrir cámara")
+                ?.click(),
+        );
+        expect(getUserMedia).toHaveBeenCalled();
+        await act(async () => root.unmount());
+    });
+});
+
 describe("ScanPage pasted fallback", () => {
     it("navigates to the purchase page when a valid link is opened", async () => {
         const container = document.createElement("div");
@@ -47,7 +79,9 @@ describe("ScanPage pasted fallback", () => {
         await act(async () => root.render(<ScanPage />));
 
         const input = container.querySelector("input");
-        const button = container.querySelector("button");
+        const button = Array.from(container.querySelectorAll("button")).find(
+            (candidate) => candidate.textContent === "Abrir",
+        );
         expect(input).not.toBeNull();
         expect(button).not.toBeNull();
         await act(async () => {
@@ -69,8 +103,15 @@ describe("ScanPage pasted fallback", () => {
         document.body.append(container);
         const root = createRoot(container);
         await act(async () => root.render(<ScanPage />));
-        await act(async () => container.querySelector("button")?.click());
+        await act(async () =>
+            Array.from(container.querySelectorAll("button"))
+                .find((candidate) => candidate.textContent === "Abrir")
+                ?.click(),
+        );
         expect(push).not.toHaveBeenCalled();
+        expect(
+            container.querySelector('button[class*="min-h-11"]'),
+        ).not.toBeNull();
         await act(async () => root.unmount());
     });
 });

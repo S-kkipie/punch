@@ -15,6 +15,7 @@ export default function ScanPage() {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [pastedCode, setPastedCode] = useState("");
     const [cameraError, setCameraError] = useState<string | null>(null);
+    const [cameraActive, setCameraActive] = useState(false);
     const [supportsCamera] = useState(
         () =>
             typeof window !== "undefined" &&
@@ -23,7 +24,7 @@ export default function ScanPage() {
     );
 
     useEffect(() => {
-        if (!supportsCamera) return;
+        if (!supportsCamera || !cameraActive) return;
         let stream: MediaStream | undefined;
         let cancelled = false;
         const stopCamera = () => {
@@ -84,7 +85,7 @@ export default function ScanPage() {
         };
         void start();
         return stopCamera;
-    }, [router, supportsCamera]);
+    }, [cameraActive, router, supportsCamera]);
 
     const openPastedCode = () => {
         const proofId = extractProofId(pastedCode);
@@ -103,7 +104,7 @@ export default function ScanPage() {
                     visita.
                 </p>
             </section>
-            {supportsCamera && !cameraError ? (
+            {supportsCamera && cameraActive && !cameraError ? (
                 <video
                     ref={videoRef}
                     autoPlay
@@ -113,10 +114,23 @@ export default function ScanPage() {
                     className="min-h-11 w-full rounded-3xl border border-[var(--color-line)] bg-black"
                 />
             ) : (
-                <div className="consumer-panel p-5 text-[var(--color-ink-2)] text-sm">
-                    {cameraError ??
-                        "Tu navegador no soporta escaneo con cámara."}{" "}
-                    Pega el enlace o código que te dio el barista.
+                <div className="consumer-panel grid gap-3 p-5 text-[var(--color-ink-2)] text-sm">
+                    <p>
+                        {cameraError ??
+                            "Puedes abrir la cámara cuando estés listo."}{" "}
+                        Pega el enlace o código que te dio el barista.
+                    </p>
+                    {supportsCamera && (
+                        <Button
+                            className="min-h-11"
+                            onClick={() => {
+                                setCameraError(null);
+                                setCameraActive(true);
+                            }}
+                        >
+                            {cameraError ? "Reintentar cámara" : "Abrir cámara"}
+                        </Button>
+                    )}
                 </div>
             )}
             <div className="flex gap-2">
@@ -127,7 +141,9 @@ export default function ScanPage() {
                     placeholder="Pega el enlace o código"
                     aria-label="Código de compra"
                 />
-                <Button onClick={openPastedCode}>Abrir</Button>
+                <Button className="min-h-11 min-w-11" onClick={openPastedCode}>
+                    Abrir
+                </Button>
             </div>
         </div>
     );

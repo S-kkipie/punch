@@ -27,6 +27,7 @@ import {
     consumerVoucher,
     punchBalanceProjection,
 } from "@/server/drizzle/schemas/punch-schema";
+import { isDemoSeedEnabled } from "./seed-mode";
 
 export const DEMO_ACCOUNTS = [
     { email: "demo-ops@punch.pe", name: "Operaciones PUNCH", isOps: true },
@@ -261,6 +262,11 @@ async function seedDemoState() {
 }
 
 async function main() {
+    if (!isDemoSeedEnabled()) {
+        console.log("Seed skipped — demo mode is not enabled.");
+        return;
+    }
+
     const password = process.env.NEXT_PUBLIC_DEMO_PASSWORD;
     if (!password) {
         throw new Error(
@@ -354,7 +360,7 @@ async function main() {
         console.log(`+ seeded ${seedCafe.slug}`);
     }
 
-    if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
+    if (isDemoSeedEnabled()) {
         await seedDemoState();
     }
 
