@@ -16,9 +16,11 @@ import {
     TicketTooSmall,
     ProductNotEligible,
     InvalidCafeSignature,
-    InvalidUserSignature
+    InvalidUserSignature,
+    NonceUsed,
+    ReceiptUsed
 } from "../src/ConsumptionLog.sol";
-import {PlanManager} from "../src/PlanManager.sol";
+import {PlanManager, PlanNotActive} from "../src/PlanManager.sol";
 import {CafeRegistry} from "../src/CafeRegistry.sol";
 import {MockPEN} from "../src/MockPEN.sol";
 import {ICafeRegistry} from "../src/interfaces/ICafeRegistry.sol";
@@ -350,5 +352,156 @@ contract ConsumptionLogTest is Test {
         bytes memory cafeSig = _sign(operatorKey, proof);
         vm.expectRevert(InvalidUserSignature.selector);
         consumptionLog.recordConsumption(proof, cafeSig, "");
+    }
+
+    function test_recordConsumption_cafeOwnerSignatureAccepted() public {
+        IConsumptionLog.ConsumptionProof memory proof = _proof(1);
+        (address ownerSigner, uint256 ownerKey) = makeAddrAndKey("cafeOwnerSigner");
+        vm.prank(registrar);
+        uint256 otherCafe = registry.registerCafe(ownerSigner);
+        vm.prank(registrar);
+        registry.setCafeStatus(otherCafe, ICafeRegistry.CafeStatus.Active);
+        vm.prank(ownerSigner);
+        registry.setEligibleProduct(otherCafe, PRODUCT_ID, ICafeRegistry.ProductKind.Emission, true);
+
+        proof.cafeId = otherCafe;
+        bytes memory cafeSig = _sign(ownerKey, proof);
+        bytes memory userSig = _sign(userKey, proof);
+        // Signatures pass; PlanManager stops it because that café never subscribed.
+        vm.expectRevert(abi.encodeWithSelector(PlanNotActive.selector, otherCafe));
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
+    }
+
+    function test_recordConsumption_eip1271UserAccepted() public {
+        MockSmartAccount account = new MockSmartAccount();
+        IConsumptionLog.ConsumptionProof memory proof = _proof(1);
+        proof.user = address(account);
+        account.approve(consumptionLog.hashProof(proof));
+
+        bytes memory cafeSig = _sign(operatorKey, proof);
+        consumptionLog.recordConsumption(proof, cafeSig, "");
+
+        assertEq(vault.issueCount(), 1);
+        assertEq(vault.lastUser(), address(account));
+    }
+
+    function _record(uint256 nonce) internal returns (IConsumptionLog.ConsumptionProof memory proof) {
+        proof = _proof(nonce);
+        bytes memory cafeSig = _sign(operatorKey, proof);
+        bytes memory userSig = _sign(userKey, proof);
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
+    }
+
+    function test_recordConsumption_happyPath() public {
+        IConsumptionLog.ConsumptionProof memory proof = _proof(1);
+        bytes memory cafeSig = _sign(operatorKey, proof);
+        bytes memory userSig = _sign(userKey, proof);
+
+        uint256 creditsBefore = manager.credits(cafeId);
+        uint256 vaultPenBefore = pen.balanceOf(address(vault));
+
+        vm.expectEmit(true, true, true, false);
+        emit IConsumptionLog.ConsumptionRecorded(cafeId, user, proof.receiptHash);
+        vm.prank(stranger); // permissionless relayer
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
+
+        assertEq(vault.issueCount(), 1);
+        assertEq(vault.lastUser(), user);
+        assertEq(vault.lastCafeId(), cafeId);
+        assertEq(manager.credits(cafeId), creditsBefore - 1);
+        assertEq(pen.balanceOf(address(vault)) - vaultPenBefore, 300_000);
+        assertTrue(consumptionLog.nonceUsed(cafeId, 1));
+        assertTrue(consumptionLog.receiptUsed(cafeId, proof.receiptHash));
+    }
+
+    function test_recordConsumption_expiryAtDeadlineStillValid() public {
+        IConsumptionLog.ConsumptionProof memory proof = _proof(1);
+        bytes memory cafeSig = _sign(operatorKey, proof);
+        bytes memory userSig = _sign(userKey, proof);
+
+        vm.warp(proof.expiry); // exactly at the deadline: inclusive, still valid
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
+
+        assertEq(vault.issueCount(), 1);
+    }
+
+    function test_recordConsumption_replaySameProofReverts() public {
+        IConsumptionLog.ConsumptionProof memory proof = _proof(1);
+        bytes memory cafeSig = _sign(operatorKey, proof);
+        bytes memory userSig = _sign(userKey, proof);
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
+
+        vm.expectRevert(abi.encodeWithSelector(NonceUsed.selector, cafeId, uint256(1)));
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
+    }
+
+    function test_recordConsumption_reusedReceiptWithNewNonceReverts() public {
+        IConsumptionLog.ConsumptionProof memory first = _record(1);
+
+        IConsumptionLog.ConsumptionProof memory proof = _proof(2);
+        proof.receiptHash = first.receiptHash;
+        bytes memory cafeSig = _sign(operatorKey, proof);
+        bytes memory userSig = _sign(userKey, proof);
+
+        vm.expectRevert(abi.encodeWithSelector(ReceiptUsed.selector, cafeId, first.receiptHash));
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
+    }
+
+    function test_recordConsumption_noncesAreOutOfOrder() public {
+        _record(500);
+        _record(3);
+        _record(42);
+        assertEq(vault.issueCount(), 3);
+    }
+
+    function test_recordConsumption_nonceAndReceiptScopedPerCafe() public {
+        IConsumptionLog.ConsumptionProof memory first = _record(1);
+
+        // A second café reusing the exact same nonce and receiptHash must succeed.
+        (address otherOperator, uint256 otherOperatorKey) = makeAddrAndKey("otherOperator");
+        vm.prank(registrar);
+        uint256 otherCafe = registry.registerCafe(cafeOwner);
+        vm.prank(registrar);
+        registry.setCafeStatus(otherCafe, ICafeRegistry.CafeStatus.Active);
+        vm.startPrank(cafeOwner);
+        registry.authorizeOperator(otherCafe, otherOperator, true);
+        registry.setEligibleProduct(otherCafe, PRODUCT_ID, ICafeRegistry.ProductKind.Emission, true);
+        manager.subscribe(otherCafe);
+        vm.stopPrank();
+
+        IConsumptionLog.ConsumptionProof memory proof = _proof(1);
+        proof.cafeId = otherCafe;
+        proof.receiptHash = first.receiptHash;
+        bytes memory cafeSig = _sign(otherOperatorKey, proof);
+        bytes memory userSig = _sign(userKey, proof);
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
+
+        assertEq(vault.issueCount(), 2);
+    }
+
+    function test_recordConsumption_vaultRevertRollsBackCredit() public {
+        vault.setShouldRevert(true);
+        IConsumptionLog.ConsumptionProof memory proof = _proof(1);
+        bytes memory cafeSig = _sign(operatorKey, proof);
+        bytes memory userSig = _sign(userKey, proof);
+
+        uint256 creditsBefore = manager.credits(cafeId);
+        vm.expectRevert(MockPunchVault.MockVaultReverted.selector);
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
+
+        assertEq(manager.credits(cafeId), creditsBefore);
+        assertFalse(consumptionLog.nonceUsed(cafeId, 1));
+        assertFalse(consumptionLog.receiptUsed(cafeId, proof.receiptHash));
+    }
+
+    function test_recordConsumption_planCancelledReverts() public {
+        vm.prank(cafeOwner);
+        manager.cancel(cafeId);
+
+        IConsumptionLog.ConsumptionProof memory proof = _proof(1);
+        bytes memory cafeSig = _sign(operatorKey, proof);
+        bytes memory userSig = _sign(userKey, proof);
+        vm.expectRevert(abi.encodeWithSelector(PlanNotActive.selector, cafeId));
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
     }
 }

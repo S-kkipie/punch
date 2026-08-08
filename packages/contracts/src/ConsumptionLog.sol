@@ -20,6 +20,8 @@ error TicketTooSmall(uint256 amount);
 error ProductNotEligible(uint256 cafeId, uint256 productId);
 error InvalidCafeSignature();
 error InvalidUserSignature();
+error NonceUsed(uint256 cafeId, uint256 nonce);
+error ReceiptUsed(uint256 cafeId, bytes32 receiptHash);
 
 /// @notice Single entry point for PUNCH emission. Validates a consumption proof signed by
 /// both the café and the user, blocks replay, and orchestrates emission by calling
@@ -47,6 +49,14 @@ contract ConsumptionLog is IConsumptionLog, Ownable, Pausable, EIP712 {
     /// @notice Emissions one user may trigger at one café within a UTC day.
     uint256 public maxDailyPerUserCafe;
 
+    /// @notice Spent nonces, scoped per café. Unordered on purpose: a strict counter
+    /// would stall a café with several tills whenever transactions land out of order.
+    mapping(uint256 cafeId => mapping(uint256 nonce => bool)) public nonceUsed;
+
+    /// @notice Spent receipt hashes, scoped per café so one café cannot burn hashes
+    /// another café is going to use.
+    mapping(uint256 cafeId => mapping(bytes32 receiptHash => bool)) public receiptUsed;
+
     event MinTicketAmountSet(uint256 amount);
     event MaxDailyPerUserCafeSet(uint256 limit);
 
@@ -66,13 +76,28 @@ contract ConsumptionLog is IConsumptionLog, Ownable, Pausable, EIP712 {
     }
 
     /// @inheritdoc IConsumptionLog
+    /// @dev Permissionless: the two signatures are the authorization, the sender only
+    /// pays gas. Effects land before the external calls, and PlanManager enforces plan,
+    /// credit and café status, so this contract does not restate those rules.
     function recordConsumption(
         ConsumptionProof calldata proof,
         bytes calldata cafeSignature,
         bytes calldata userSignature
     ) external whenNotPaused {
         _validateProof(proof);
+        if (nonceUsed[proof.cafeId][proof.nonce]) revert NonceUsed(proof.cafeId, proof.nonce);
+        if (receiptUsed[proof.cafeId][proof.receiptHash]) {
+            revert ReceiptUsed(proof.cafeId, proof.receiptHash);
+        }
         _verifySignatures(proof, cafeSignature, userSignature);
+
+        nonceUsed[proof.cafeId][proof.nonce] = true;
+        receiptUsed[proof.cafeId][proof.receiptHash] = true;
+
+        emit ConsumptionRecorded(proof.cafeId, proof.user, proof.receiptHash);
+
+        planManager.consumeCredit(proof.cafeId);
+        punchVault.issue(proof.user, proof.cafeId);
     }
 
     /// @dev The two signatures are the only authorization: anyone may submit the
