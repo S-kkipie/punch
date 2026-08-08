@@ -8,6 +8,7 @@ import { z } from "zod";
 import { ServerConfig } from "@/config/server-config";
 import { cafeRouter } from "@/core/cafe/server/api/router";
 import { projectRouter } from "@/core/project/server/api/router";
+import { purchaseRouter } from "@/core/purchase/server/api/router";
 import { auth } from "./auth/auth";
 import type { APIResponse } from "./common/responses";
 
@@ -70,7 +71,8 @@ const app = new Elysia({ prefix: "/api/v1" })
         } satisfies APIResponse;
     })
     .use(projectRouter)
-    .use(cafeRouter);
+    .use(cafeRouter)
+    .use(purchaseRouter);
 
 export default app;
 export type AppRouter = typeof app;
