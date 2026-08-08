@@ -68,4 +68,24 @@ describe("PunchLanding", () => {
             expect(html).not.toContain(claim);
         }
     });
+
+    it("offers distinct café and consumer doors", () => {
+        const html = render();
+        expect(html).toContain(
+            "Tu café puede seguir siendo independiente sin competir solo.",
+        );
+        expect(html).toContain("¿Buscas mejor café, no otra cadena?");
+        expect(html).toContain('href="/auth/sign-up?rol=cafe"');
+        expect(html).toContain('href="/auth/sign-up"');
+    });
+
+    it("renders honest Lima and demo disclosures", () => {
+        const html = render();
+        expect(html).toContain("Mercado inicial: Lima, Perú.");
+        expect(html).toContain("no representan tracción real");
+        expect(html).toContain("pueden variar según la configuración activa");
+        expect(html).toContain("PlanManager");
+        expect(html).toContain("PunchVault");
+        expect(html).not.toContain("RewardVault");
+    });
 });
