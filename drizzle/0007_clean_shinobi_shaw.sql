@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "redemption_request_active_voucher_uq" ON "redemption_request" USING btree ("voucher_id") WHERE "redemption_request"."kind" = 'voucher' AND "redemption_request"."status" IN ('pending', 'approved') AND "redemption_request"."voucher_id" IS NOT NULL;

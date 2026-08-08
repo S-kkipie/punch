@@ -22,6 +22,7 @@ const generatedMigration = normalizeSql(
         "0004_flaky_cardiac.sql",
         "0005_exotic_payback.sql",
         "0006_dusty_dormammu.sql",
+        "0007_clean_shinobi_shaw.sql",
     ]
         .map((file) =>
             readFileSync(
@@ -167,5 +168,13 @@ describe("consumer domain Drizzle schemas", () => {
                 (index) => index.config.name,
             ),
         ).toContain("coffee_crawl_step_crawl_cafe_uq");
+        expect(
+            getTableConfig(redemptionRequest).indexes.map(
+                (index) => index.config.name,
+            ),
+        ).toContain("redemption_request_active_voucher_uq");
+        expect(generatedMigration).toContain(
+            "CREATE UNIQUE INDEX redemption_request_active_voucher_uq ON redemption_request USING btree (voucher_id) WHERE redemption_request.kind = 'voucher' AND redemption_request.status IN ('pending', 'approved') AND redemption_request.voucher_id IS NOT NULL",
+        );
     });
 });
