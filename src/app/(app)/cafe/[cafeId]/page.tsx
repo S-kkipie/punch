@@ -16,6 +16,7 @@ import {
 } from "@/core/cafe/client/ui/product-form";
 import { ProductList } from "@/core/cafe/client/ui/product-list";
 import { StatusBadge } from "@/core/cafe/client/ui/status-badge";
+import { submissionGaps } from "@/core/cafe/domain/transitions";
 import type { CafeAdmin, Product } from "@/core/cafe/domain/types";
 import { Button } from "@/frontend/components/ui/button";
 import {
@@ -44,21 +45,26 @@ export default function CafePanelPage() {
     const cafe = cafeQuery.data as CafeAdmin | undefined;
     const products = (productsQuery.data ?? []) as Product[];
 
-    const localGaps = useMemo(() => {
-        if (!cafe) return [];
-        const gaps: string[] = [];
-        if (!cafe.name) gaps.push("name");
-        if (!cafe.description) gaps.push("description");
-        if (!cafe.address) gaps.push("address");
-        if (!cafe.district) gaps.push("district");
-        if (!cafe.contactPhone) gaps.push("contactPhone");
-        if (!cafe.ruc) gaps.push("ruc");
-        if (!cafe.photoUrl) gaps.push("photoUrl");
-        if (products.length === 0) gaps.push("products");
-        return gaps;
-    }, [cafe, products.length]);
+    const localGaps = useMemo(
+        () =>
+            cafe
+                ? submissionGaps(
+                      cafe,
+                      products.filter((product) => product.type === "emission")
+                          .length,
+                  )
+                : [],
+        [cafe, products],
+    );
     const serverGaps = responseTargets(submitCafe.error);
     const gaps = serverGaps.length > 0 ? serverGaps : localGaps;
+    const gapLabels: Record<string, string> = {
+        name: "Nombre",
+        address: "Dirección",
+        district: "Distrito",
+        contactPhone: "Teléfono de contacto",
+        emissionProduct: "Al menos un producto de emisión",
+    };
 
     if (cafeQuery.isLoading || productsQuery.isLoading) {
         return (
@@ -157,9 +163,8 @@ export default function CafePanelPage() {
                                     <ul className="mt-2 list-inside list-disc">
                                         {gaps.map((gap) => (
                                             <li key={gap}>
-                                                {gap === "products"
-                                                    ? "Al menos un producto"
-                                                    : gap}
+                                                {gapLabels[gap] ??
+                                                    "Dato requerido"}
                                             </li>
                                         ))}
                                     </ul>

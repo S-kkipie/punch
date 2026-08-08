@@ -10,7 +10,7 @@ import { Label } from "@/frontend/components/ui/label";
 import { Textarea } from "@/frontend/components/ui/textarea";
 import { useAppForm } from "@/frontend/hooks/use-tanstack-form";
 
-const productFormSchema = createProductSchema.extend({
+export const productFormSchema = createProductSchema.safeExtend({
     description: z.string().max(300),
     cogsSoles: z.string(),
 });

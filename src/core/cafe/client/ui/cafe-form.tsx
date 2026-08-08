@@ -41,10 +41,12 @@ export function CafeForm({
     defaultValues,
     onSubmit,
     disabled,
+    fields: visibleFields,
 }: {
     defaultValues?: Partial<CafeFormValues>;
     onSubmit: (values: CafeFormValues) => void | Promise<void>;
     disabled?: boolean;
+    fields?: (keyof CafeFormValues)[];
 }) {
     const form = useAppForm({
         defaultValues: { ...emptyValues, ...defaultValues },
@@ -80,6 +82,10 @@ export function CafeForm({
         },
     ];
 
+    const fieldsToRender = visibleFields
+        ? fields.filter((field) => visibleFields.includes(field.name))
+        : fields;
+
     return (
         <form
             className="space-y-4"
@@ -88,7 +94,7 @@ export function CafeForm({
                 form.handleSubmit();
             }}
         >
-            {fields.map((config) => (
+            {fieldsToRender.map((config) => (
                 <form.Field key={config.name} name={config.name}>
                     {(field) => {
                         const invalid = !field.state.meta.isValid;

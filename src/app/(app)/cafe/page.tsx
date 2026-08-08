@@ -69,6 +69,7 @@ export default function MyCafesPage() {
                         <CafeForm
                             onSubmit={create}
                             disabled={createCafe.isPending}
+                            fields={["name", "description"]}
                         />
                     </CardContent>
                 </Card>
