@@ -8,7 +8,7 @@ DONE
 
 `acf5986306f6b34f4218f80c07d24bdd20e445a4` — `feat(drizzle): add consumption and punch domain tables and migration`
 
-Fix round 1 commit pending report commit authoring.
+`a30bd890f06afbb62657d8e9fb0f837192ace1ce` — `fix(drizzle): guard punch balances against negatives`
 
 ## Files changed
 
