@@ -22,7 +22,11 @@ import {
     getOrCreateCrawlProgress,
     unlockCrawlVoucher,
 } from "@/core/punch/server/repository/crawls";
-import { markVoucherRedeemed } from "@/core/punch/server/repository/vouchers";
+import {
+    markVoucherExpiredIfAvailable,
+    markVoucherRedeemed,
+    VoucherRepositoryError,
+} from "@/core/punch/server/repository/vouchers";
 import { db } from "@/server/drizzle/db";
 import type {
     ChainSubmission,
@@ -156,7 +160,30 @@ export class PostgresMockConsumerChain implements ConsumerChainPort {
                 if (request?.status !== "approved" || !request.voucherId) {
                     throw new ConsumerChainError("REQUEST_NOT_APPROVED");
                 }
-                await markVoucherRedeemed(tx, request.voucherId);
+                try {
+                    await markVoucherRedeemed(tx, request.voucherId);
+                } catch (cause) {
+                    if (!(cause instanceof VoucherRepositoryError)) throw cause;
+                    if (cause.code === "EXPIRED") {
+                        await markVoucherExpiredIfAvailable(
+                            tx,
+                            request.voucherId,
+                        );
+                    }
+                    const rejected = await updateTransactionStatus(
+                        tx,
+                        row.id,
+                        "rejected",
+                        cause.code === "EXPIRED"
+                            ? "El voucher venció antes de confirmarse."
+                            : "El voucher ya fue utilizado o no está disponible.",
+                    );
+                    return {
+                        transactionId: rejected.id,
+                        status: rejected.status,
+                        rejectionReason: rejected.rejectionReason ?? undefined,
+                    };
+                }
                 const confirmed = await updateTransactionStatus(
                     tx,
                     row.id,
