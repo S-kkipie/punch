@@ -221,6 +221,7 @@ contract CampaignEscrow is ICampaignEscrow, Ownable, Pausable {
     /// expiry and do not reserve budget (approved design decision 5).
     function recoverExpiredBudget(uint256 campaignId) external onlyOwner whenNotPaused {
         Campaign storage c = _campaigns[campaignId];
+        if (c.status == CampaignStatus.None) revert CampaignNotFound(campaignId);
         if (c.status != CampaignStatus.Published) revert NotPublished(campaignId);
         if (block.timestamp <= c.expiry) revert CampaignNotExpired(campaignId);
         uint256 amount = c.budget;

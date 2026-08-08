@@ -455,6 +455,11 @@ contract CampaignEscrowTest is Test {
         assertEq(escrow.totalAssignedBudget(), 0);
     }
 
+    function test_recover_revertsCampaignNotFoundBeforeLifecycleChecks() public {
+        vm.expectRevert(abi.encodeWithSelector(CampaignNotFound.selector, 99));
+        escrow.recoverExpiredBudget(99);
+    }
+
     function test_recover_revertsBeforeExpiryOnDraftAndWhenEmpty() public {
         uint256 id = _publishedCampaign();
         vm.expectRevert(abi.encodeWithSelector(CampaignNotExpired.selector, id));
