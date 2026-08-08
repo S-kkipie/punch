@@ -1,5 +1,5 @@
 import "server-only";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { type DbClient, db } from "@/server/drizzle/db";
 import { punchBalanceProjection } from "@/server/drizzle/schemas/punch-schema";
 
@@ -14,11 +14,31 @@ export async function getBalance(
     return row?.balance ?? 0;
 }
 
+export class BalanceRepositoryError extends Error {
+    constructor(
+        public code: "INVALID_AMOUNT" | "INSUFFICIENT_BALANCE",
+        message: string,
+    ) {
+        super(message);
+        this.name = "BalanceRepositoryError";
+    }
+}
+
+function assertValidAmount(amount: number): void {
+    if (!Number.isFinite(amount) || !Number.isInteger(amount) || amount <= 0) {
+        throw new BalanceRepositoryError(
+            "INVALID_AMOUNT",
+            `Balance amount must be a positive finite integer: ${amount}`,
+        );
+    }
+}
+
 export async function incrementBalance(
     client: DbClient,
     userId: string,
     amount: number,
 ): Promise<number> {
+    assertValidAmount(amount);
     const [row] = await client
         .insert(punchBalanceProjection)
         .values({ userId, balance: amount })
@@ -38,13 +58,22 @@ export async function decrementBalance(
     userId: string,
     amount: number,
 ): Promise<number> {
+    assertValidAmount(amount);
     const [row] = await client
         .update(punchBalanceProjection)
         .set({ balance: sql`${punchBalanceProjection.balance} - ${amount}` })
-        .where(eq(punchBalanceProjection.userId, userId))
+        .where(
+            and(
+                eq(punchBalanceProjection.userId, userId),
+                sql`${punchBalanceProjection.balance} >= ${amount}`,
+            ),
+        )
         .returning({ balance: punchBalanceProjection.balance });
-    if (!row || row.balance < 0) {
-        throw new Error("decrementBalance: balance would go negative");
+    if (!row) {
+        throw new BalanceRepositoryError(
+            "INSUFFICIENT_BALANCE",
+            "Balance is missing or insufficient for decrement",
+        );
     }
     return row.balance;
 }

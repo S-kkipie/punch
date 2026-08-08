@@ -13,7 +13,18 @@ export function progressFraction(balance: number): {
     };
 }
 
+function assertValidBalance(balance: number): void {
+    if (
+        !Number.isFinite(balance) ||
+        !Number.isInteger(balance) ||
+        balance < 0
+    ) {
+        throw new Error(`Invalid PUNCH balance: ${balance}`);
+    }
+}
+
 export function canRedeem(balance: number): boolean {
+    assertValidBalance(balance);
     return balance >= PUNCH_REDEMPTION_COST;
 }
 

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { getBalance } from "@/core/punch/server/repository/balance";
+import {
+    type BalanceRepositoryError,
+    decrementBalance,
+    getBalance,
+    incrementBalance,
+} from "@/core/punch/server/repository/balance";
 import {
     bindProofSignatures,
     findProofByNonceOrReceipt,
@@ -46,6 +51,50 @@ function selectClient(rows: unknown[][]) {
 }
 
 describe("transaction-safe repository reads", () => {
+    it("validates balance amounts before writing", async () => {
+        const client = {} as never;
+        for (const amount of [
+            0,
+            -1,
+            1.5,
+            Number.NaN,
+            Number.POSITIVE_INFINITY,
+        ]) {
+            await expect(
+                incrementBalance(client, "user-1", amount),
+            ).rejects.toMatchObject({
+                code: "INVALID_AMOUNT",
+            } satisfies Partial<BalanceRepositoryError>);
+            await expect(
+                decrementBalance(client, "user-1", amount),
+            ).rejects.toMatchObject({
+                code: "INVALID_AMOUNT",
+            } satisfies Partial<BalanceRepositoryError>);
+        }
+    });
+
+    it("guards decrement against insufficient balances atomically", async () => {
+        let predicate: unknown;
+        const client = {
+            update: () => ({
+                set: () => ({
+                    where: (value: unknown) => {
+                        predicate = value;
+                        return { returning: async () => [] };
+                    },
+                }),
+            }),
+        } as never;
+        await expect(
+            decrementBalance(client, "user-1", 12),
+        ).rejects.toMatchObject({
+            code: "INSUFFICIENT_BALANCE",
+        });
+        const text = predicateText(predicate);
+        expect(text).toContain("balance");
+        expect(text).toContain("12");
+    });
+
     it("uses the supplied client for balance and idempotency reads", async () => {
         const { client, predicates } = selectClient([
             [{ balance: 7 }],
@@ -120,6 +169,21 @@ describe("proof repository safety", () => {
 });
 
 describe("transaction status transitions", () => {
+    it("returns the current row for an idempotent terminal retry", async () => {
+        const selected = selectClient([[{ id: "tx-1", status: "confirmed" }]]);
+        const client = {
+            update: () => ({
+                set: () => ({
+                    where: () => ({ returning: async () => [] }),
+                }),
+            }),
+            ...selected.client,
+        } as never;
+        await expect(
+            updateTransactionStatus(client, "tx-1", "confirmed"),
+        ).resolves.toMatchObject({ id: "tx-1", status: "confirmed" });
+    });
+
     it("allows pending to confirmed", async () => {
         const client = {
             update: () => ({

@@ -105,7 +105,7 @@ export async function updateTransactionStatus(
     if (row) return row;
 
     const [existing] = await client
-        .select({ status: consumerTransaction.status })
+        .select()
         .from(consumerTransaction)
         .where(eq(consumerTransaction.id, id));
     if (!existing) {
@@ -113,6 +113,12 @@ export async function updateTransactionStatus(
             "TRANSACTION_NOT_FOUND",
             `Transaction ${id} not found`,
         );
+    }
+    if (
+        existing.status === status &&
+        (status === "confirmed" || status === "rejected" || status === "failed")
+    ) {
+        return existing;
     }
     throw new TransactionRepositoryError(
         "INVALID_TRANSITION",
