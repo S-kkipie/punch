@@ -48,14 +48,14 @@ describe("purchase API routes", () => {
     });
 
     it("rejects unauthenticated create", async () => {
-        const response = await request("/", { method: "POST" });
+        const response = await request("/purchases/", { method: "POST" });
         expect(response.status).toBe(401);
     });
 
     it("creates an order for the authenticated user", async () => {
         vi.mocked(auth.api.getSession).mockResolvedValue(session as never);
         vi.mocked(createPurchaseService).mockResolvedValue(ok(order));
-        const response = await request("/", {
+        const response = await request("/purchases/", {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ cafeId: "cafe-1", productId: "product-1", amountSoles: 10, yapeRef: "YAPE-1234" }),
@@ -67,7 +67,7 @@ describe("purchase API routes", () => {
     it("maps non-owner confirmation to 403", async () => {
         vi.mocked(auth.api.getSession).mockResolvedValue(session as never);
         vi.mocked(confirmPurchaseService).mockResolvedValue(err({ type: "ForbiddenError", code: "FORBIDDEN", status: 403 }));
-        const response = await request("/order-1/confirm", { method: "POST" });
+        const response = await request("/purchases/order-1/confirm", { method: "POST" });
         expect(response.status).toBe(403);
     });
 });
