@@ -83,4 +83,6 @@ export const redemptionRequestSchema = z.object({
     status: fulfillmentRequestStatusSchema,
     rejectionReason: z.string().nullable(),
     createdAt: z.string(),
+    transactionId: z.string().nullable().optional(),
+    transactionStatus: consumerTransactionStatusSchema.nullable().optional(),
 });

@@ -34,6 +34,12 @@ import {
 } from "../hooks";
 
 describe("useTransactionStatus polling", () => {
+    it("passes café context directly so Eden serializes cafeId as a query parameter", () => {
+        queryOptions.mockClear();
+        useTransactionStatus("tx-1", "cafe-1");
+        expect(queryOptions).toHaveBeenCalledWith({ cafeId: "cafe-1" });
+    });
+
     it("polls raw pending responses and stops for terminal responses", () => {
         useTransactionStatus("tx-1");
         const options = useQuery.mock.calls[0]?.[0] as {

@@ -16,7 +16,13 @@ const { punchMutate, voucherMutate, txState, inboxData, txError } = vi.hoisted(
         inboxData: [
             { id: "punch-1", kind: "punch_reward", status: "pending" },
             { id: "voucher-1", kind: "voucher", status: "pending" },
-        ],
+        ] as Array<{
+            id: string;
+            kind: string;
+            status: string;
+            transactionId?: string;
+            transactionStatus?: string;
+        }>,
     }),
 );
 vi.mock("next/navigation", () => ({ useParams: () => ({ cafeId: "cafe-1" }) }));
@@ -142,6 +148,40 @@ describe("café redemption settlement lifecycle", () => {
         await act(async () => retry?.click());
         expect(voucherMutate).toHaveBeenCalledTimes(2);
         expect(punchMutate).toHaveBeenCalledTimes(1);
+        await act(async () => root.unmount());
+    });
+
+    it("reconstructs a decided pending settlement after remount and offers retry", async () => {
+        inboxData.splice(0, inboxData.length, {
+            id: "punch-1",
+            kind: "punch_reward",
+            status: "approved",
+            transactionId: "tx-punch",
+            transactionStatus: "pending",
+        });
+        txState.set("tx-punch", { status: "pending" });
+        const container = document.createElement("div");
+        document.body.append(container);
+        const root = createRoot(container);
+        await act(async () => root.render(<CafeRedemptionsPage />));
+        expect(container.textContent).toContain("Pendiente on-chain");
+        txState.set("tx-punch", { status: "confirmed" });
+        await act(async () => root.render(<CafeRedemptionsPage />));
+        expect(container.textContent).toContain("Confirmado");
+        txState.set("tx-punch", { status: "failed" });
+        await act(async () => root.render(<CafeRedemptionsPage />));
+        const retry = [...container.querySelectorAll("button")].find(
+            (button) => button.textContent === "Reintentar",
+        );
+        expect(retry).toBeDefined();
+        await act(async () => retry?.click());
+        expect(punchMutate).toHaveBeenCalledWith(
+            expect.objectContaining({
+                requestId: "punch-1",
+                decision: "approved",
+            }),
+            expect.any(Object),
+        );
         await act(async () => root.unmount());
     });
 
