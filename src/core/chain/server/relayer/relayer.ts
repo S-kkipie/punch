@@ -1,11 +1,17 @@
 import "server-only";
 
 import type { Address, Hex, PublicClient, WalletClient } from "viem";
+import { env } from "@/config/env";
 import { abis } from "@/core/chain/abis";
 import { getAddresses } from "@/core/chain/addresses";
-import { createChainPublicClient, createChainWalletClient } from "@/core/chain/chain";
-import { env } from "@/config/env";
-import { deserializeProof } from "@/core/chain/server/proof/proof";
+import {
+    createChainPublicClient,
+    createChainWalletClient,
+} from "@/core/chain/chain";
+import {
+    type ConsumptionProof,
+    deserializeProof,
+} from "@/core/chain/server/proof/proof";
 import { deriveUserAccount } from "@/core/chain/server/wallet/derive";
 import {
     findJobsToRun,
@@ -17,7 +23,11 @@ import {
     markJobSubmitted,
     setOrderStatus,
 } from "@/core/purchase/server/repository/purchase-repository";
-import { parseRevert, type ParsedRevert, type RevertCode } from "./parse-revert";
+import {
+    type ParsedRevert,
+    parseRevert,
+    type RevertCode,
+} from "./parse-revert";
 
 const PERMANENT_CODES = new Set<RevertCode>([
     "receipt_used",
@@ -30,7 +40,6 @@ const PERMANENT_CODES = new Set<RevertCode>([
 ]);
 
 type Job = Awaited<ReturnType<typeof findJobsToRun>>[number];
-type Receipt = { status: "success" | "reverted" };
 type RelayerWallet = WalletClient;
 
 export type RelayerDeps = {
@@ -38,12 +47,24 @@ export type RelayerDeps = {
     findSubmittedJobs: () => Promise<Job[]>;
     markJobSubmitted: (id: string, txHash: Hex) => Promise<unknown>;
     markJobConfirmed: (id: string) => Promise<unknown>;
-    markJobRetry: (id: string, error: string, attempts: number, nextRetryAt: Date) => Promise<unknown>;
+    markJobRetry: (
+        id: string,
+        error: string,
+        attempts: number,
+        nextRetryAt: Date,
+    ) => Promise<unknown>;
     markJobFailed: (id: string, error: string) => Promise<unknown>;
     markJobPending: (id: string, nextRetryAt: Date) => Promise<unknown>;
-    setOrderStatus: (orderId: string, status: "submitted" | "confirmed" | "failed", extra?: { txHash?: string; failureReason?: string }) => Promise<unknown>;
+    setOrderStatus: (
+        orderId: string,
+        status: "queued" | "submitted" | "confirmed" | "failed",
+        extra?: { txHash?: string; failureReason?: string },
+    ) => Promise<unknown>;
     wallet: RelayerWallet;
-    pub: Pick<PublicClient, "waitForTransactionReceipt" | "getTransactionReceipt">;
+    pub: Pick<
+        PublicClient,
+        "waitForTransactionReceipt" | "getTransactionReceipt"
+    >;
     addresses: ReturnType<typeof getAddresses>;
     submitter: Address;
     now: () => Date;
@@ -87,53 +108,80 @@ async function confirm(deps: RelayerDeps, job: Job) {
 
 async function handleFailure(deps: RelayerDeps, job: Job, error: unknown) {
     const parsed = parseRevert(error);
-    const invalidPayload = error instanceof Error && error.message === "invalid payload";
-    if (invalidPayload) {
-        await deps.markJobFailed(job.id, "invalid payload");
-        await deps.setOrderStatus(job.orderId, "failed", { failureReason: "unknown" });
-        return;
-    }
-    if (parsed.code === "nonce_used") {
+    const invalidPayload =
+        error instanceof Error && error.message === "invalid payload";
+    const invalidSignature =
+        error instanceof Error && error.message === "invalid signature";
+    const code: RevertCode = invalidPayload
+        ? "unknown"
+        : invalidSignature
+          ? "invalid_signature"
+          : parsed.code;
+    const message = invalidPayload
+        ? "invalid payload"
+        : invalidSignature
+          ? "invalid signature"
+          : sanitizedFailure(parsed);
+    if (code === "nonce_used") {
         await confirm(deps, job);
         return;
     }
-    if (PERMANENT_CODES.has(parsed.code)) {
-        await deps.markJobFailed(job.id, sanitizedFailure(parsed));
-        await deps.setOrderStatus(job.orderId, "failed", { failureReason: parsed.code });
+    if (invalidPayload || PERMANENT_CODES.has(code)) {
+        await deps.markJobFailed(job.id, message);
+        await deps.setOrderStatus(job.orderId, "failed", {
+            failureReason: code,
+        });
         return;
     }
     const attempts = job.attempts + 1;
     if (attempts >= 3) {
-        await deps.markJobFailed(job.id, sanitizedFailure(parsed));
-        await deps.setOrderStatus(job.orderId, "failed", { failureReason: parsed.code });
+        await deps.markJobFailed(job.id, message);
+        await deps.setOrderStatus(job.orderId, "failed", {
+            failureReason: code,
+        });
         return;
     }
     const nextRetryAt = new Date(deps.now().getTime() + 5_000 * 2 ** attempts);
-    await deps.markJobRetry(job.id, sanitizedFailure(parsed), attempts, nextRetryAt);
+    await deps.markJobRetry(job.id, message, attempts, nextRetryAt);
+    await deps.setOrderStatus(job.orderId, "queued");
 }
 
 async function submitJob(deps: RelayerDeps, job: Job) {
+    let hash: Hex;
     try {
-        if (!job.payload || typeof job.payload !== "object") throw new Error("invalid payload");
-        const payload = job.payload as Record<string, unknown>;
-        if (!isSignature(payload.cafeSignature) || !isSignature(payload.userSignature)) {
+        if (!job.payload || typeof job.payload !== "object")
             throw new Error("invalid payload");
+        const payload = job.payload as Record<string, unknown>;
+        if (
+            !isSignature(payload.cafeSignature) ||
+            !isSignature(payload.userSignature)
+        ) {
+            throw new Error("invalid signature");
         }
-        let proof;
+        let proof: ConsumptionProof;
         try {
             proof = deserializeProof(payload.proof);
         } catch {
             throw new Error("invalid payload");
         }
-        const hash = await deps.wallet.writeContract({
+        hash = (await deps.wallet.writeContract({
             address: deps.addresses.consumptionLog,
             abi: abis.consumptionLog,
             functionName: "recordConsumption",
             args: [proof, payload.cafeSignature, payload.userSignature],
             account: deps.submitter,
-        } as never) as Hex;
-        await deps.markJobSubmitted(job.id, hash);
-        await deps.setOrderStatus(job.orderId, "submitted", { txHash: hash });
+        } as never)) as Hex;
+    } catch (error) {
+        await handleFailure(deps, job, error);
+        return;
+    }
+
+    // Database transition failures must escape rather than being mistaken for
+    // chain failures. The outer drain continues other leased jobs and reports
+    // the update failure to its caller.
+    await deps.markJobSubmitted(job.id, hash);
+    await deps.setOrderStatus(job.orderId, "submitted", { txHash: hash });
+    try {
         const receipt = await deps.pub.waitForTransactionReceipt({ hash });
         if (receipt.status === "success") {
             await confirm(deps, job);
@@ -145,28 +193,50 @@ async function submitJob(deps: RelayerDeps, job: Job) {
     }
 }
 
-export async function runRelayerOnce(deps: RelayerDeps = defaultDeps()): Promise<void> {
+export async function runRelayerOnce(
+    deps: RelayerDeps = defaultDeps(),
+): Promise<void> {
     const jobs = await deps.findJobsToRun(10);
-    for (const job of jobs) await submitJob(deps, job);
+    const failures: unknown[] = [];
+    for (const job of jobs) {
+        try {
+            await submitJob(deps, job);
+        } catch (error) {
+            failures.push(error);
+        }
+    }
+    if (failures.length > 0)
+        throw new AggregateError(failures, "relayer state update failed");
 }
 
-export async function recoverStuckJobs(deps: RelayerDeps = defaultDeps()): Promise<void> {
+export async function recoverStuckJobs(
+    deps: RelayerDeps = defaultDeps(),
+): Promise<void> {
     const jobs = await deps.findSubmittedJobs();
     for (const job of jobs) {
         if (!job.txHash) {
             await deps.markJobPending(job.id, deps.now());
+            await deps.setOrderStatus(job.orderId, "queued");
             continue;
         }
         try {
-            const receipt = await deps.pub.getTransactionReceipt({ hash: job.txHash as Hex });
+            const receipt = await deps.pub.getTransactionReceipt({
+                hash: job.txHash as Hex,
+            });
             if (receipt.status === "success") {
                 await confirm(deps, job);
             } else {
-                await handleFailure(deps, job, new Error("transaction reverted"));
+                await handleFailure(
+                    deps,
+                    job,
+                    new Error("transaction reverted"),
+                );
             }
         } catch {
-            // A missing receipt is not evidence of success. Requeue safely.
+            // A missing receipt is not evidence of success. Requeue safely and
+            // move the order back with the job so the two state machines agree.
             await deps.markJobPending(job.id, deps.now());
+            await deps.setOrderStatus(job.orderId, "queued");
         }
     }
 }

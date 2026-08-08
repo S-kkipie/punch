@@ -1,4 +1,4 @@
-import { decodeErrorResult, type Abi, type Hex } from "viem";
+import { type Abi, decodeErrorResult, type Hex } from "viem";
 import { abis } from "@/core/chain/abis";
 
 export type RevertCode =
@@ -31,7 +31,10 @@ function findData(error: unknown): Hex | undefined {
     if (!error || typeof error !== "object") return undefined;
     const value = error as Record<string, unknown>;
     for (const key of ["data", "raw"]) {
-        if (typeof value[key] === "string" && (value[key] as string).startsWith("0x")) {
+        if (
+            typeof value[key] === "string" &&
+            (value[key] as string).startsWith("0x")
+        ) {
             return value[key] as Hex;
         }
     }
