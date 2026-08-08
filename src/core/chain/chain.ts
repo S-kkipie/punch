@@ -4,11 +4,11 @@ import { createPublicClient, createWalletClient, http } from "viem";
 import { arbitrumSepolia, foundry } from "viem/chains";
 import { env } from "@/config/env";
 
-export const chain = arbitrumSepolia;
-
 export function chainForEnv() {
     return env.CHAIN_ENV === "local" ? foundry : arbitrumSepolia;
 }
+
+export const chain = chainForEnv();
 
 export function createChainPublicClient(rpcUrl?: string) {
     return createPublicClient({
