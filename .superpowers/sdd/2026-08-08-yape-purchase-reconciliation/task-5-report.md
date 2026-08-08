@@ -32,3 +32,13 @@ Review-fix verification:
 - `pnpm test src/core/chain/server/proof` — passed: 1 file, 16 tests.
 - `pnpm typecheck` — passed.
 - `pnpm exec biome check src/core/chain/server/proof/proof.ts src/core/chain/server/proof/__tests__/proof.test.ts` — passed.
+
+## Re-review fix
+
+Relaxed address validation to `isAddress(user, { strict: false })`, preserving the supplied casing while requiring a valid 20-byte hexadecimal EVM address. Added coverage for lowercase and mixed-case non-checksummed addresses, plus short, nonhex, and 21-byte rejection cases.
+
+Re-review-fix verification:
+
+- `pnpm test src/core/chain/server/proof` — passed: 1 file, 20 tests.
+- `pnpm typecheck` — passed.
+- `pnpm exec biome check src/core/chain/server/proof/proof.ts src/core/chain/server/proof/__tests__/proof.test.ts` — passed.

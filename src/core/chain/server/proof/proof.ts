@@ -134,7 +134,7 @@ export function deserializeProof(raw: unknown): ConsumptionProof {
     }
 
     const user = record.user;
-    if (typeof user !== "string" || !isAddress(user)) {
+    if (typeof user !== "string" || !isAddress(user, { strict: false })) {
         return invalidProofField("user");
     }
 

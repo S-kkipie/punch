@@ -64,7 +64,17 @@ describe("proof module", () => {
     });
 
     const invalidCases: Array<[string, Record<string, unknown>, string]> = [
-        ["invalid user", { user: "0x1234" }, "user"],
+        ["short user", { user: "0x1234" }, "user"],
+        [
+            "nonhex user",
+            { user: "0xgg000000000000000000000000000000000000" },
+            "user",
+        ],
+        [
+            "21-byte user",
+            { user: "0x000000000000000000000000000000000000000001" },
+            "user",
+        ],
         ["short receipt hash", { receiptHash: "0x12" }, "receiptHash"],
         ["negative nonce", { nonce: "-1" }, "nonce"],
         ["decimal amount", { amount: "1.5" }, "amount"],
@@ -87,6 +97,15 @@ describe("proof module", () => {
         [],
     ])("rejects non-object payload %p", (payload) => {
         expect(() => deserializeProof(payload)).toThrow("proof");
+    });
+
+    it.each([
+        "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+        "0xAbcdefabcdefabcdefabcdefabcdefabcdefabcd",
+    ])("accepts byte-valid address %s without checksum enforcement", (user) => {
+        const serialized = { ...serializeProof(proof), user };
+
+        expect(deserializeProof(serialized).user).toBe(user);
     });
 
     it("accepts zero and maximum uint256 values", () => {
