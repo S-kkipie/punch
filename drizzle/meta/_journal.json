@@ -57,6 +57,13 @@
             "when": 1786215436065,
             "tag": "0007_clean_shinobi_shaw",
             "breakpoints": true
+        },
+        {
+            "idx": 8,
+            "version": "7",
+            "when": 1786222835477,
+            "tag": "0008_soft_pyro",
+            "breakpoints": true
         }
     ]
 }

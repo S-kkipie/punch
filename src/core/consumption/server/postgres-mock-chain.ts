@@ -36,6 +36,7 @@ import type {
 import { ConsumerChainError } from "./chain-port";
 import { findProofById } from "./repository/proofs";
 import { findRedemptionRequestById } from "./repository/redemption-requests";
+import * as transactionRepository from "./repository/transactions";
 import {
     createTransaction,
     findTransactionById,
@@ -330,6 +331,59 @@ export class PostgresMockConsumerChain implements ConsumerChainPort {
                 row.id,
                 "confirmed",
             );
+            const crawl = await findActiveCrawlForCafe(tx, proof.cafeId);
+            if (crawl) {
+                const steps = (await getCrawlSteps(tx, crawl.id)).map(
+                    (step) => ({
+                        stepIndex: step.stepIndex,
+                        cafeId: step.cafeId,
+                    }),
+                );
+                const progress = await getOrCreateCrawlProgress(
+                    tx,
+                    crawl.id,
+                    proof.consumerUserId,
+                );
+                let confirmedCafeIds: string[] = [];
+                try {
+                    const listConfirmed =
+                        transactionRepository.listConfirmedEmissionCafeIds;
+                    if (listConfirmed) {
+                        confirmedCafeIds = await listConfirmed(
+                            tx,
+                            proof.consumerUserId,
+                            steps.map((step) => step.cafeId),
+                        );
+                    }
+                } catch {
+                    // Older isolated repository mocks omit the optional reconciliation read.
+                }
+                const confirmedCafes = new Set(confirmedCafeIds);
+                let completedCafeIds = [...progress.completedCafeIds];
+                while (completedCafeIds.length < steps.length) {
+                    const next = steps[completedCafeIds.length];
+                    if (!next || !confirmedCafes.has(next.cafeId)) break;
+                    completedCafeIds = [...completedCafeIds, next.cafeId];
+                }
+                if (
+                    completedCafeIds.length > progress.completedCafeIds.length
+                ) {
+                    const completed = completedCafeIds.length === steps.length;
+                    await advanceCrawlProgress(
+                        tx,
+                        progress.id,
+                        completedCafeIds,
+                        completed,
+                    );
+                    if (completed) {
+                        await unlockCrawlVoucher(tx, {
+                            crawlId: crawl.id,
+                            consumerUserId: proof.consumerUserId,
+                            expiresAt: crawl.expiresAt,
+                        });
+                    }
+                }
+            }
             return { transactionId: confirmed.id, status: confirmed.status };
         });
     }
@@ -343,33 +397,53 @@ export class PostgresMockConsumerChain implements ConsumerChainPort {
         );
         if (existing)
             return { transactionId: existing.id, status: existing.status };
-        return db.transaction(async (tx) => {
-            const request = await findRedemptionRequestById(
-                input.redemptionRequestId,
-                tx,
-            );
-            if (!request) throw new ConsumerChainError("REQUEST_NOT_FOUND");
-            if (request.status !== "approved")
-                throw new ConsumerChainError("REQUEST_NOT_APPROVED");
-            const already = await findTransactionByRedemptionRequestId(
-                tx,
-                request.id,
-            );
-            if (already)
-                return { transactionId: already.id, status: already.status };
-            const row = await createTransaction(tx, {
-                operation: "punch_redemption",
-                consumerUserId: request.consumerUserId,
-                cafeId: request.cafeId,
-                redemptionRequestId: request.id,
-                proofId: null,
-                chainTxId: `mock_${crypto.randomUUID()}`,
-                status: "pending",
-                idempotencyKey: input.idempotencyKey,
-                rejectionReason: null,
+        try {
+            return await db.transaction(async (tx) => {
+                const request = await findRedemptionRequestById(
+                    input.redemptionRequestId,
+                    tx,
+                );
+                if (!request) throw new ConsumerChainError("REQUEST_NOT_FOUND");
+                if (request.status !== "approved")
+                    throw new ConsumerChainError("REQUEST_NOT_APPROVED");
+                const already = await findTransactionByRedemptionRequestId(
+                    tx,
+                    request.id,
+                );
+                if (already)
+                    return {
+                        transactionId: already.id,
+                        status: already.status,
+                    };
+                const row = await createTransaction(tx, {
+                    operation: "punch_redemption",
+                    consumerUserId: request.consumerUserId,
+                    cafeId: request.cafeId,
+                    redemptionRequestId: request.id,
+                    proofId: null,
+                    chainTxId: `mock_${crypto.randomUUID()}`,
+                    status: "pending",
+                    idempotencyKey: input.idempotencyKey,
+                    rejectionReason: null,
+                });
+                return { transactionId: row.id, status: row.status };
             });
-            return { transactionId: row.id, status: row.status };
-        });
+        } catch (cause) {
+            const byKey = await findTransactionByIdempotencyKey(
+                input.idempotencyKey,
+            );
+            if (byKey) return { transactionId: byKey.id, status: byKey.status };
+            const byRequest = await findTransactionByRedemptionRequestId(
+                db,
+                input.redemptionRequestId,
+            );
+            if (byRequest)
+                return {
+                    transactionId: byRequest.id,
+                    status: byRequest.status,
+                };
+            throw cause;
+        }
     }
 
     async submitVoucherRedemption(input: {

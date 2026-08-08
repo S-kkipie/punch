@@ -43,7 +43,7 @@ export const campaign = pgTable(
         kind: campaignKind("kind").notNull(),
         cafeId: text("cafe_id")
             .notNull()
-            .references(() => cafe.id, { onDelete: "cascade" }),
+            .references(() => cafe.id, { onDelete: "restrict" }),
         name: text("name").notNull(),
         windowStart: timestamp("window_start").notNull(),
         windowEnd: timestamp("window_end").notNull(),
