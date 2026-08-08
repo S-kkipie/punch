@@ -5,7 +5,17 @@ import {Test} from "forge-std/Test.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {NetworkFund, ZeroAddress, ZeroAmount, EpochFinalized, InsufficientFreeBalance} from "../src/NetworkFund.sol";
+import {
+    NetworkFund,
+    ZeroAddress,
+    ZeroAmount,
+    EpochFinalized,
+    InsufficientFreeBalance,
+    NotReferralRecorder,
+    ReferralProofRequired,
+    ReferralIdUsed,
+    CafeNotOperational
+} from "../src/NetworkFund.sol";
 import {CafeRegistry} from "../src/CafeRegistry.sol";
 import {MockPEN} from "../src/MockPEN.sol";
 import {ICafeRegistry} from "../src/interfaces/ICafeRegistry.sol";
@@ -54,6 +64,79 @@ contract NetworkFundTest is Test {
     /// @dev Mimics PlanManager: mPEN lands on the fund by plain transfer, no call.
     function _seed(uint256 amount) internal {
         pen.mint(address(fund), amount);
+    }
+
+    function _record(uint256 cafeId, bytes32 referralId) internal {
+        vm.prank(recorder);
+        fund.recordReferralWithProof(EPOCH, cafeId, referralId);
+    }
+
+    function test_recordReferral_withoutProofAlwaysReverts() public {
+        vm.prank(recorder);
+        vm.expectRevert(ReferralProofRequired.selector);
+        fund.recordReferral(EPOCH, cafeA);
+
+        // Not even the owner has a proof-less path.
+        vm.expectRevert(ReferralProofRequired.selector);
+        fund.recordReferral(EPOCH, cafeA);
+    }
+
+    function test_recordReferralWithProof_countsPerCafe() public {
+        vm.expectEmit(true, true, true, false, address(fund));
+        emit INetworkFund.ReferralRecorded(EPOCH, cafeA, keccak256("r1"));
+        _record(cafeA, keccak256("r1"));
+        _record(cafeA, keccak256("r2"));
+        _record(cafeB, keccak256("r3"));
+
+        assertEq(fund.referrals(EPOCH, cafeA), 2);
+        assertEq(fund.referrals(EPOCH, cafeB), 1);
+        assertEq(fund.getEpoch(EPOCH).totalReferrals, 3);
+    }
+
+    function test_recordReferralWithProof_rejectsDuplicateId() public {
+        _record(cafeA, keccak256("r1"));
+
+        vm.prank(recorder);
+        vm.expectRevert(abi.encodeWithSelector(ReferralIdUsed.selector, keccak256("r1")));
+        fund.recordReferralWithProof(EPOCH, cafeB, keccak256("r1"));
+
+        assertEq(fund.getEpoch(EPOCH).totalReferrals, 1);
+    }
+
+    function test_recordReferralWithProof_rejectsDuplicateIdAcrossEpochs() public {
+        _record(cafeA, keccak256("r1"));
+
+        vm.prank(recorder);
+        vm.expectRevert(abi.encodeWithSelector(ReferralIdUsed.selector, keccak256("r1")));
+        fund.recordReferralWithProof(EPOCH + 1, cafeA, keccak256("r1"));
+    }
+
+    function test_recordReferralWithProof_rejectsZeroId() public {
+        vm.prank(recorder);
+        vm.expectRevert(ReferralProofRequired.selector);
+        fund.recordReferralWithProof(EPOCH, cafeA, bytes32(0));
+    }
+
+    function test_recordReferralWithProof_onlyRecorder() public {
+        vm.prank(stranger);
+        vm.expectRevert(abi.encodeWithSelector(NotReferralRecorder.selector, stranger));
+        fund.recordReferralWithProof(EPOCH, cafeA, keccak256("r1"));
+    }
+
+    function test_recordReferralWithProof_rejectsNonOperationalCafe() public {
+        vm.prank(registrar);
+        registry.setCafeStatus(cafeA, ICafeRegistry.CafeStatus.Suspended);
+
+        vm.prank(recorder);
+        vm.expectRevert(abi.encodeWithSelector(CafeNotOperational.selector, cafeA));
+        fund.recordReferralWithProof(EPOCH, cafeA, keccak256("r1"));
+    }
+
+    function test_recordReferralWithProof_revertsWhenPaused() public {
+        fund.pause();
+        vm.prank(recorder);
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        fund.recordReferralWithProof(EPOCH, cafeA, keccak256("r1"));
     }
 
     function test_constructor_zeroAddressReverts() public {

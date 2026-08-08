@@ -12,6 +12,10 @@ error ZeroAddress();
 error ZeroAmount();
 error EpochFinalized(uint256 epoch);
 error InsufficientFreeBalance(uint256 requested, uint256 available);
+error NotReferralRecorder(address caller);
+error ReferralProofRequired();
+error ReferralIdUsed(bytes32 referralId);
+error CafeNotOperational(uint256 cafeId);
 
 /// @notice Custodies the shared network fund: budgets contributions per monthly epoch
 /// into four on-chain buckets (40/30/20/10), counts verified referrals, pays prorated
@@ -122,8 +126,35 @@ contract NetworkFund is INetworkFund, Ownable, Pausable {
         emit EpochBucketsFunded(epoch, origin, acquisition, crawl, contingency);
     }
 
+    /// @notice Records one verified referral attributed to `originCafeId`.
+    /// @dev The referral count is money: it is the denominator of the origin prorate, so a
+    /// double count steals credit from every other café. `referralId` (the backend's
+    /// receipt/campaign identifier) makes this idempotent. Op lives outside the frozen
+    /// interface, which has no room for the id.
+    function recordReferralWithProof(uint256 epoch, uint256 originCafeId, bytes32 referralId)
+        external
+        whenNotPaused
+    {
+        if (msg.sender != referralRecorder) revert NotReferralRecorder(msg.sender);
+        if (referralId == bytes32(0)) revert ReferralProofRequired();
+        if (usedReferralId[referralId]) revert ReferralIdUsed(referralId);
+        Epoch storage e = epochs[epoch];
+        if (e.finalized) revert EpochFinalized(epoch);
+        if (!registry.isOperational(originCafeId)) revert CafeNotOperational(originCafeId);
+
+        usedReferralId[referralId] = true;
+        referrals[epoch][originCafeId] += 1;
+        e.totalReferrals += 1;
+
+        emit ReferralRecorded(epoch, originCafeId, referralId);
+    }
+
+    /// @inheritdoc INetworkFund
+    /// @dev Always reverts. The frozen signature carries no referral id, so it cannot
+    /// deduplicate; keeping it callable would open a second, unguarded door into the
+    /// count that decides how the origin pool is split. Use `recordReferralWithProof`.
     function recordReferral(uint256, uint256) external pure {
-        revert();
+        revert ReferralProofRequired();
     }
 
     function finalizeOriginEpoch(uint256) external pure {
