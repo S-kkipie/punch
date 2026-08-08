@@ -20,6 +20,7 @@ error EpochNotFinalized(uint256 epoch);
 error OriginAlreadyClaimed(uint256 epoch, uint256 cafeId);
 error NoReferrals(uint256 epoch, uint256 cafeId);
 error OriginPoolReleased(uint256 epoch);
+error NothingToRelease(uint256 epoch);
 
 /// @notice Custodies the shared network fund: budgets contributions per monthly epoch
 /// into four on-chain buckets (40/30/20/10), counts verified referrals, pays prorated
@@ -76,6 +77,7 @@ contract NetworkFund is INetworkFund, Ownable, Pausable {
     );
     event ReferralRecorderSet(address indexed recorder);
     event CampaignEscrowSet(address indexed escrow);
+    event UnclaimedOriginReleased(uint256 indexed epoch, uint256 amount);
 
     constructor(IERC20 pen_, ICafeRegistry registry_) Ownable(msg.sender) {
         if (address(pen_) == address(0) || address(registry_) == address(0)) revert ZeroAddress();
@@ -194,6 +196,26 @@ contract NetworkFund is INetworkFund, Ownable, Pausable {
         pen.safeTransfer(cafeOwner, amount);
 
         emit OriginCreditClaimed(epoch, cafeId, amount);
+    }
+
+    /// @notice Returns an epoch's unclaimed origin credit to free balance, ready for a
+    /// future `fundEpoch`.
+    /// @dev Covers both integer-division dust and cafés that never claimed (or were
+    /// suspended before claiming). No transfer happens: the mPEN was already here, it just
+    /// stops being budgeted, so no value is created (spec invariant 12). There is no
+    /// minimum claim window in MVP — the owner is the PUNCH multisig.
+    function releaseUnclaimedOrigin(uint256 epoch) external onlyOwner {
+        Epoch storage e = epochs[epoch];
+        if (!e.finalized) revert EpochNotFinalized(epoch);
+        if (e.originReleased) revert OriginPoolReleased(epoch);
+
+        uint256 remaining = e.originPool - e.originPaid;
+        if (remaining == 0) revert NothingToRelease(epoch);
+
+        e.originReleased = true;
+        totalBudgeted -= remaining;
+
+        emit UnclaimedOriginReleased(epoch, remaining);
     }
 
     function allocateCampaignBudget(uint256, uint256) external pure {

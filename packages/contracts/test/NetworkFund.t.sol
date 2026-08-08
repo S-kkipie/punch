@@ -17,7 +17,9 @@ import {
     CafeNotOperational,
     EpochNotFinalized,
     OriginAlreadyClaimed,
-    NoReferrals
+    NoReferrals,
+    NothingToRelease,
+    OriginPoolReleased
 } from "../src/NetworkFund.sol";
 import {CafeRegistry} from "../src/CafeRegistry.sol";
 import {MockPEN} from "../src/MockPEN.sol";
@@ -367,5 +369,73 @@ contract NetworkFundTest is Test {
 
         vm.expectRevert(Pausable.EnforcedPause.selector);
         fund.claimOriginCredit(EPOCH, cafeA);
+    }
+
+    function test_release_returnsRemainderToFreeBalance() public {
+        _seed(100e6);
+        fund.fundEpoch(EPOCH, 100e6); // originPool = 40e6
+        _record(cafeA, keccak256("r1"));
+        _record(cafeB, keccak256("r2"));
+        fund.finalizeOriginEpoch(EPOCH);
+
+        fund.claimOriginCredit(EPOCH, cafeA); // 20e6 out
+        assertEq(fund.freeBalance(), 0);
+
+        vm.expectEmit(true, false, false, true, address(fund));
+        emit NetworkFund.UnclaimedOriginReleased(EPOCH, 20e6);
+        fund.releaseUnclaimedOrigin(EPOCH);
+
+        // The mPEN never left the contract: it just stopped being budgeted.
+        assertEq(fund.freeBalance(), 20e6);
+        assertEq(fund.totalBudgeted(), 60e6);
+        assertEq(pen.balanceOf(address(fund)), 80e6);
+    }
+
+    function test_release_blocksLaterClaims() public {
+        _seed(100e6);
+        fund.fundEpoch(EPOCH, 100e6);
+        _record(cafeA, keccak256("r1"));
+        fund.finalizeOriginEpoch(EPOCH);
+        fund.releaseUnclaimedOrigin(EPOCH);
+
+        assertEq(fund.pendingOriginCredit(EPOCH, cafeA), 0);
+        vm.expectRevert(abi.encodeWithSelector(OriginPoolReleased.selector, EPOCH));
+        fund.claimOriginCredit(EPOCH, cafeA);
+    }
+
+    function test_release_freedAmountFundsANewEpoch() public {
+        _seed(100e6);
+        fund.fundEpoch(EPOCH, 100e6);
+        fund.finalizeOriginEpoch(EPOCH); // zero referrals: nobody can claim
+        fund.releaseUnclaimedOrigin(EPOCH);
+
+        assertEq(fund.freeBalance(), 40e6);
+        fund.fundEpoch(EPOCH + 1, 40e6);
+        assertEq(fund.getEpoch(EPOCH + 1).originPool, 16e6);
+    }
+
+    function test_release_requiresFinalizedAndNonEmpty() public {
+        _seed(100e6);
+        fund.fundEpoch(EPOCH, 100e6);
+
+        vm.expectRevert(abi.encodeWithSelector(EpochNotFinalized.selector, EPOCH));
+        fund.releaseUnclaimedOrigin(EPOCH);
+
+        fund.finalizeOriginEpoch(EPOCH);
+        fund.releaseUnclaimedOrigin(EPOCH);
+
+        vm.expectRevert(abi.encodeWithSelector(OriginPoolReleased.selector, EPOCH));
+        fund.releaseUnclaimedOrigin(EPOCH);
+
+        fund.finalizeOriginEpoch(EPOCH + 1);
+        vm.expectRevert(abi.encodeWithSelector(NothingToRelease.selector, EPOCH + 1));
+        fund.releaseUnclaimedOrigin(EPOCH + 1);
+    }
+
+    function test_release_onlyOwner() public {
+        fund.finalizeOriginEpoch(EPOCH);
+        vm.prank(stranger);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
+        fund.releaseUnclaimedOrigin(EPOCH);
     }
 }
