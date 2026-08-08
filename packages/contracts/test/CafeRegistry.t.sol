@@ -509,4 +509,41 @@ contract CafeRegistryTest is Test {
         (address who,) = registry.getCafe(cafeId);
         assertEq(who, owner2);
     }
+
+    function testFuzz_registerCafe_idsAreUniqueAndCounted(address a, address b) public {
+        vm.assume(a != address(0) && b != address(0));
+
+        uint256 first = _register(a);
+        uint256 second = _register(b);
+
+        assertEq(first, 1);
+        assertEq(second, 2);
+        assertEq(registry.cafeCount(), 2);
+
+        (address ownerA,) = registry.getCafe(first);
+        (address ownerB,) = registry.getCafe(second);
+        assertEq(ownerA, a);
+        assertEq(ownerB, b);
+    }
+
+    function testFuzz_isAuthorized_falseForUnrelatedAccounts(address who) public {
+        uint256 cafeId = _register(owner1);
+        vm.prank(owner1);
+        registry.authorizeOperator(cafeId, operator, true);
+
+        vm.assume(who != owner1 && who != operator);
+        assertFalse(registry.isAuthorized(cafeId, who));
+    }
+
+    function testFuzz_setEligibleProduct_reflectsLastWrite(uint256 productId, bool eligible) public {
+        uint256 cafeId = _register(owner1);
+
+        if (eligible) {
+            vm.prank(owner1);
+            registry.setEligibleProduct(cafeId, productId, ICafeRegistry.ProductKind.Emission, true);
+        }
+
+        assertEq(registry.isEligible(cafeId, productId, ICafeRegistry.ProductKind.Emission), eligible);
+        assertFalse(registry.isEligible(cafeId, productId, ICafeRegistry.ProductKind.Reward));
+    }
 }
