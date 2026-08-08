@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+    DEMO_APPLICANT_EMAIL,
     DEMO_CAMPAIGN_NAME,
     DEMO_CRAWL_NAME,
     demoCampaignValues,
@@ -8,6 +9,11 @@ import {
 } from "../demo-state";
 
 describe("deterministic demo state", () => {
+    it("keeps the review café applicant separate from the consumer", () => {
+        expect(DEMO_APPLICANT_EMAIL).toBe("quinto@punch.pe");
+        expect(DEMO_APPLICANT_EMAIL).not.toBe("demo-consumer@punch.pe");
+    });
+
     it("normalizes campaign metadata from a fixed clock", () => {
         const values = demoCampaignValues(Date.UTC(2026, 0, 31), "cafe-sur");
         expect(values).toMatchObject({

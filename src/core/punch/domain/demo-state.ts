@@ -1,3 +1,4 @@
+export const DEMO_APPLICANT_EMAIL = "quinto@punch.pe";
 export const DEMO_CAMPAIGN_NAME = "Bienvenida a Esquina Sur";
 export const DEMO_CRAWL_NAME = "Ruta Miraflores–Barranco–Surquillo";
 const DAY = 86_400_000;

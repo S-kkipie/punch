@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import {
+    DEMO_APPLICANT_EMAIL,
     DEMO_CRAWL_NAME,
     demoCampaignValues,
     demoCrawlSteps,
@@ -34,6 +35,7 @@ export const DEMO_ACCOUNTS = [
     { email: "nube@punch.pe", name: "Nube Tostada", isOps: false },
     { email: "esquinasur@punch.pe", name: "Esquina Sur", isOps: false },
     { email: "demo-consumer@punch.pe", name: "Consumidor Demo", isOps: false },
+    { email: "quinto@punch.pe", name: "Solicitante Quinto Café", isOps: false },
 ] as const;
 
 const SEED_CAFES = [
@@ -114,7 +116,7 @@ const SEED_CAFES = [
     {
         slug: "quinto-cafe-demo",
         name: "Quinto Café (en revisión)",
-        ownerEmail: "demo-consumer@punch.pe",
+        ownerEmail: "quinto@punch.pe",
         district: "Lince",
         address: "Av. Arequipa 2020, Lince",
         description: "Café de demo para la cola de ops.",
@@ -140,9 +142,33 @@ async function seedDemoState() {
     const targetCafe = await findCafe("esquina-sur");
     const crawlCafeA = await findCafe("brujula-cafe");
     const crawlCafeB = await findCafe("patio-9");
-    if (!targetCafe || !crawlCafeA || !crawlCafeB) {
-        throw new Error("seedDemoState: required cafés not found");
+    const applicantCafe = await findCafe("quinto-cafe-demo");
+    const [applicant] = await db
+        .select({ id: user.id })
+        .from(user)
+        .where(eq(user.email, DEMO_APPLICANT_EMAIL));
+    if (
+        !targetCafe ||
+        !crawlCafeA ||
+        !crawlCafeB ||
+        !applicantCafe ||
+        !applicant
+    ) {
+        throw new Error(
+            "seedDemoState: required cafés and applicant not found",
+        );
     }
+
+    await db.delete(cafeMember).where(eq(cafeMember.userId, consumer.id));
+    await db.delete(cafeMember).where(eq(cafeMember.cafeId, applicantCafe.id));
+    await db
+        .insert(cafeMember)
+        .values({
+            userId: applicant.id,
+            cafeId: applicantCafe.id,
+            role: "owner",
+        })
+        .onConflictDoNothing();
 
     await db
         .insert(punchBalanceProjection)
