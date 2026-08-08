@@ -33,6 +33,14 @@
        real colour, not an alpha modifier. */
     --color-accent-wash: oklch(86% 0.039 50);
     --color-focus: oklch(50% 0.2 32);
+    --color-sun: oklch(82% 0.14 82);
+    --color-sun-ink: oklch(24% 0.025 52);
+    --color-cafe-blue: oklch(55% 0.075 205);
+    --color-cafe-blue-deep: oklch(34% 0.06 210);
+    --color-route: var(--color-accent);
+    --color-photo-border: var(--color-ink);
+    --shadow-print-sm: 0.375rem 0.4375rem 0 var(--color-ink);
+    --shadow-print-lg: 0.625rem 0.75rem 0 var(--color-ink);
 
     /* ── Type ───────────────────────────────────────────────────────
 	 * 2 + 1. Display + body + one outlier carrying a single role:
