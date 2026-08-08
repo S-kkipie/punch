@@ -18,6 +18,17 @@ vi.mock("../repository/proofs", () => ({
 vi.mock("../repository/redemption-requests", () => ({
     findRedemptionRequestById: vi.fn(),
 }));
+vi.mock("@/core/punch/server/repository/vouchers", () => ({
+    markVoucherRedeemed: vi.fn(),
+    markVoucherExpiredIfAvailable: vi.fn(),
+    VoucherRepositoryError: class VoucherRepositoryError extends Error {
+        code: "NOT_AVAILABLE" | "EXPIRED";
+        constructor(code: "NOT_AVAILABLE" | "EXPIRED", message = code) {
+            super(message);
+            this.code = code;
+        }
+    },
+}));
 vi.mock("@/core/punch/server/repository/balance", () => ({
     BalanceRepositoryError: class BalanceRepositoryError extends Error {
         code: string;
@@ -48,6 +59,11 @@ import {
     getBalance,
     incrementBalance,
 } from "@/core/punch/server/repository/balance";
+import {
+    markVoucherExpiredIfAvailable,
+    markVoucherRedeemed,
+    VoucherRepositoryError,
+} from "@/core/punch/server/repository/vouchers";
 import { ConsumerChainError } from "../chain-port";
 import { PostgresMockConsumerChain } from "../postgres-mock-chain";
 import { findProofById } from "../repository/proofs";
@@ -824,5 +840,60 @@ describe("PostgresMockConsumerChain PUNCH redemptions", () => {
             "rejected",
             "Necesitas 12 PUNCH para canjear.",
         );
+    });
+
+    it("rejects an expired voucher at terminal poll without PUNCH effects", async () => {
+        vi.mocked(findTransactionById).mockResolvedValue({
+            id: "tx-voucher",
+            status: "pending",
+            operation: "voucher_redemption",
+            redemptionRequestId: "req-voucher",
+            consumerUserId: "user-1",
+            createdAt: new Date(0),
+        } as never);
+        vi.mocked(findRedemptionRequestById).mockResolvedValue({
+            id: "req-voucher",
+            status: "approved",
+            voucherId: "v1",
+        } as never);
+        vi.mocked(markVoucherRedeemed).mockRejectedValue(
+            new VoucherRepositoryError("EXPIRED", "expired"),
+        );
+        const result = await new PostgresMockConsumerChain(
+            () => Date.now(),
+            0,
+        ).getTransactionStatus("tx-voucher");
+        expect(result).toMatchObject({ status: "rejected" });
+        expect(markVoucherExpiredIfAvailable).toHaveBeenCalled();
+        expect(decrementBalance).not.toHaveBeenCalled();
+        expect(incrementBalance).not.toHaveBeenCalled();
+    });
+
+    it("rejects an already redeemed voucher without changing it", async () => {
+        vi.clearAllMocks();
+        vi.mocked(findTransactionById).mockResolvedValue({
+            id: "tx-voucher",
+            status: "pending",
+            operation: "voucher_redemption",
+            redemptionRequestId: "req-voucher",
+            consumerUserId: "user-1",
+            createdAt: new Date(0),
+        } as never);
+        vi.mocked(findRedemptionRequestById).mockResolvedValue({
+            id: "req-voucher",
+            status: "approved",
+            voucherId: "v1",
+        } as never);
+        vi.mocked(markVoucherRedeemed).mockRejectedValue(
+            new VoucherRepositoryError("NOT_AVAILABLE", "used"),
+        );
+        const result = await new PostgresMockConsumerChain(
+            () => Date.now(),
+            0,
+        ).getTransactionStatus("tx-voucher");
+        expect(result).toMatchObject({ status: "rejected" });
+        expect(markVoucherExpiredIfAvailable).not.toHaveBeenCalled();
+        expect(decrementBalance).not.toHaveBeenCalled();
+        expect(incrementBalance).not.toHaveBeenCalled();
     });
 });

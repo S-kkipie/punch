@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { and, eq, gt, sql } from "drizzle-orm";
 import { type DbClient, db } from "@/server/drizzle/db";
 import {
     type ConsumerVoucherRow,
@@ -38,21 +38,66 @@ export async function isVoucherEligibleAtCafe(
     return Boolean(step);
 }
 
-/** Only succeeds when the voucher is still available: redeemed exactly once. */
+export class VoucherRepositoryError extends Error {
+    constructor(
+        public readonly code: "NOT_AVAILABLE" | "EXPIRED",
+        message: string,
+    ) {
+        super(message);
+        this.name = "VoucherRepositoryError";
+    }
+}
+
+/** Redeems exactly once, using PostgreSQL's clock as the expiry authority. */
 export async function markVoucherRedeemed(
     client: DbClient,
     id: string,
 ): Promise<ConsumerVoucherRow> {
     const [row] = await client
         .update(consumerVoucher)
-        .set({ status: "redeemed", redeemedAt: new Date() })
+        .set({ status: "redeemed", redeemedAt: sql`CURRENT_TIMESTAMP` })
         .where(
             and(
                 eq(consumerVoucher.id, id),
                 eq(consumerVoucher.status, "available"),
+                gt(consumerVoucher.expiresAt, sql`CURRENT_TIMESTAMP`),
             ),
         )
         .returning();
-    if (!row) throw new Error("markVoucherRedeemed: voucher not available");
-    return row;
+    if (row) return row;
+
+    const [expired] = await client
+        .select({ status: consumerVoucher.status })
+        .from(consumerVoucher)
+        .where(
+            and(
+                eq(consumerVoucher.id, id),
+                eq(consumerVoucher.status, "available"),
+                sql`${consumerVoucher.expiresAt} <= CURRENT_TIMESTAMP`,
+            ),
+        );
+    if (expired) {
+        throw new VoucherRepositoryError("EXPIRED", "El voucher ya venció.");
+    }
+    throw new VoucherRepositoryError(
+        "NOT_AVAILABLE",
+        "El voucher ya fue utilizado o no está disponible.",
+    );
+}
+
+/** Atomically records expiry without changing redeemed vouchers. */
+export async function markVoucherExpiredIfAvailable(
+    client: DbClient,
+    id: string,
+): Promise<void> {
+    await client
+        .update(consumerVoucher)
+        .set({ status: "expired" })
+        .where(
+            and(
+                eq(consumerVoucher.id, id),
+                eq(consumerVoucher.status, "available"),
+                sql`${consumerVoucher.expiresAt} <= CURRENT_TIMESTAMP`,
+            ),
+        );
 }

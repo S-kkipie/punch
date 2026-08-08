@@ -39,6 +39,7 @@ export const requestVoucherRedemptionRoute = new Elysia().use(authed).post(
             400: errorResponseSchema(400),
             401: errorResponseSchema(401),
             404: errorResponseSchema(404),
+            409: errorResponseSchema(409),
             422: errorResponseSchema(422),
             500: errorResponseSchema(500),
         },
