@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, or } from "drizzle-orm";
 import { type DbClient, db } from "@/server/drizzle/db";
 import {
     type NewRedemptionRequestRow,
@@ -38,6 +38,25 @@ export async function findRedemptionRequestById(
         .select()
         .from(redemptionRequest)
         .where(eq(redemptionRequest.id, id));
+    return row ?? null;
+}
+
+export async function findActiveVoucherRedemptionRequest(
+    voucherId: string,
+    client: DbClient = db,
+): Promise<RedemptionRequestRow | null> {
+    const [row] = await client
+        .select()
+        .from(redemptionRequest)
+        .where(
+            and(
+                eq(redemptionRequest.voucherId, voucherId),
+                or(
+                    eq(redemptionRequest.status, "pending"),
+                    eq(redemptionRequest.status, "approved"),
+                ),
+            ),
+        );
     return row ?? null;
 }
 

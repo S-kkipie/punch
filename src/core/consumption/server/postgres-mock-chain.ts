@@ -22,6 +22,7 @@ import {
     getOrCreateCrawlProgress,
     unlockCrawlVoucher,
 } from "@/core/punch/server/repository/crawls";
+import { markVoucherRedeemed } from "@/core/punch/server/repository/vouchers";
 import { db } from "@/server/drizzle/db";
 import type {
     ChainSubmission,
@@ -144,6 +145,29 @@ export class PostgresMockConsumerChain implements ConsumerChainPort {
             if (!row) throw new ConsumerChainError("TRANSACTION_NOT_FOUND");
             if (row.status !== "pending") {
                 return { transactionId: row.id, status: row.status };
+            }
+            if (row.operation === "voucher_redemption") {
+                if (!row.redemptionRequestId)
+                    throw new ConsumerChainError("REQUEST_NOT_FOUND");
+                const request = await findRedemptionRequestById(
+                    row.redemptionRequestId,
+                    tx,
+                );
+                if (request?.status !== "approved" || !request.voucherId) {
+                    throw new ConsumerChainError("REQUEST_NOT_APPROVED");
+                }
+                await markVoucherRedeemed(tx, request.voucherId);
+                const confirmed = await updateTransactionStatus(
+                    tx,
+                    row.id,
+                    "confirmed",
+                    null,
+                    { modeledHostPayoutCentimos: null },
+                );
+                return {
+                    transactionId: confirmed.id,
+                    status: confirmed.status,
+                };
             }
             if (row.operation === "punch_redemption") {
                 if (!row.redemptionRequestId)
@@ -321,10 +345,67 @@ export class PostgresMockConsumerChain implements ConsumerChainPort {
         });
     }
 
-    async submitVoucherRedemption(): Promise<ChainSubmission> {
-        throw new ConsumerChainError(
-            "UNSUPPORTED_OPERATION",
-            "Mock voucher redemption write is disabled until Task 9",
+    async submitVoucherRedemption(input: {
+        redemptionRequestId: string;
+        idempotencyKey: string;
+    }): Promise<ChainSubmission> {
+        const existing = await findTransactionByIdempotencyKey(
+            input.idempotencyKey,
         );
+        if (existing)
+            return { transactionId: existing.id, status: existing.status };
+        try {
+            return await db.transaction(async (tx) => {
+                const request = await findRedemptionRequestById(
+                    input.redemptionRequestId,
+                    tx,
+                );
+                if (!request) throw new ConsumerChainError("REQUEST_NOT_FOUND");
+                if (
+                    request.kind !== "voucher" ||
+                    request.status !== "approved" ||
+                    !request.voucherId
+                ) {
+                    throw new ConsumerChainError("REQUEST_NOT_APPROVED");
+                }
+                const already = await findTransactionByRedemptionRequestId(
+                    tx,
+                    request.id,
+                );
+                if (already)
+                    return {
+                        transactionId: already.id,
+                        status: already.status,
+                    };
+                const row = await createTransaction(tx, {
+                    operation: "voucher_redemption",
+                    consumerUserId: request.consumerUserId,
+                    cafeId: request.cafeId,
+                    redemptionRequestId: request.id,
+                    proofId: null,
+                    chainTxId: `mock_${crypto.randomUUID()}`,
+                    status: "pending",
+                    idempotencyKey: input.idempotencyKey,
+                    rejectionReason: null,
+                    modeledHostPayoutCentimos: null,
+                });
+                return { transactionId: row.id, status: row.status };
+            });
+        } catch (cause) {
+            const byKey = await findTransactionByIdempotencyKey(
+                input.idempotencyKey,
+            );
+            if (byKey) return { transactionId: byKey.id, status: byKey.status };
+            const byRequest = await findTransactionByRedemptionRequestId(
+                db,
+                input.redemptionRequestId,
+            );
+            if (byRequest)
+                return {
+                    transactionId: byRequest.id,
+                    status: byRequest.status,
+                };
+            throw cause;
+        }
     }
 }
