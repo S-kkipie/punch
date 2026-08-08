@@ -33,6 +33,7 @@
         "@elysiajs/server-timing": "^1.4.1",
         "@logtape/elysia": "^2.2.1",
         "@logtape/logtape": "^2.2.1",
+        "@scure/bip39": "^2.2.0",
         "@t3-oss/env-nextjs": "^0.13.11",
         "@tanstack/react-form": "^1.33.1",
         "@tanstack/react-pacer": "^0.22.1",

@@ -33,6 +33,9 @@ export const auth = betterAuth({
         user: {
             create: {
                 after: async (createdUser) => {
+                    // Deliberate: signup never fails on wallet hiccups. assignWallet is
+                    // idempotent — any flow that needs the wallet (signing, emission) must
+                    // call assignWallet(userId) as lazy backfill before deriveUserAccount.
                     try {
                         await assignWallet(createdUser.id);
                     } catch (e) {

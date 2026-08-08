@@ -13,7 +13,10 @@ export function deriveAccount(
     return mnemonicToAccount(mnemonic, { addressIndex });
 }
 
-/** Derives the custodial account for a user's assigned wallet index. */
+/**
+ * Derives the custodial account for a user's assigned wallet index.
+ * Callers must ensure the user has a wallet_index via assignWallet; this throws otherwise.
+ */
 export function deriveUserAccount(addressIndex: number): HDAccount {
     return deriveAccount(env.WALLET_MASTER_MNEMONIC, addressIndex);
 }

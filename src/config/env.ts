@@ -1,3 +1,5 @@
+import { validateMnemonic } from "@scure/bip39";
+import { wordlist } from "@scure/bip39/wordlists/english.js";
 import { createEnv } from "@t3-oss/env-nextjs";
 import { z } from "zod";
 
@@ -8,14 +10,10 @@ export const env = createEnv({
         // 12/24-word BIP-39 phrase; custodial signer root (spec 3a §20).
         WALLET_MASTER_MNEMONIC: z
             .string()
-            .refine(
-                (v) =>
-                    [12, 15, 18, 21, 24].includes(v.trim().split(/\s+/).length),
-                {
-                    message:
-                        "WALLET_MASTER_MNEMONIC must be a BIP-39 phrase (12–24 words)",
-                },
-            ),
+            .refine((v) => validateMnemonic(v.trim(), wordlist), {
+                message:
+                    "WALLET_MASTER_MNEMONIC must be a valid BIP-39 mnemonic (12–24 words)",
+            }),
     },
     client: {
         NEXT_PUBLIC_APP_URL: z.url(),
