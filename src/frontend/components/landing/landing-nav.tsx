@@ -9,9 +9,11 @@ export function LandingNav() {
     const [isCompact, setIsCompact] = useState(false);
     const [isDismissed, setIsDismissed] = useState(false);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [isEnhanced, setIsEnhanced] = useState(false);
     const lastY = useRef(0);
 
     useEffect(() => {
+        setIsEnhanced(true);
         const onScroll = () => {
             const y = window.scrollY;
             if (y <= COMPACT_THRESHOLD) setIsCompact(false);
@@ -31,6 +33,7 @@ export function LandingNav() {
     const closeMenu = () => setIsMenuOpen(false);
     const className = [
         "pnch-nav",
+        isEnhanced ? "pnch-nav--js" : "",
         isCompact && !isDismissed ? "is-compact" : "",
         isDismissed ? "is-dismissed" : "",
     ].filter(Boolean).join(" ");
