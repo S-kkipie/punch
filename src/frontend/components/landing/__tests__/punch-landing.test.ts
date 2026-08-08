@@ -23,6 +23,11 @@ describe("PunchLanding", () => {
         expect(html).toContain('href="#para-tu-cafe"');
         expect(html).toContain('href="#el-modelo"');
         expect(html).toContain('href="/auth/sign-up?rol=cafe"');
+        expect(html).toContain('href="/auth/sign-in"');
+        expect(html).toContain('aria-controls="landing-menu"');
+        expect(html).toContain('aria-expanded="false"');
+        expect(html).not.toContain("pnch-nav--js");
+        expect(html).not.toContain('class="pnch-nav__menu is-open"');
     });
 
     it("does not server-render discarded economic claims", () => {
