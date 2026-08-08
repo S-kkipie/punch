@@ -221,6 +221,63 @@ export async function updateOrderAndQueue(
     }
 }
 
+export async function listByUser(userId: string): Promise<PurchaseOrderWithChain[]> {
+    return db
+        .select({
+            id: purchaseOrder.id,
+            cafeId: purchaseOrder.cafeId,
+            userId: purchaseOrder.userId,
+            productId: purchaseOrder.productId,
+            amount: purchaseOrder.amount,
+            yapeRef: purchaseOrder.yapeRef,
+            receiptHash: purchaseOrder.receiptHash,
+            nonce: purchaseOrder.nonce,
+            expiry: purchaseOrder.expiry,
+            status: purchaseOrder.status,
+            failureReason: purchaseOrder.failureReason,
+            txHash: purchaseOrder.txHash,
+            createdAt: purchaseOrder.createdAt,
+            updatedAt: purchaseOrder.updatedAt,
+            chainCafeId: cafe.chainCafeId,
+            chainProductId: cafeProduct.chainProductId,
+        })
+        .from(purchaseOrder)
+        .innerJoin(cafe, eq(cafe.id, purchaseOrder.cafeId))
+        .innerJoin(cafeProduct, eq(cafeProduct.id, purchaseOrder.productId))
+        .where(eq(purchaseOrder.userId, userId));
+}
+
+export async function listByCafe(
+    cafeId: string,
+    status?: PurchaseOrderStatus,
+): Promise<PurchaseOrderWithChain[]> {
+    const conditions = [eq(purchaseOrder.cafeId, cafeId)];
+    if (status) conditions.push(eq(purchaseOrder.status, status));
+    return db
+        .select({
+            id: purchaseOrder.id,
+            cafeId: purchaseOrder.cafeId,
+            userId: purchaseOrder.userId,
+            productId: purchaseOrder.productId,
+            amount: purchaseOrder.amount,
+            yapeRef: purchaseOrder.yapeRef,
+            receiptHash: purchaseOrder.receiptHash,
+            nonce: purchaseOrder.nonce,
+            expiry: purchaseOrder.expiry,
+            status: purchaseOrder.status,
+            failureReason: purchaseOrder.failureReason,
+            txHash: purchaseOrder.txHash,
+            createdAt: purchaseOrder.createdAt,
+            updatedAt: purchaseOrder.updatedAt,
+            chainCafeId: cafe.chainCafeId,
+            chainProductId: cafeProduct.chainProductId,
+        })
+        .from(purchaseOrder)
+        .innerJoin(cafe, eq(cafe.id, purchaseOrder.cafeId))
+        .innerJoin(cafeProduct, eq(cafeProduct.id, purchaseOrder.productId))
+        .where(and(...conditions));
+}
+
 export async function expirePurchases(): Promise<number> {
     const rows = await db
         .update(purchaseOrder)
@@ -341,6 +398,8 @@ export const purchaseRepository = {
     findOrder,
     findCafeOwner,
     findUserWallet,
+    listByUser,
+    listByCafe,
     updateOrderAndQueue,
     expirePurchases,
     findJobsToRun,
