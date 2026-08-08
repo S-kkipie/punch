@@ -3,8 +3,11 @@ import { eq, sql } from "drizzle-orm";
 import { type DbClient, db } from "@/server/drizzle/db";
 import { punchBalanceProjection } from "@/server/drizzle/schemas/punch-schema";
 
-export async function getBalance(userId: string): Promise<number> {
-    const [row] = await db
+export async function getBalance(
+    userId: string,
+    client: DbClient = db,
+): Promise<number> {
+    const [row] = await client
         .select({ balance: punchBalanceProjection.balance })
         .from(punchBalanceProjection)
         .where(eq(punchBalanceProjection.userId, userId));
