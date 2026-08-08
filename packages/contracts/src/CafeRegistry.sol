@@ -74,6 +74,14 @@ contract CafeRegistry is ICafeRegistry, AccessControl {
         return _cafeCount;
     }
 
+    /// @notice Exposes the outstanding transfer proposal so the café panel can show "transfer to X pending" without replaying events.
+    /// @dev `pendingOwner` is otherwise observable only through CafeOwnerProposed events.
+    function pendingOwnerOf(uint256 cafeId) external view returns (address) {
+        Cafe storage cafe = _cafes[cafeId];
+        if (cafe.owner == address(0)) revert CafeNotFound(cafeId);
+        return cafe.pendingOwner;
+    }
+
     /// @inheritdoc ICafeRegistry
     function setCafeStatus(uint256 cafeId, CafeStatus status) external onlyRole(REGISTRAR_ROLE) {
         Cafe storage cafe = _cafes[cafeId];

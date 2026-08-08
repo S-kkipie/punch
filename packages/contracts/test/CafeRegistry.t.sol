@@ -414,6 +414,38 @@ contract CafeRegistryTest is Test {
         assertEq(who, owner1, "ownership moved before acceptance");
     }
 
+    function test_pendingOwnerOf_freshCafeIsZero() public {
+        uint256 cafeId = _register(owner1);
+        assertEq(registry.pendingOwnerOf(cafeId), address(0));
+    }
+
+    function test_pendingOwnerOf_returnsProposedOwner() public {
+        uint256 cafeId = _register(owner1);
+        vm.prank(owner1);
+        registry.proposeOwner(cafeId, owner2);
+        assertEq(registry.pendingOwnerOf(cafeId), owner2);
+    }
+
+    function test_pendingOwnerOf_clearsAfterAcceptance() public {
+        uint256 cafeId = _register(owner1);
+        vm.prank(owner1);
+        registry.proposeOwner(cafeId, owner2);
+        vm.prank(owner2);
+        registry.acceptOwnership(cafeId);
+        assertEq(registry.pendingOwnerOf(cafeId), address(0));
+    }
+
+    function test_pendingOwnerOf_unknownIdReverts() public {
+        vm.expectRevert(abi.encodeWithSelector(CafeNotFound.selector, uint256(7)));
+        registry.pendingOwnerOf(7);
+    }
+
+    function test_pendingOwnerOf_zeroIdReverts() public {
+        _register(owner1);
+        vm.expectRevert(abi.encodeWithSelector(CafeNotFound.selector, uint256(0)));
+        registry.pendingOwnerOf(0);
+    }
+
     function test_acceptOwnership_transfersAndEmits() public {
         uint256 cafeId = _register(owner1);
         vm.prank(owner1);
@@ -531,8 +563,7 @@ contract CafeRegistryTest is Test {
         vm.prank(owner2);
         registry.acceptOwnership(cafeId);
 
-        bytes32 cafeStorage = keccak256(abi.encode(cafeId, uint256(0)));
-        assertEq(vm.load(address(registry), bytes32(uint256(cafeStorage) + 1)), bytes32(0));
+        assertEq(registry.pendingOwnerOf(cafeId), address(0));
     }
 
     function test_proposeOwner_nonOwnerReverts() public {
