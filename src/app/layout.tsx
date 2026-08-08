@@ -24,9 +24,9 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-    title: "PUNCH — tu tarjeta de sellos, pero vale en toda la ciudad",
+    title: "PUNCH — una red de cafeterías independientes",
     description:
-        "Red abierta de consumo, lealtad y adquisición para cafeterías. Sumas puntos en cualquier café de la red y los gastas en cualquier otro. Un punto vale S/0.01, respaldado 1:1 en un contrato sobre Arbitrum.",
+        "PUNCH conecta cafeterías independientes para compartir demanda, atraer visitas y generar retornos medibles sin perder su identidad.",
 };
 
 export const viewport: Viewport = {
