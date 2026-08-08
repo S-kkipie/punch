@@ -19,11 +19,15 @@ function fixture() {
                 id: `emission-${n}`,
                 chainProductId: null as number | null,
                 type: "emission" as const,
+                approvalStatus: "approved" as const,
+                active: true,
             },
             {
                 id: `reward-${n}`,
                 chainProductId: null,
                 type: "reward" as const,
+                approvalStatus: "approved" as const,
+                active: true,
             },
         ],
     }));
@@ -62,6 +66,40 @@ describe("bootstrapApprovedSeedCafes", () => {
             chainCafeId: 1,
             products: [{ productId: "emission-1", chainProductId: 1 }],
         });
+    });
+
+    it("ignores reward, pending, and inactive products when assigning IDs", async () => {
+        const { repository, chain, cafes } = fixture();
+        cafes[0].products.push(
+            {
+                id: "pending-emission",
+                chainProductId: null,
+                type: "emission",
+                approvalStatus: "pending" as "approved",
+                active: true,
+            },
+            {
+                id: "inactive-emission",
+                chainProductId: null,
+                type: "emission",
+                approvalStatus: "approved",
+                active: false,
+            },
+        );
+
+        await bootstrapApprovedSeedCafes({ repository, chain });
+
+        expect(chain.seedCafe).toHaveBeenNthCalledWith(1, {
+            ownerWalletIndex: 1,
+            eligibleProductIds: [1n],
+        });
+        expect(repository.persistCafeMappings).toHaveBeenCalledWith({
+            cafeId: "cafe-1",
+            chainCafeId: 1,
+            products: [{ productId: "emission-1", chainProductId: 1 }],
+        });
+        expect(cafes[0].products[1].chainProductId).toBeNull();
+        expect(cafes[0].products[2].chainProductId).toBeNull();
     });
 
     it("rerun verifies existing mappings without duplicate writes", async () => {
@@ -134,6 +172,23 @@ describe("bootstrapApprovedSeedCafes", () => {
             bootstrapApprovedSeedCafes({ repository, chain }),
         ).rejects.toThrow(/live verification failed/);
         expect(repository.persistCafeMappings).not.toHaveBeenCalled();
+    });
+
+    it("preserves earlier café mappings when a later café fails", async () => {
+        const { repository, chain } = fixture();
+        vi.mocked(chain.verifyCafe)
+            .mockResolvedValueOnce(undefined)
+            .mockRejectedValueOnce(new Error("cafe-2 verification failed"));
+
+        await expect(
+            bootstrapApprovedSeedCafes({ repository, chain }),
+        ).rejects.toThrow(/cafe-2 verification failed/);
+        expect(repository.persistCafeMappings).toHaveBeenCalledTimes(1);
+        expect(repository.persistCafeMappings).toHaveBeenCalledWith({
+            cafeId: "cafe-1",
+            chainCafeId: 1,
+            products: [{ productId: "emission-1", chainProductId: 1 }],
+        });
     });
 
     it("fails closed on a stale non-null mapping", async () => {

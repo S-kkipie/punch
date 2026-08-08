@@ -39,9 +39,18 @@ export const bootstrapRepository: BootstrapRepository = {
                     chainProductId: cafeProduct.chainProductId,
                     createdAt: cafeProduct.createdAt,
                     type: cafeProduct.type,
+                    approvalStatus: cafeProduct.approvalStatus,
+                    active: cafeProduct.active,
                 })
                 .from(cafeProduct)
-                .where(eq(cafeProduct.cafeId, row.id))
+                .where(
+                    and(
+                        eq(cafeProduct.cafeId, row.id),
+                        eq(cafeProduct.type, "emission"),
+                        eq(cafeProduct.approvalStatus, "approved"),
+                        eq(cafeProduct.active, true),
+                    ),
+                )
                 .orderBy(asc(cafeProduct.createdAt), asc(cafeProduct.id));
             result.push({ ...row, products });
         }

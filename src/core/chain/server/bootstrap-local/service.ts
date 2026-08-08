@@ -5,6 +5,8 @@ export type BootstrapProduct = {
     chainProductId: number | null;
     createdAt?: Date;
     type: "emission" | "reward";
+    approvalStatus: "pending" | "approved" | "rejected";
+    active: boolean;
 };
 
 export type ApprovedSeedCafe = {
@@ -80,7 +82,12 @@ export async function bootstrapApprovedSeedCafes(input: {
         }
 
         const products = cafe.products
-            .filter((product) => product.type === "emission")
+            .filter(
+                (product) =>
+                    product.type === "emission" &&
+                    product.approvalStatus === "approved" &&
+                    product.active,
+            )
             .sort((a, b) => {
                 const createdAt =
                     (a.createdAt?.getTime() ?? 0) -
