@@ -1,7 +1,8 @@
 import { Elysia, t } from "elysia";
 import { authed } from "@/server/auth/middleware/authed";
 import { requireCafeRole } from "@/server/auth/membership/require-cafe-role";
-import { CommonResponse, errorResponseSchema, errorToResponse } from "@/server/common/responses";
+import { CommonResponse, errorResponseSchema, errorToResponse, successResponseSchema } from "@/server/common/responses";
+import { redemptionRequestSchema } from "@/core/consumption/domain/schemas";
 import { listPendingRequestsForCafe } from "../../repository/redemption-requests";
 import { toRedemptionRequest } from "../../repository/utils";
 
@@ -16,7 +17,7 @@ export const listCafeRedemptionInboxRoute = new Elysia().use(authed).get(
     {
         authed: true,
         params: t.Object({ cafeId: t.String() }),
-        response: { 200: t.Object({ status: t.Literal(200), response: t.Array(t.Any()) }), 401: errorResponseSchema(401), 403: errorResponseSchema(403), 500: errorResponseSchema(500) },
+        response: { 200: successResponseSchema(redemptionRequestSchema.array(), "RedemptionRequests"), 401: errorResponseSchema(401), 403: errorResponseSchema(403), 500: errorResponseSchema(500) },
         detail: { tags: ["Consumption"], summary: "List a café's pending fulfillment inbox" },
     },
 );
