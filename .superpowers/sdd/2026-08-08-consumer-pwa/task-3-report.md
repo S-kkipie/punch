@@ -10,6 +10,8 @@ DONE
 
 `a30bd890f06afbb62657d8e9fb0f837192ace1ce` — `fix(drizzle): guard punch balances against negatives`
 
+`867403ee84f27a49eb4e22ca571cf8cd45168319` — `fix(drizzle): enforce consumer flow integrity constraints`
+
 ## Files changed
 
 - `src/server/drizzle/schemas/consumption-schema.ts`
@@ -19,14 +21,18 @@ DONE
 - `src/server/drizzle/__tests__/task-3-schema.test.ts`
 - `drizzle/0003_fair_human_cannonball.sql`
 - `drizzle/0004_flaky_cardiac.sql`
+- `drizzle/0005_exotic_payback.sql`
 - `drizzle/meta/0003_snapshot.json`
 - `drizzle/meta/0004_snapshot.json`
+- `drizzle/meta/0005_snapshot.json`
 - `drizzle/meta/_journal.json`
 
 ## Behavior and constraints implemented
 
-- Added consumption proof, consumer transaction, and redemption request tables with all specified fields, enum values, foreign keys, delete actions, checks, unique indexes, and lookup indexes.
-- Added punch balance projection, campaign, consumer voucher, coffee crawl, crawl step, and consumer crawl progress tables with the specified fields, enum values, references, uniqueness, indexes, and a non-negative punch balance check. No crawl balance check is present.
+- Added consumption proof, consumer transaction, and redemption request tables with all specified fields, enum values, foreign keys, delete actions, operation/signature/kind checks, unique indexes, and lookup indexes.
+- Added transaction redemption-request linkage and partial unique indexes for non-null proof and redemption request IDs.
+- Added voucher crawl linkage and exact source provenance check, campaign window ordering, non-negative crawl step index, and unique crawl/café step enforcement.
+- Preserved the non-negative punch balance check and removed the bogus crawl balance check.
 - Exported both domain schemas through the schema barrel.
 - Exported `DbTransaction` and `DbClient` while preserving the existing `db` export.
 - Added a schema export/table-name test covering all nine Task 3 tables.
@@ -35,17 +41,17 @@ DONE
 ## Commands and results
 
 - `pnpm install --frozen-lockfile` — passed.
-- `pnpm test -- src/server/drizzle/__tests__/task-3-schema.test.ts` — passed after fix; 23 files and 150 tests passed (Vitest includes the configured suite despite the scoped path argument). The new test asserts `punch_balance_projection_balance_nonneg` and zero crawl checks.
+- `pnpm test -- src/server/drizzle/__tests__/task-3-schema.test.ts` — passed; 23 files and 152 tests passed (Vitest includes the configured suite despite the scoped path argument). Tests assert exact check, foreign-key, and unique-index names for all new integrity rules.
 - `pnpm typecheck` — passed.
-- `pnpm db:generate` — passed; generated `drizzle/0004_flaky_cardiac.sql` dropping the bogus crawl check and adding `CHECK (balance >= 0)`; repeat generation reported no schema changes.
-- `pnpm check` — passed; Biome checked 270 files.
+- `pnpm db:generate` — passed; generated `drizzle/0005_exotic_payback.sql` with FK additions, partial unique indexes, and all requested checks; second generation reported no schema changes.
+- `pnpm check` — passed; Biome checked 271 files.
 - `git diff --check` — passed after generated artifact verification.
 - `pnpm build` — initially failed because required environment variables were not set; rerun with test values for `DATABASE_URL`, `BETTER_AUTH_SECRET`, `WALLET_MASTER_MNEMONIC`, and `NEXT_PUBLIC_APP_URL` passed and produced the full Next.js route build.
 - `git diff --check` — passed.
 
 ## Self-review
 
-Reviewed generated SQL for all nine requested tables, all nine enums, foreign keys, delete actions, checks, unique indexes, and non-unique indexes. Confirmed the migration is stable under a second `pnpm db:generate` invocation. Confirmed row and insert type exports compile through `pnpm typecheck`.
+Reviewed generated SQL for table creation and follow-up constraint order, including all new foreign keys, partial unique indexes, checks, and preserved prior constraints. Confirmed no unsafe schema import cycle: `punch-schema` does not import `consumption-schema`; lazy callbacks resolve later declarations. Confirmed the migration is stable under a second `pnpm db:generate` invocation and row/insert exports compile through `pnpm typecheck`.
 
 ## Concerns
 
