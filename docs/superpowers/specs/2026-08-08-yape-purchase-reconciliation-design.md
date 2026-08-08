@@ -75,8 +75,9 @@ La orden nace `user_confirmed`: crearla ES la atestación del comprador.
 
 1. Usuario en PWA declara "pagué por Yape": `POST /purchases` con
    `{cafeId, productId, amount, yapeRef}`. Backend crea orden, genera
-   `nonce` (secuencial por par usuario-café: máximo entre cadena y órdenes
-   pendientes), `expiry = now + 15 min`,
+   `nonce` (aleatorio de 256 bits: `ConsumptionLog` guarda nonces como set
+   desordenado por café, no como contador), `expiry = now + 10 min` (bajo el
+   `MAX_PROOF_TTL` de 15 min del contrato),
    `receiptHash = keccak256(yapeRef)`. Estado `user_confirmed`.
 2. Panel café lista órdenes pendientes; café confirma "Yape recibido":
    `POST /purchases/:id/confirm`. Estado `cafe_confirmed`.
