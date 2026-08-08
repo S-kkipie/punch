@@ -30,6 +30,16 @@ describe("PunchLanding", () => {
         expect(html).not.toContain('class="pnch-nav__menu is-open"');
     });
 
+    it("keeps progressive enhancements accessible", () => {
+        const html = render();
+        expect(html).toContain('aria-label="Cerrar el aviso"');
+        expect(html).toContain('aria-expanded="false"');
+        expect(html).toContain('aria-controls="landing-menu"');
+        expect(html).toContain(
+            "Una visita conectada entre una persona y una cafetería independiente",
+        );
+    });
+
     it("renders the problem, stable mechanism, and network journey", () => {
         const html = render();
         expect(html).toContain('id="como-funciona"');
