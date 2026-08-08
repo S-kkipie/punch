@@ -60,7 +60,20 @@ export async function requestVoucherRedemptionService(
     }
 
     const active = await findActiveVoucherRedemptionRequest(input.voucherId);
-    if (active) return ok(toRedemptionRequest(active));
+    if (active) {
+        if (
+            active.consumerUserId === consumerUserId &&
+            active.cafeId === cafeId
+        ) {
+            return ok(toRedemptionRequest(active));
+        }
+        return err(
+            AppErrors.conflict({
+                targets: ["voucherId"],
+                cause: "El voucher ya tiene una solicitud activa.",
+            }),
+        );
+    }
 
     try {
         const row = await createRedemptionRequest({
@@ -75,11 +88,31 @@ export async function requestVoucherRedemptionService(
         });
         return ok(toRedemptionRequest(row));
     } catch (cause) {
-        // A concurrent request can win the voucher's active-request race.
+        const isActiveVoucherUniqueViolation =
+            typeof cause === "object" &&
+            cause !== null &&
+            "code" in cause &&
+            cause.code === "23505" &&
+            "constraint" in cause &&
+            cause.constraint === "redemption_request_active_voucher_uq";
+        if (!isActiveVoucherUniqueViolation) throw cause;
+
+        // A concurrent request can win this exact unique constraint race.
         const winner = await findActiveVoucherRedemptionRequest(
             input.voucherId,
         );
-        if (winner) return ok(toRedemptionRequest(winner));
-        throw cause;
+        if (
+            winner &&
+            winner.consumerUserId === consumerUserId &&
+            winner.cafeId === cafeId
+        ) {
+            return ok(toRedemptionRequest(winner));
+        }
+        return err(
+            AppErrors.conflict({
+                targets: ["voucherId"],
+                cause: "El voucher ya tiene una solicitud activa.",
+            }),
+        );
     }
 }

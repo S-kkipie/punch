@@ -163,6 +163,11 @@ export const redemptionRequest = pgTable(
     (table) => [
         index("redemption_request_cafe_id_idx").on(table.cafeId),
         index("redemption_request_consumer_id_idx").on(table.consumerUserId),
+        uniqueIndex("redemption_request_active_voucher_uq")
+            .on(table.voucherId)
+            .where(
+                sql`${table.kind} = 'voucher' AND ${table.status} IN ('pending', 'approved') AND ${table.voucherId} IS NOT NULL`,
+            ),
         check(
             "redemption_request_kind_shape",
             sql`(${table.kind} = 'punch_reward' AND ${table.productId} IS NOT NULL AND ${table.voucherId} IS NULL) OR (${table.kind} = 'voucher' AND ${table.productId} IS NULL AND ${table.voucherId} IS NOT NULL)`,
