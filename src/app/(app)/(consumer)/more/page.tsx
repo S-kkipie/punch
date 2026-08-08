@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SignOutButton } from "@/frontend/components/auth/sign-out-button";
 
 const links = [
     {
@@ -57,6 +58,13 @@ export default function MorePage() {
                     </li>
                 ))}
             </ul>
+            <section className="consumer-panel flex items-center justify-between gap-4 p-4">
+                <div className="grid gap-1">
+                    <span className="consumer-eyebrow">Tu cuenta</span>
+                    <span className="font-semibold">¿Terminaste por hoy?</span>
+                </div>
+                <SignOutButton />
+            </section>
         </div>
     );
 }

@@ -1,5 +1,9 @@
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { transactionStatusCopy } from "../transaction-status";
+import {
+    TransactionStatus,
+    transactionStatusCopy,
+} from "../transaction-status";
 
 describe("transactionStatusCopy", () => {
     it("maps pre-submit states to mandated Spanish labels", () => {
@@ -27,10 +31,20 @@ describe("transactionStatusCopy", () => {
             hint: "Intenta de nuevo.",
         });
     });
-    it("maps rejected to an actionable copy", () => {
-        expect(transactionStatusCopy("rejected")).toEqual({
-            label: "Rechazado",
-            hint: "Revisa el motivo indicado por el café.",
-        });
+    it("renders live status, rejection reason, and retry action", () => {
+        const rejected = renderToStaticMarkup(
+            <TransactionStatus
+                status="rejected"
+                rejectionReason="Café no disponible"
+            />,
+        );
+        expect(rejected).toContain('role="status"');
+        expect(rejected).toContain('aria-live="polite"');
+        expect(rejected).toContain("Café no disponible");
+
+        const failed = renderToStaticMarkup(
+            <TransactionStatus status="failed" onRetry={() => undefined} />,
+        );
+        expect(failed).toContain("Reintentar");
     });
 });
