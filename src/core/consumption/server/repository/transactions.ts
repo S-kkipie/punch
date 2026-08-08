@@ -56,6 +56,23 @@ export async function findTransactionByRedemptionRequestId(
     return row ?? null;
 }
 
+export async function findTransactionByIdForConsumer(
+    id: string,
+    consumerUserId: string,
+    client: DbClient = db,
+): Promise<ConsumerTransactionRow | null> {
+    const [row] = await client
+        .select()
+        .from(consumerTransaction)
+        .where(
+            and(
+                eq(consumerTransaction.id, id),
+                eq(consumerTransaction.consumerUserId, consumerUserId),
+            ),
+        );
+    return row ?? null;
+}
+
 export async function findTransactionById(
     id: string,
     client: DbClient = db,
