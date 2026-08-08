@@ -3,7 +3,6 @@ pragma solidity ^0.8.30;
 
 import {Test} from "forge-std/Test.sol";
 import {NotImplemented} from "../src/NotImplemented.sol";
-import {CafeRegistry} from "../src/CafeRegistry.sol";
 import {PlanManager} from "../src/PlanManager.sol";
 import {ConsumptionLog} from "../src/ConsumptionLog.sol";
 import {PunchVault} from "../src/PunchVault.sol";
@@ -11,10 +10,8 @@ import {NetworkFund} from "../src/NetworkFund.sol";
 import {CampaignEscrow} from "../src/CampaignEscrow.sol";
 import {MockPEN} from "../src/MockPEN.sol";
 import {IConsumptionLog} from "../src/interfaces/IConsumptionLog.sol";
-import {ICafeRegistry} from "../src/interfaces/ICafeRegistry.sol";
 
 contract ScaffoldTest is Test {
-    CafeRegistry internal cafeRegistry;
     PlanManager internal planManager;
     ConsumptionLog internal consumptionLog;
     PunchVault internal punchVault;
@@ -23,24 +20,12 @@ contract ScaffoldTest is Test {
     MockPEN internal mockPEN;
 
     function setUp() public {
-        cafeRegistry = new CafeRegistry();
         planManager = new PlanManager();
         consumptionLog = new ConsumptionLog();
         punchVault = new PunchVault();
         networkFund = new NetworkFund();
         campaignEscrow = new CampaignEscrow();
         mockPEN = new MockPEN();
-    }
-
-    function test_cafeRegistry_reverts_notImplemented() public {
-        vm.expectRevert(NotImplemented.selector);
-        cafeRegistry.registerCafe(address(this));
-        vm.expectRevert(NotImplemented.selector);
-        cafeRegistry.setCafeStatus(1, ICafeRegistry.CafeStatus.Active);
-        vm.expectRevert(NotImplemented.selector);
-        cafeRegistry.authorizeOperator(1, address(this), true);
-        vm.expectRevert(NotImplemented.selector);
-        cafeRegistry.setEligibleProduct(1, 1, ICafeRegistry.ProductKind.Emission, true);
     }
 
     function test_planManager_reverts_notImplemented() public {
