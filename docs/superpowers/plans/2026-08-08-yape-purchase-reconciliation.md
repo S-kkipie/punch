@@ -435,7 +435,7 @@ git commit -m "feat(db): add purchase, relayer queue, and projection tables"
 **Interfaces:**
 - Produces:
   - `PurchaseOrderStatus` union type (the 7 pgEnum values).
-  - `createPurchaseSchema` (zod): `{ cafeId: string, productId: string, amountSoles: number (>0, ≤ 2 decimals), yapeRef: string (min 4) }`.
+  - `createPurchaseSchema` (zod): `{ cafeId: string, productId: string, amountSoles: number (>0, ≤ 2 decimals), yapeRef: string (min 4, max 120) }`.
   - `purchaseOrderSchema` (zod, API shape): id, cafeId, productId, amountSoles, status, failureReason, txHash, expiry (ISO), createdAt (ISO).
   - `canTransition(from: PurchaseOrderStatus, to: PurchaseOrderStatus): boolean`.
   - `solesToMpen(amountSoles: number): bigint` — `S/8.50 → 8_500_000n`.
