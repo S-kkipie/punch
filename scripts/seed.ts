@@ -146,41 +146,63 @@ async function seedDemoState() {
             set: { balance: 11 },
         });
 
+    const campaignWindowStart = new Date(Date.now() - 7 * 86_400_000);
+    const campaignWindowEnd = new Date(Date.now() + 30 * 86_400_000);
     const [existingCampaign] = await db
         .select({ id: campaign.id })
         .from(campaign)
         .where(eq(campaign.cafeId, targetCafe.id));
-    if (!existingCampaign) {
-        await db.insert(campaign).values({
-            kind: "verified_acquisition",
-            cafeId: targetCafe.id,
-            name: "Bienvenida a Esquina Sur",
-            windowStart: new Date(Date.now() - 7 * 86_400_000),
-            windowEnd: new Date(Date.now() + 30 * 86_400_000),
-        });
+    const campaignValues = {
+        kind: "verified_acquisition" as const,
+        cafeId: targetCafe.id,
+        name: "Bienvenida a Esquina Sur",
+        windowStart: campaignWindowStart,
+        windowEnd: campaignWindowEnd,
+        active: true,
+    };
+    if (existingCampaign) {
+        await db
+            .update(campaign)
+            .set(campaignValues)
+            .where(eq(campaign.id, existingCampaign.id));
+    } else {
+        await db.insert(campaign).values(campaignValues);
     }
 
-    const [existingCrawl] = await db
+    const [namedCrawl] = await db
         .select({ id: coffeeCrawl.id })
         .from(coffeeCrawl)
         .where(eq(coffeeCrawl.name, "Ruta Miraflores–Barranco–Surquillo"));
+    const [existingCrawl] = namedCrawl
+        ? [namedCrawl]
+        : await db.select({ id: coffeeCrawl.id }).from(coffeeCrawl);
     let crawlId = existingCrawl?.id;
+    const crawlValues = {
+        name: "Ruta Miraflores–Barranco–Surquillo",
+        expiresAt: new Date(Date.now() + 60 * 86_400_000),
+        active: true,
+    };
     if (!crawlId) {
         const [inserted] = await db
             .insert(coffeeCrawl)
-            .values({
-                name: "Ruta Miraflores–Barranco–Surquillo",
-                expiresAt: new Date(Date.now() + 60 * 86_400_000),
-            })
+            .values(crawlValues)
             .returning({ id: coffeeCrawl.id });
         if (!inserted) throw new Error("seedDemoState: could not insert crawl");
         crawlId = inserted.id;
-        await db.insert(coffeeCrawlStep).values([
-            { crawlId, stepIndex: 0, cafeId: crawlCafeA.id },
-            { crawlId, stepIndex: 1, cafeId: crawlCafeB.id },
-            { crawlId, stepIndex: 2, cafeId: targetCafe.id },
-        ]);
+    } else {
+        await db
+            .update(coffeeCrawl)
+            .set(crawlValues)
+            .where(eq(coffeeCrawl.id, crawlId));
+        await db
+            .delete(coffeeCrawlStep)
+            .where(eq(coffeeCrawlStep.crawlId, crawlId));
     }
+    await db.insert(coffeeCrawlStep).values([
+        { crawlId, stepIndex: 0, cafeId: crawlCafeA.id },
+        { crawlId, stepIndex: 1, cafeId: crawlCafeB.id },
+        { crawlId, stepIndex: 2, cafeId: targetCafe.id },
+    ]);
 
     await db
         .insert(consumerCrawlProgress)

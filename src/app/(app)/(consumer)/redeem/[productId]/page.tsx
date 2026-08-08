@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useCafeProducts } from "@/core/cafe/client/hooks";
 import {
     useRequestPunchRedemption,
@@ -22,6 +23,18 @@ export default function RedeemPage() {
     const vouchers = useVouchers();
     const punchRedemption = useRequestPunchRedemption(cafeId);
     const voucherRedemption = useRequestVoucherRedemption(cafeId);
+    const [isOnline, setIsOnline] = useState(true);
+    useEffect(() => {
+        setIsOnline(navigator.onLine);
+        const goOnline = () => setIsOnline(true);
+        const goOffline = () => setIsOnline(false);
+        window.addEventListener("online", goOnline);
+        window.addEventListener("offline", goOffline);
+        return () => {
+            window.removeEventListener("online", goOnline);
+            window.removeEventListener("offline", goOffline);
+        };
+    }, []);
     if (dashboard.isPending || products.isPending || vouchers.isPending)
         return (
             <div className="flex min-h-64 items-center justify-center">
@@ -85,10 +98,19 @@ export default function RedeemPage() {
                     </p>
                 )}
             </div>
+            {!isOnline && (
+                <p
+                    className="rounded-md bg-amber-100 p-3 text-sm"
+                    role="status"
+                >
+                    Vuelve a conectarte para solicitar un canje.
+                </p>
+            )}
             <Button
                 size="lg"
                 className="min-h-12 w-full"
                 disabled={
+                    !isOnline ||
                     (isVoucherFlow ? !voucher : !eligible) ||
                     punchRedemption.isPending ||
                     voucherRedemption.isPending
