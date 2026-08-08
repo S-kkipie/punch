@@ -13,7 +13,12 @@ import { Spinner } from "@/frontend/components/ui/spinner";
 export function postAuthDestination(
     cafes: Array<{ id: string; onboardingStatus: string }>,
 ): string {
-    const cafe = cafes[0];
+    const cafe = [...cafes].sort((a, b) => {
+        const approvedOrder =
+            Number(b.onboardingStatus === "approved") -
+            Number(a.onboardingStatus === "approved");
+        return approvedOrder || a.id.localeCompare(b.id);
+    })[0];
     if (!cafe) return "/home";
     return cafe.onboardingStatus === "approved"
         ? `/cafe/${cafe.id}/terminal`

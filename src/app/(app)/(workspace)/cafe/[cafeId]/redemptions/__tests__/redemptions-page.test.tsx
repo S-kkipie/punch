@@ -7,19 +7,20 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 (
     globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
-const { punchMutate, voucherMutate, txState } = vi.hoisted(() => ({
+const { punchMutate, voucherMutate, txState, inboxData } = vi.hoisted(() => ({
     punchMutate: vi.fn(),
     voucherMutate: vi.fn(),
     txState: new Map<string, { status: string }>(),
+    inboxData: [
+        { id: "punch-1", kind: "punch_reward", status: "pending" },
+        { id: "voucher-1", kind: "voucher", status: "pending" },
+    ],
 }));
 vi.mock("next/navigation", () => ({ useParams: () => ({ cafeId: "cafe-1" }) }));
 vi.mock("@/core/consumption/client/hooks", () => ({
     useCafeRedemptionInbox: () => ({
         isPending: false,
-        data: [
-            { id: "punch-1", kind: "punch_reward", status: "pending" },
-            { id: "voucher-1", kind: "voucher", status: "pending" },
-        ],
+        data: inboxData,
     }),
     useDecidePunchRedemption: () => ({ isPending: false, mutate: punchMutate }),
     useDecideVoucherRedemption: () => ({
@@ -69,6 +70,12 @@ describe("café redemption settlement lifecycle", () => {
         document.body.innerHTML = "";
         vi.clearAllMocks();
         txState.clear();
+        inboxData.splice(
+            0,
+            inboxData.length,
+            { id: "punch-1", kind: "punch_reward", status: "pending" },
+            { id: "voucher-1", kind: "voucher", status: "pending" },
+        );
     });
 
     it("keeps PUNCH and voucher decisions distinct and renders pending then terminal retry state", async () => {
@@ -113,13 +120,22 @@ describe("café redemption settlement lifecycle", () => {
             expect.any(Object),
         );
         expect(container.textContent).toContain("Pendiente on-chain");
-        txState.set("tx-punch", { status: "rejected" });
+        inboxData.splice(0, inboxData.length, {
+            id: "punch-1",
+            kind: "punch_reward",
+            status: "pending",
+        });
+        txState.set("tx-punch", { status: "confirmed" });
         txState.set("tx-voucher", { status: "failed" });
         await act(async () => root.render(<CafeRedemptionsPage />));
-        expect(container.textContent).toContain("Rechazado");
+        expect(container.textContent).toContain("Uso de voucher");
         expect(container.textContent).toContain("Reintento disponible");
-        await act(async () => container.querySelectorAll("button")[0]?.click());
-        expect(punchMutate).toHaveBeenCalledTimes(2);
+        const retry = [...container.querySelectorAll("button")].find(
+            (button) => button.textContent === "Reintentar",
+        );
+        await act(async () => retry?.click());
+        expect(voucherMutate).toHaveBeenCalledTimes(2);
+        expect(punchMutate).toHaveBeenCalledTimes(1);
         await act(async () => root.unmount());
     });
 });
