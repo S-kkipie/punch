@@ -38,6 +38,22 @@ contract CafeRegistry is ICafeRegistry, AccessControl {
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
     }
 
+    modifier onlyCafeOwner(uint256 cafeId) {
+        address owner = _cafes[cafeId].owner;
+        if (owner == address(0)) revert CafeNotFound(cafeId);
+        if (owner != msg.sender) revert NotCafeOwner(cafeId, msg.sender);
+        _;
+    }
+
+    /// @dev A café frozen for risk must not reshuffle its operators or catalogue.
+    modifier configurable(uint256 cafeId) {
+        CafeStatus status = _cafes[cafeId].status;
+        if (status != CafeStatus.Pending && status != CafeStatus.Active) {
+            revert CafeNotConfigurable(cafeId, status);
+        }
+        _;
+    }
+
     /// @inheritdoc ICafeRegistry
     function registerCafe(address owner) external onlyRole(REGISTRAR_ROLE) returns (uint256 cafeId) {
         if (owner == address(0)) revert ZeroAddress();
@@ -74,12 +90,23 @@ contract CafeRegistry is ICafeRegistry, AccessControl {
         emit CafeStatusChanged(cafeId, status);
     }
 
-    function authorizeOperator(uint256, address, bool) external {
-        revert("todo: task 3");
+    /// @inheritdoc ICafeRegistry
+    function authorizeOperator(uint256 cafeId, address operator, bool authorized)
+        external
+        onlyCafeOwner(cafeId)
+        configurable(cafeId)
+    {
+        if (operator == address(0)) revert ZeroAddress();
+        if (_operators[cafeId][operator] == authorized) revert NoStateChange();
+
+        _operators[cafeId][operator] = authorized;
+        emit OperatorAuthorized(cafeId, operator, authorized);
     }
 
-    function isAuthorized(uint256, address) external view returns (bool) {
-        return false;
+    /// @inheritdoc ICafeRegistry
+    function isAuthorized(uint256 cafeId, address account) external view returns (bool) {
+        if (account == address(0)) return false;
+        return _cafes[cafeId].owner == account || _operators[cafeId][account];
     }
 
     function setEligibleProduct(uint256, uint256, ProductKind, bool) external {

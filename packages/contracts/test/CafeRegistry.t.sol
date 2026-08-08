@@ -3,7 +3,15 @@ pragma solidity ^0.8.30;
 
 import {Test} from "forge-std/Test.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
-import {CafeRegistry, ZeroAddress, CafeNotFound, InvalidStatusTransition} from "../src/CafeRegistry.sol";
+import {
+    CafeRegistry,
+    ZeroAddress,
+    CafeNotFound,
+    InvalidStatusTransition,
+    NotCafeOwner,
+    CafeNotConfigurable,
+    NoStateChange
+} from "../src/CafeRegistry.sol";
 import {ICafeRegistry} from "../src/interfaces/ICafeRegistry.sol";
 
 contract CafeRegistryTest is Test {
@@ -178,5 +186,106 @@ contract CafeRegistryTest is Test {
 
     function test_isOperational_unknownCafeIsFalse() public view {
         assertFalse(registry.isOperational(999));
+    }
+
+    function test_authorizeOperator_grantsAndEmits() public {
+        uint256 cafeId = _register(owner1);
+        vm.expectEmit(true, true, false, true);
+        emit ICafeRegistry.OperatorAuthorized(cafeId, operator, true);
+        vm.prank(owner1);
+        registry.authorizeOperator(cafeId, operator, true);
+        assertTrue(registry.isAuthorized(cafeId, operator));
+    }
+
+    function test_authorizeOperator_revokes() public {
+        uint256 cafeId = _register(owner1);
+        vm.prank(owner1);
+        registry.authorizeOperator(cafeId, operator, true);
+        vm.prank(owner1);
+        registry.authorizeOperator(cafeId, operator, false);
+        assertFalse(registry.isAuthorized(cafeId, operator));
+    }
+
+    function test_isAuthorized_ownerIsImplicitlyAuthorized() public {
+        uint256 cafeId = _register(owner1);
+        assertTrue(registry.isAuthorized(cafeId, owner1));
+        assertFalse(registry.isAuthorized(cafeId, stranger));
+    }
+
+    function test_isAuthorized_unknownCafeIsFalse() public view {
+        assertFalse(registry.isAuthorized(999, owner1));
+        assertFalse(registry.isAuthorized(999, address(0)));
+    }
+
+    function test_isAuthorized_isScopedPerCafe() public {
+        uint256 cafeA = _register(owner1);
+        uint256 cafeB = _register(owner2);
+        vm.prank(owner1);
+        registry.authorizeOperator(cafeA, operator, true);
+        assertTrue(registry.isAuthorized(cafeA, operator));
+        assertFalse(registry.isAuthorized(cafeB, operator));
+        assertFalse(registry.isAuthorized(cafeB, owner1));
+    }
+
+    function test_authorizeOperator_nonOwnerReverts() public {
+        uint256 cafeId = _register(owner1);
+        vm.expectRevert(abi.encodeWithSelector(NotCafeOwner.selector, cafeId, stranger));
+        vm.prank(stranger);
+        registry.authorizeOperator(cafeId, operator, true);
+    }
+
+    function test_authorizeOperator_otherCafeOwnerReverts() public {
+        uint256 cafeA = _register(owner1);
+        _register(owner2);
+        vm.expectRevert(abi.encodeWithSelector(NotCafeOwner.selector, cafeA, owner2));
+        vm.prank(owner2);
+        registry.authorizeOperator(cafeA, operator, true);
+    }
+
+    function test_authorizeOperator_unknownCafeReverts() public {
+        vm.expectRevert(abi.encodeWithSelector(CafeNotFound.selector, uint256(1)));
+        vm.prank(owner1);
+        registry.authorizeOperator(1, operator, true);
+    }
+
+    function test_authorizeOperator_zeroOperatorReverts() public {
+        uint256 cafeId = _register(owner1);
+        vm.expectRevert(ZeroAddress.selector);
+        vm.prank(owner1);
+        registry.authorizeOperator(cafeId, address(0), true);
+    }
+
+    function test_authorizeOperator_redundantWriteReverts() public {
+        uint256 cafeId = _register(owner1);
+        vm.expectRevert(NoStateChange.selector);
+        vm.prank(owner1);
+        registry.authorizeOperator(cafeId, operator, false);
+    }
+
+    function test_authorizeOperator_activeCafeAllowed() public {
+        uint256 cafeId = _register(owner1);
+        _setStatus(cafeId, ICafeRegistry.CafeStatus.Active);
+        vm.prank(owner1);
+        registry.authorizeOperator(cafeId, operator, true);
+        assertTrue(registry.isAuthorized(cafeId, operator));
+    }
+
+    function test_authorizeOperator_suspendedCafeReverts() public {
+        uint256 cafeId = _register(owner1);
+        _setStatus(cafeId, ICafeRegistry.CafeStatus.Active);
+        _setStatus(cafeId, ICafeRegistry.CafeStatus.Suspended);
+        vm.expectRevert(
+            abi.encodeWithSelector(CafeNotConfigurable.selector, cafeId, ICafeRegistry.CafeStatus.Suspended)
+        );
+        vm.prank(owner1);
+        registry.authorizeOperator(cafeId, operator, true);
+    }
+
+    function test_authorizeOperator_exitedCafeReverts() public {
+        uint256 cafeId = _register(owner1);
+        _setStatus(cafeId, ICafeRegistry.CafeStatus.Exited);
+        vm.expectRevert(abi.encodeWithSelector(CafeNotConfigurable.selector, cafeId, ICafeRegistry.CafeStatus.Exited));
+        vm.prank(owner1);
+        registry.authorizeOperator(cafeId, operator, true);
     }
 }
