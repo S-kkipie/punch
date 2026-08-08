@@ -5,7 +5,9 @@ import * as schema from "@/server/drizzle/schemas";
 export const db = drizzle({
     connection: {
         connectionString: ServerConfig.databaseURL,
-        ssl: { rejectUnauthorized: false },
+        ssl: ServerConfig.databaseSSL
+            ? { rejectUnauthorized: false }
+            : false,
     },
     schema,
     casing: "snake_case",

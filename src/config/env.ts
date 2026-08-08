@@ -6,6 +6,10 @@ import { z } from "zod";
 export const env = createEnv({
     server: {
         DATABASE_URL: z.url(),
+        DATABASE_SSL: z
+            .enum(["true", "false"])
+            .optional()
+            .transform((value) => value !== "false"),
         BETTER_AUTH_SECRET: z.string().min(32),
         // 12/24-word BIP-39 phrase; custodial signer root (spec 3a §20).
         WALLET_MASTER_MNEMONIC: z
@@ -25,6 +29,7 @@ export const env = createEnv({
     },
     runtimeEnv: {
         DATABASE_URL: process.env.DATABASE_URL,
+        DATABASE_SSL: process.env.DATABASE_SSL,
         BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
         WALLET_MASTER_MNEMONIC: process.env.WALLET_MASTER_MNEMONIC,
         NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
