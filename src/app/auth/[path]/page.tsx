@@ -1,6 +1,7 @@
 import { viewPaths } from "@better-auth-ui/core";
 import { notFound } from "next/navigation";
 import { Auth } from "@/frontend/components/auth/auth";
+import { DemoLogin } from "@/frontend/components/auth/demo-login";
 
 // Auth views read live session/query state via `useAuth()`, so this route
 // can't be statically prerendered.
@@ -20,6 +21,7 @@ export default async function AuthPage({
         <main className="flex min-h-svh items-center justify-center p-4">
             <div className="w-full max-w-sm">
                 <Auth path={path} />
+                <DemoLogin />
             </div>
         </main>
     );
