@@ -59,11 +59,13 @@ export async function findTransactionByRedemptionRequestId(
 export async function findTransactionById(
     id: string,
     client: DbClient = db,
+    forUpdate = false,
 ): Promise<ConsumerTransactionRow | null> {
-    const [row] = await client
+    const query = client
         .select()
         .from(consumerTransaction)
         .where(eq(consumerTransaction.id, id));
+    const [row] = forUpdate ? await query.for("update") : await query;
     return row ?? null;
 }
 
