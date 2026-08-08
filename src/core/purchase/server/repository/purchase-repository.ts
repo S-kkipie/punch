@@ -357,6 +357,7 @@ export async function markJobRetry(
     id: string,
     error: string,
     attempts: number,
+    nextRetryAt: Date,
 ) {
     const [row] = await db
         .update(relayerJob)
@@ -364,8 +365,24 @@ export async function markJobRetry(
             status: "pending",
             lastError: error,
             attempts,
-            nextRetryAt: new Date(Date.now() + 30_000),
+            nextRetryAt,
         })
+        .where(eq(relayerJob.id, id))
+        .returning();
+    return row;
+}
+
+export async function findSubmittedJobs(): Promise<RelayerJobRow[]> {
+    return db
+        .select()
+        .from(relayerJob)
+        .where(eq(relayerJob.status, "submitted"));
+}
+
+export async function markJobPending(id: string, nextRetryAt: Date) {
+    const [row] = await db
+        .update(relayerJob)
+        .set({ status: "pending", nextRetryAt })
         .where(eq(relayerJob.id, id))
         .returning();
     return row;
@@ -410,6 +427,8 @@ export const purchaseRepository = {
     markJobSubmitted,
     markJobConfirmed,
     markJobRetry,
+    markJobPending,
+    findSubmittedJobs,
     markJobFailed,
     setOrderStatus,
 };
