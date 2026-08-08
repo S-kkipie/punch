@@ -69,6 +69,49 @@ describe("ScanPage camera privacy", () => {
         expect(getUserMedia).toHaveBeenCalled();
         await act(async () => root.unmount());
     });
+
+    it("requests camera access again after an acquisition error", async () => {
+        const getUserMedia = vi
+            .fn()
+            .mockRejectedValueOnce(new Error("permission failed"))
+            .mockResolvedValue({
+                getTracks: () => [{ stop: vi.fn() }],
+            });
+        Object.defineProperty(navigator, "mediaDevices", {
+            configurable: true,
+            value: { getUserMedia },
+        });
+        Object.defineProperty(window, "BarcodeDetector", {
+            configurable: true,
+            value: class {
+                detect = async () => [];
+            },
+        });
+        const container = document.createElement("div");
+        document.body.append(container);
+        const root = createRoot(container);
+        await act(async () => root.render(<ScanPage />));
+
+        await act(async () => {
+            Array.from(container.querySelectorAll("button"))
+                .find((candidate) => candidate.textContent === "Abrir cámara")
+                ?.click();
+            await Promise.resolve();
+        });
+        expect(getUserMedia).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+            Array.from(container.querySelectorAll("button"))
+                .find(
+                    (candidate) =>
+                        candidate.textContent === "Reintentar cámara",
+                )
+                ?.click();
+            await Promise.resolve();
+        });
+        expect(getUserMedia).toHaveBeenCalledTimes(2);
+        await act(async () => root.unmount());
+    });
 });
 
 describe("ScanPage pasted fallback", () => {

@@ -12,10 +12,13 @@ function extractProofId(value: string): string | undefined {
 
 export default function ScanPage() {
     const router = useRouter();
+    const routerRef = useRef(router);
+    routerRef.current = router;
     const videoRef = useRef<HTMLVideoElement>(null);
     const [pastedCode, setPastedCode] = useState("");
     const [cameraError, setCameraError] = useState<string | null>(null);
-    const [cameraActive, setCameraActive] = useState(false);
+    const [cameraSession, setCameraSession] = useState(0);
+    const cameraActive = cameraSession > 0;
     const [supportsCamera] = useState(
         () =>
             typeof window !== "undefined" &&
@@ -24,7 +27,7 @@ export default function ScanPage() {
     );
 
     useEffect(() => {
-        if (!supportsCamera || !cameraActive) return;
+        if (!supportsCamera || cameraSession === 0) return;
         let stream: MediaStream | undefined;
         let cancelled = false;
         const stopCamera = () => {
@@ -73,7 +76,7 @@ export default function ScanPage() {
                     }
                     const proofId = codes[0]?.rawValue?.split("/purchase/")[1];
                     if (proofId) {
-                        router.push(`/purchase/${proofId}`);
+                        routerRef.current.push(`/purchase/${proofId}`);
                         return;
                     }
                     requestAnimationFrame(() => void tick());
@@ -85,7 +88,7 @@ export default function ScanPage() {
         };
         void start();
         return stopCamera;
-    }, [cameraActive, router, supportsCamera]);
+    }, [cameraSession, supportsCamera]);
 
     const openPastedCode = () => {
         const proofId = extractProofId(pastedCode);
@@ -125,7 +128,7 @@ export default function ScanPage() {
                             className="min-h-11"
                             onClick={() => {
                                 setCameraError(null);
-                                setCameraActive(true);
+                                setCameraSession((session) => session + 1);
                             }}
                         >
                             {cameraError ? "Reintentar cámara" : "Abrir cámara"}
