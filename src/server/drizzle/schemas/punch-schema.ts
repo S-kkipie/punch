@@ -34,20 +34,29 @@ export const punchBalanceProjection = pgTable(
 
 export const campaignKind = pgEnum("campaign_kind", ["verified_acquisition"]);
 
-export const campaign = pgTable("campaign", {
-    id: text("id")
-        .primaryKey()
-        .$defaultFn(() => crypto.randomUUID()),
-    kind: campaignKind("kind").notNull(),
-    cafeId: text("cafe_id")
-        .notNull()
-        .references(() => cafe.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
-    windowStart: timestamp("window_start").notNull(),
-    windowEnd: timestamp("window_end").notNull(),
-    active: boolean("active").default(true).notNull(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const campaign = pgTable(
+    "campaign",
+    {
+        id: text("id")
+            .primaryKey()
+            .$defaultFn(() => crypto.randomUUID()),
+        kind: campaignKind("kind").notNull(),
+        cafeId: text("cafe_id")
+            .notNull()
+            .references(() => cafe.id, { onDelete: "cascade" }),
+        name: text("name").notNull(),
+        windowStart: timestamp("window_start").notNull(),
+        windowEnd: timestamp("window_end").notNull(),
+        active: boolean("active").default(true).notNull(),
+        createdAt: timestamp("created_at").defaultNow().notNull(),
+    },
+    (table) => [
+        check(
+            "campaign_window_order",
+            sql`${table.windowStart} <= ${table.windowEnd}`,
+        ),
+    ],
+);
 
 export const voucherSource = pgEnum("voucher_source", ["campaign", "crawl"]);
 export const voucherStatus = pgEnum("voucher_status", [
@@ -64,7 +73,7 @@ export const consumerVoucher = pgTable(
             .$defaultFn(() => crypto.randomUUID()),
         source: voucherSource("source").notNull(),
         campaignId: text("campaign_id").references(() => campaign.id),
-        crawlId: text("crawl_id"),
+        crawlId: text("crawl_id").references(() => coffeeCrawl.id),
         consumerUserId: text("consumer_user_id")
             .notNull()
             .references(() => user.id),
@@ -82,6 +91,10 @@ export const consumerVoucher = pgTable(
         uniqueIndex("consumer_voucher_crawl_unlock_uq").on(
             table.crawlId,
             table.consumerUserId,
+        ),
+        check(
+            "consumer_voucher_source_provenance",
+            sql`(${table.source} = 'campaign' AND ${table.campaignId} IS NOT NULL AND ${table.crawlId} IS NULL) OR (${table.source} = 'crawl' AND ${table.campaignId} IS NULL AND ${table.crawlId} IS NOT NULL)`,
         ),
     ],
 );
@@ -115,6 +128,11 @@ export const coffeeCrawlStep = pgTable(
             table.crawlId,
             table.stepIndex,
         ),
+        uniqueIndex("coffee_crawl_step_crawl_cafe_uq").on(
+            table.crawlId,
+            table.cafeId,
+        ),
+        check("coffee_crawl_step_index_nonneg", sql`${table.stepIndex} >= 0`),
     ],
 );
 
