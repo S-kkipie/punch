@@ -44,7 +44,9 @@ export const decidePunchRedemptionRoute = new Elysia().use(authed).post(
             200: successResponseSchema(decisionResponseSchema, "RedemptionDecision"),
             400: errorResponseSchema(400),
             401: errorResponseSchema(401),
+            403: errorResponseSchema(403),
             404: errorResponseSchema(404),
+            409: errorResponseSchema(409),
             500: errorResponseSchema(500),
         },
         detail: {
