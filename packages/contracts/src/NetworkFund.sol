@@ -21,6 +21,8 @@ error OriginAlreadyClaimed(uint256 epoch, uint256 cafeId);
 error NoReferrals(uint256 epoch, uint256 cafeId);
 error OriginPoolReleased(uint256 epoch);
 error NothingToRelease(uint256 epoch);
+error InsufficientBucket(uint256 requested, uint256 available);
+error CampaignEscrowNotSet();
 
 /// @notice Custodies the shared network fund: budgets contributions per monthly epoch
 /// into four on-chain buckets (40/30/20/10), counts verified referrals, pays prorated
@@ -78,6 +80,7 @@ contract NetworkFund is INetworkFund, Ownable, Pausable {
     event ReferralRecorderSet(address indexed recorder);
     event CampaignEscrowSet(address indexed escrow);
     event UnclaimedOriginReleased(uint256 indexed epoch, uint256 amount);
+    event BucketWithdrawn(uint256 indexed epoch, Bucket indexed bucket, address indexed to, uint256 amount);
 
     constructor(IERC20 pen_, ICafeRegistry registry_) Ownable(msg.sender) {
         if (address(pen_) == address(0) || address(registry_) == address(0)) revert ZeroAddress();
@@ -218,8 +221,45 @@ contract NetworkFund is INetworkFund, Ownable, Pausable {
         emit UnclaimedOriginReleased(epoch, remaining);
     }
 
-    function allocateCampaignBudget(uint256, uint256) external pure {
-        revert();
+    /// @inheritdoc INetworkFund
+    /// @dev Debits the crawl bucket only: spec §12.2 funds coffee crawls from the crawl
+    /// pool, while §12.1 makes verified acquisition the interested café's expense, not the
+    /// fund's. The acquisition and contingency buckets leave through `withdrawBucket`.
+    function allocateCampaignBudget(uint256 epoch, uint256 amount) external onlyOwner whenNotPaused {
+        if (amount == 0) revert ZeroAmount();
+        address escrow = campaignEscrow;
+        if (escrow == address(0)) revert CampaignEscrowNotSet();
+
+        Epoch storage e = epochs[epoch];
+        uint256 available = e.crawlPool;
+        if (amount > available) revert InsufficientBucket(amount, available);
+
+        e.crawlPool = available - amount;
+        totalBudgeted -= amount;
+        pen.safeTransfer(escrow, amount);
+
+        emit CampaignBudgetAllocated(epoch, amount);
+    }
+
+    /// @notice Spends an operational bucket of an epoch. Origin and crawl are unreachable
+    /// here by construction: origin is claimed by cafés, crawl goes through CampaignEscrow.
+    function withdrawBucket(uint256 epoch, Bucket bucket, address to, uint256 amount) external onlyOwner {
+        if (to == address(0)) revert ZeroAddress();
+        if (amount == 0) revert ZeroAmount();
+
+        Epoch storage e = epochs[epoch];
+        uint256 available = bucket == Bucket.Acquisition ? e.acquisitionPool : e.contingencyPool;
+        if (amount > available) revert InsufficientBucket(amount, available);
+
+        if (bucket == Bucket.Acquisition) {
+            e.acquisitionPool = available - amount;
+        } else {
+            e.contingencyPool = available - amount;
+        }
+        totalBudgeted -= amount;
+        pen.safeTransfer(to, amount);
+
+        emit BucketWithdrawn(epoch, bucket, to, amount);
     }
 
     /// @notice mPEN held but not yet budgeted to any epoch.

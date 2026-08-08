@@ -19,7 +19,9 @@ import {
     OriginAlreadyClaimed,
     NoReferrals,
     NothingToRelease,
-    OriginPoolReleased
+    OriginPoolReleased,
+    InsufficientBucket,
+    CampaignEscrowNotSet
 } from "../src/NetworkFund.sol";
 import {CafeRegistry} from "../src/CafeRegistry.sol";
 import {MockPEN} from "../src/MockPEN.sol";
@@ -437,5 +439,96 @@ contract NetworkFundTest is Test {
         vm.prank(stranger);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
         fund.releaseUnclaimedOrigin(EPOCH);
+    }
+
+    function test_allocateCampaignBudget_debitsCrawlPoolOnly() public {
+        _seed(100e6);
+        fund.fundEpoch(EPOCH, 100e6); // crawlPool = 20e6
+
+        vm.expectEmit(true, false, false, true, address(fund));
+        emit INetworkFund.CampaignBudgetAllocated(EPOCH, 15e6);
+        fund.allocateCampaignBudget(EPOCH, 15e6);
+
+        NetworkFund.Epoch memory e = fund.getEpoch(EPOCH);
+        assertEq(e.crawlPool, 5e6);
+        assertEq(e.acquisitionPool, 30e6);
+        assertEq(e.contingencyPool, 10e6);
+        assertEq(e.originPool, 40e6);
+        assertEq(pen.balanceOf(escrow), 15e6);
+        assertEq(fund.totalBudgeted(), 85e6);
+    }
+
+    function test_allocateCampaignBudget_revertsBeyondCrawlPool() public {
+        _seed(100e6);
+        fund.fundEpoch(EPOCH, 100e6);
+
+        vm.expectRevert(abi.encodeWithSelector(InsufficientBucket.selector, 20e6 + 1, 20e6));
+        fund.allocateCampaignBudget(EPOCH, 20e6 + 1);
+    }
+
+    function test_allocateCampaignBudget_revertsWithoutEscrow() public {
+        fund.setCampaignEscrow(address(0));
+        _seed(100e6);
+        fund.fundEpoch(EPOCH, 100e6);
+
+        vm.expectRevert(CampaignEscrowNotSet.selector);
+        fund.allocateCampaignBudget(EPOCH, 1e6);
+    }
+
+    function test_allocateCampaignBudget_onlyOwnerAndPausable() public {
+        _seed(100e6);
+        fund.fundEpoch(EPOCH, 100e6);
+
+        vm.prank(stranger);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
+        fund.allocateCampaignBudget(EPOCH, 1e6);
+
+        fund.pause();
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        fund.allocateCampaignBudget(EPOCH, 1e6);
+    }
+
+    function test_withdrawBucket_partialAndFull() public {
+        _seed(100e6);
+        fund.fundEpoch(EPOCH, 100e6);
+
+        vm.expectEmit(true, true, true, true, address(fund));
+        emit NetworkFund.BucketWithdrawn(EPOCH, NetworkFund.Bucket.Acquisition, ops, 12e6);
+        fund.withdrawBucket(EPOCH, NetworkFund.Bucket.Acquisition, ops, 12e6);
+        fund.withdrawBucket(EPOCH, NetworkFund.Bucket.Contingency, ops, 10e6);
+
+        NetworkFund.Epoch memory e = fund.getEpoch(EPOCH);
+        assertEq(e.acquisitionPool, 18e6);
+        assertEq(e.contingencyPool, 0);
+        assertEq(pen.balanceOf(ops), 22e6);
+        assertEq(fund.totalBudgeted(), 78e6);
+    }
+
+    function test_withdrawBucket_revertsBeyondBucket() public {
+        _seed(100e6);
+        fund.fundEpoch(EPOCH, 100e6);
+
+        vm.expectRevert(abi.encodeWithSelector(InsufficientBucket.selector, 10e6 + 1, 10e6));
+        fund.withdrawBucket(EPOCH, NetworkFund.Bucket.Contingency, ops, 10e6 + 1);
+    }
+
+    function test_withdrawBucket_rejectsZeroRecipientAndAmount() public {
+        _seed(100e6);
+        fund.fundEpoch(EPOCH, 100e6);
+
+        vm.expectRevert(ZeroAddress.selector);
+        fund.withdrawBucket(EPOCH, NetworkFund.Bucket.Acquisition, address(0), 1e6);
+
+        vm.expectRevert(ZeroAmount.selector);
+        fund.withdrawBucket(EPOCH, NetworkFund.Bucket.Acquisition, ops, 0);
+    }
+
+    function test_withdrawBucket_onlyOwner() public {
+        _seed(100e6);
+        fund.fundEpoch(EPOCH, 100e6);
+
+        vm.prank(stranger);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
+        fund.withdrawBucket(EPOCH, NetworkFund.Bucket.Acquisition, stranger, 1e6);
     }
 }
