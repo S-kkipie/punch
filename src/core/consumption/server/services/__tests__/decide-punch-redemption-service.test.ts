@@ -64,7 +64,9 @@ describe("decidePunchRedemptionService", () => {
         { ...rejectedRequest, cafeId: "other" },
         { ...rejectedRequest, kind: "voucher" },
     ])("denies missing, foreign, or wrong-kind requests", async (request) => {
-        vi.mocked(findRedemptionRequestById).mockResolvedValue(request as never);
+        vi.mocked(findRedemptionRequestById).mockResolvedValue(
+            request as never,
+        );
         const result = await decidePunchRedemptionService("u", "c", "r", {
             decision: "approved",
         });

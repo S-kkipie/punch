@@ -6,7 +6,9 @@ vi.mock("../../repository/redemption-requests", () => ({
 vi.mock("@/core/cafe/server/repository/find-product-by-id", () => ({
     findProductById: vi.fn(),
 }));
-vi.mock("@/core/punch/server/repository/balance", () => ({ getBalance: vi.fn() }));
+vi.mock("@/core/punch/server/repository/balance", () => ({
+    getBalance: vi.fn(),
+}));
 
 import { findProductById } from "@/core/cafe/server/repository/find-product-by-id";
 import { getBalance } from "@/core/punch/server/repository/balance";
@@ -54,8 +56,13 @@ describe("requestPunchRedemptionService", () => {
         vi.mocked(getBalance).mockResolvedValue(12);
         vi.mocked(findProductById).mockResolvedValue(product as never);
         vi.mocked(createRedemptionRequest).mockResolvedValue({
-            id: "r", kind: "punch_reward", cafeId: "c", productId: "p",
-            voucherId: null, status: "pending", rejectionReason: null,
+            id: "r",
+            kind: "punch_reward",
+            cafeId: "c",
+            productId: "p",
+            voucherId: null,
+            status: "pending",
+            rejectionReason: null,
             createdAt: new Date(),
         } as never);
         const result = await requestPunchRedemptionService("u", "c", {

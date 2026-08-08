@@ -32,16 +32,25 @@ export const decidePunchRedemptionRoute = new Elysia().use(authed).post(
             body,
         );
         if (!result.ok) {
-            return status(result.error.status as 500, errorToResponse(result.error));
+            return status(
+                result.error.status as 500,
+                errorToResponse(result.error),
+            );
         }
-        return status(200, CommonResponse.successful({ response: result.data }));
+        return status(
+            200,
+            CommonResponse.successful({ response: result.data }),
+        );
     },
     {
         authed: true,
         params: t.Object({ cafeId: t.String(), requestId: t.String() }),
         body: decideRedemptionRequestSchema,
         response: {
-            200: successResponseSchema(decisionResponseSchema, "RedemptionDecision"),
+            200: successResponseSchema(
+                decisionResponseSchema,
+                "RedemptionDecision",
+            ),
             400: errorResponseSchema(400),
             401: errorResponseSchema(401),
             404: errorResponseSchema(404),

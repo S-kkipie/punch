@@ -1,9 +1,17 @@
 import "server-only";
 import { findProductById } from "@/core/cafe/server/repository/find-product-by-id";
+import type {
+    RedemptionRequest,
+    RequestPunchRedemption,
+} from "@/core/consumption/domain/types";
 import { canRedeem } from "@/core/punch/domain/progress";
 import { getBalance } from "@/core/punch/server/repository/balance";
-import type { RequestPunchRedemption, RedemptionRequest } from "@/core/consumption/domain/types";
-import { AppErrors, type AsyncAppResult, err, ok } from "@/server/common/responses";
+import {
+    AppErrors,
+    type AsyncAppResult,
+    err,
+    ok,
+} from "@/server/common/responses";
 import { createRedemptionRequest } from "../repository/redemption-requests";
 import { toRedemptionRequest } from "../repository/utils";
 
@@ -29,10 +37,12 @@ export async function requestPunchRedemptionService(
     }
     const balance = await getBalance(consumerUserId);
     if (!canRedeem(balance)) {
-        return err(AppErrors.unprocessableEntity({
-            targets: ["balance"],
-            cause: "Necesitas 12 PUNCH para canjear.",
-        }));
+        return err(
+            AppErrors.unprocessableEntity({
+                targets: ["balance"],
+                cause: "Necesitas 12 PUNCH para canjear.",
+            }),
+        );
     }
     const row = await createRedemptionRequest({
         kind: "punch_reward",

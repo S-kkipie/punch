@@ -2,7 +2,9 @@ import "server-only";
 import type { RedemptionRequest } from "@/core/consumption/domain/types";
 import type { RedemptionRequestRow } from "@/server/drizzle/schemas/consumption-schema";
 
-export function toRedemptionRequest(row: RedemptionRequestRow): RedemptionRequest {
+export function toRedemptionRequest(
+    row: RedemptionRequestRow,
+): RedemptionRequest {
     return {
         id: row.id,
         kind: row.kind,

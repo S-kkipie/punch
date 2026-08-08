@@ -1,7 +1,15 @@
 import "server-only";
-import type { DecideRedemptionRequest, RedemptionRequest } from "@/core/consumption/domain/types";
+import type {
+    DecideRedemptionRequest,
+    RedemptionRequest,
+} from "@/core/consumption/domain/types";
 import { requireCafeRole } from "@/server/auth/membership/require-cafe-role";
-import { AppErrors, type AsyncAppResult, err, ok } from "@/server/common/responses";
+import {
+    AppErrors,
+    type AsyncAppResult,
+    err,
+    ok,
+} from "@/server/common/responses";
 import type { ChainSubmission } from "../chain-port";
 import { PostgresMockConsumerChain } from "../postgres-mock-chain";
 import {
@@ -16,10 +24,17 @@ export async function decidePunchRedemptionService(
     requestId: string,
     input: DecideRedemptionRequest,
 ): AsyncAppResult<ChainSubmission | RedemptionRequest> {
-    const membershipResult = await requireCafeRole(deciderUserId, cafeId, ["owner", "barista"]);
+    const membershipResult = await requireCafeRole(deciderUserId, cafeId, [
+        "owner",
+        "barista",
+    ]);
     if (!membershipResult.ok) return err(membershipResult.error);
     const existing = await findRedemptionRequestById(requestId);
-    if (!existing || existing.cafeId !== cafeId || existing.kind !== "punch_reward") {
+    if (
+        !existing ||
+        existing.cafeId !== cafeId ||
+        existing.kind !== "punch_reward"
+    ) {
         return err(AppErrors.notFound({ targets: ["requestId"] }));
     }
     try {
@@ -29,11 +44,13 @@ export async function decidePunchRedemptionService(
             input.decision,
             input.rejectionReason ?? null,
         );
-        if (request.status === "rejected") return ok(toRedemptionRequest(request));
-        const submission = await new PostgresMockConsumerChain().submitPunchRedemption({
-            redemptionRequestId: request.id,
-            idempotencyKey: `punch_redemption:${request.id}`,
-        });
+        if (request.status === "rejected")
+            return ok(toRedemptionRequest(request));
+        const submission =
+            await new PostgresMockConsumerChain().submitPunchRedemption({
+                redemptionRequestId: request.id,
+                idempotencyKey: `punch_redemption:${request.id}`,
+            });
         return ok(submission);
     } catch (cause) {
         return err(AppErrors.unexpected(cause));
