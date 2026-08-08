@@ -3,29 +3,19 @@ pragma solidity ^0.8.30;
 
 import {Test} from "forge-std/Test.sol";
 import {NotImplemented} from "../src/NotImplemented.sol";
-import {ConsumptionLog} from "../src/ConsumptionLog.sol";
 import {NetworkFund} from "../src/NetworkFund.sol";
 import {CampaignEscrow} from "../src/CampaignEscrow.sol";
 import {MockPEN} from "../src/MockPEN.sol";
-import {IConsumptionLog} from "../src/interfaces/IConsumptionLog.sol";
 
 contract ScaffoldTest is Test {
-    ConsumptionLog internal consumptionLog;
     NetworkFund internal networkFund;
     CampaignEscrow internal campaignEscrow;
     MockPEN internal mockPEN;
 
     function setUp() public {
-        consumptionLog = new ConsumptionLog();
         networkFund = new NetworkFund();
         campaignEscrow = new CampaignEscrow();
         mockPEN = new MockPEN();
-    }
-
-    function test_consumptionLog_reverts_notImplemented() public {
-        IConsumptionLog.ConsumptionProof memory proof;
-        vm.expectRevert(NotImplemented.selector);
-        consumptionLog.recordConsumption(proof, "", "");
     }
 
     function test_networkFund_reverts_notImplemented() public {
