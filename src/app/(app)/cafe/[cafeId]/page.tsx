@@ -66,7 +66,12 @@ export default function CafePanelPage() {
         emissionProduct: "Al menos un producto de emisión",
     };
 
-    if (cafeQuery.isLoading || productsQuery.isLoading) {
+    if (
+        cafeQuery.isPending ||
+        cafeQuery.isFetching ||
+        productsQuery.isPending ||
+        productsQuery.isFetching
+    ) {
         return (
             <div className="flex justify-center p-12">
                 <Spinner />
@@ -79,8 +84,8 @@ export default function CafePanelPage() {
         );
     }
 
-    const saveCafe = (values: CafeFormValues) =>
-        updateCafe.mutate({
+    const saveCafe = (values: CafeFormValues) => {
+        const patch = {
             name: values.name,
             description: values.description || null,
             address: values.address || null,
@@ -88,9 +93,22 @@ export default function CafePanelPage() {
             contactPhone: values.contactPhone || null,
             ruc: values.ruc || null,
             photoUrl: values.photoUrl || null,
-        });
+        };
+        if (cafe.onboardingStatus === "approved") {
+            updateCafe.mutate({
+                description: patch.description,
+                contactPhone: patch.contactPhone,
+                photoUrl: patch.photoUrl,
+            });
+            return;
+        }
+        updateCafe.mutate(patch);
+    };
     const addProduct = (values: ProductFormValues) =>
-        createProduct.mutate(values);
+        createProduct.mutate({
+            ...values,
+            cogsSoles: values.cogsSoles || undefined,
+        });
 
     return (
         <div className="mx-auto w-full max-w-5xl space-y-6 p-6">
@@ -124,8 +142,12 @@ export default function CafePanelPage() {
                         onSubmit={saveCafe}
                         disabled={
                             updateCafe.isPending ||
-                            cafe.onboardingStatus === "submitted" ||
+                            cafe.onboardingStatus === "submitted"
+                        }
+                        fields={
                             cafe.onboardingStatus === "approved"
+                                ? ["description", "contactPhone", "photoUrl"]
+                                : undefined
                         }
                     />
                 </CardContent>
@@ -135,14 +157,13 @@ export default function CafePanelPage() {
                     <CardTitle>Catálogo</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    <ProductList products={products} />
+                    <ProductList cafeId={cafeId} products={products} />
                     <div className="border-t pt-6">
                         <ProductForm
                             onSubmit={addProduct}
                             disabled={
                                 createProduct.isPending ||
-                                cafe.onboardingStatus === "submitted" ||
-                                cafe.onboardingStatus === "approved"
+                                cafe.onboardingStatus === "submitted"
                             }
                         />
                     </div>

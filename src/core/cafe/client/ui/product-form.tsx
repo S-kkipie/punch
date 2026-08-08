@@ -25,9 +25,13 @@ function errors(field: AnyFieldApi) {
 export function ProductForm({
     onSubmit,
     disabled,
+    defaultValues,
+    submitLabel = "Agregar producto",
 }: {
     onSubmit: (values: ProductFormValues) => void | Promise<void>;
     disabled?: boolean;
+    defaultValues?: Partial<ProductFormValues>;
+    submitLabel?: string;
 }) {
     const form = useAppForm({
         defaultValues: {
@@ -36,6 +40,7 @@ export function ProductForm({
             type: "emission" as "emission" | "reward",
             priceSoles: "",
             cogsSoles: "",
+            ...defaultValues,
         } satisfies ProductFormValues,
         validators: { onChange: productFormSchema },
         onSubmit: async ({ value }) => onSubmit(value),
@@ -160,7 +165,7 @@ export function ProductForm({
             <form.Subscribe selector={(state) => state.canSubmit}>
                 {(canSubmit) => (
                     <Button type="submit" disabled={disabled || !canSubmit}>
-                        {disabled ? "Guardando…" : "Agregar producto"}
+                        {disabled ? "Guardando…" : submitLabel}
                     </Button>
                 )}
             </form.Subscribe>

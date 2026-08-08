@@ -31,6 +31,7 @@ import { findCafeById } from "../../repository/find-cafe-by-id";
 import { updateCafe } from "../../repository/update-cafe";
 import { reviewCafeService } from "../review-cafe-service";
 import { submitCafeService } from "../submit-cafe-service";
+import { updateCafeService } from "../update-cafe-service";
 
 const row = {
     id: "c1",
@@ -56,6 +57,74 @@ const membership = {
     role: "owner" as const,
     createdAt: new Date(),
 };
+
+describe("updateCafeService", () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    it("allows approved cafes to update non-critical fields", async () => {
+        vi.mocked(requireCafeRole).mockResolvedValue(okResult(membership));
+        vi.mocked(findCafeById).mockResolvedValue({
+            ...row,
+            onboardingStatus: "approved",
+        });
+        vi.mocked(updateCafe).mockResolvedValue({
+            ...row,
+            onboardingStatus: "approved",
+            description: "Nuevo café",
+        });
+        const r = await updateCafeService("u1", "c1", {
+            description: "Nuevo café",
+            contactPhone: "+51999999999",
+        });
+        expect(r.ok).toBe(true);
+        expect(updateCafe).toHaveBeenCalledWith("c1", {
+            description: "Nuevo café",
+            contactPhone: "+51999999999",
+        });
+    });
+
+    it("rejects critical edits to approved cafes", async () => {
+        vi.mocked(requireCafeRole).mockResolvedValue(okResult(membership));
+        vi.mocked(findCafeById).mockResolvedValue({
+            ...row,
+            onboardingStatus: "approved",
+        });
+        const r = await updateCafeService("u1", "c1", { name: "Otro nombre" });
+        expect(r.ok).toBe(false);
+        if (!r.ok) {
+            expect(r.error.status).toBe(409);
+            if (r.error.type === "ConflictError")
+                expect(r.error.targets).toEqual(["name"]);
+        }
+        expect(updateCafe).not.toHaveBeenCalled();
+    });
+
+    it("allows draft cafes to update every field", async () => {
+        vi.mocked(requireCafeRole).mockResolvedValue(okResult(membership));
+        vi.mocked(findCafeById).mockResolvedValue(row);
+        vi.mocked(updateCafe).mockResolvedValue(row);
+        const patch = {
+            name: "Nuevo",
+            address: "Otra dirección",
+            ruc: "20123456789",
+        };
+        const r = await updateCafeService("u1", "c1", patch);
+        expect(r.ok).toBe(true);
+        expect(updateCafe).toHaveBeenCalledWith("c1", patch);
+    });
+
+    it("rejects all edits to submitted cafes", async () => {
+        vi.mocked(requireCafeRole).mockResolvedValue(okResult(membership));
+        vi.mocked(findCafeById).mockResolvedValue({
+            ...row,
+            onboardingStatus: "submitted",
+        });
+        const r = await updateCafeService("u1", "c1", { description: "No" });
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.error.status).toBe(409);
+        expect(updateCafe).not.toHaveBeenCalled();
+    });
+});
 
 describe("submitCafeService", () => {
     beforeEach(() => vi.clearAllMocks());

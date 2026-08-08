@@ -14,7 +14,7 @@ export const cafeFormSchema = z.object({
     description: z.string().max(500),
     address: z.string().max(200),
     district: z.string().max(80),
-    contactPhone: z.string().max(20),
+    contactPhone: z.string().trim().min(6).max(20),
     ruc: z.string().regex(/^$|^\d{11}$/, "RUC de 11 dígitos"),
     photoUrl: z.union([z.literal(""), z.url("URL inválida")]),
 });
