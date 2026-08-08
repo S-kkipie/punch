@@ -39,6 +39,7 @@ import { updateProductService } from "../update-product-service";
 const productRow = {
     id: "p1",
     cafeId: "c1",
+    chainProductId: null,
     name: "Latte",
     description: null,
     priceSoles: "10.00",

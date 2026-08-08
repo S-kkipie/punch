@@ -45,6 +45,7 @@ const row = {
     photoUrl: null,
     ruc: "20123456789",
     contactPhone: "+51999999999",
+    chainCafeId: null,
     onboardingStatus: "draft" as const,
     reviewNote: null,
     createdAt: new Date("2026-01-01"),

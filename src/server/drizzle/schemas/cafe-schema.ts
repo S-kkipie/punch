@@ -3,6 +3,7 @@ import {
     boolean,
     check,
     index,
+    integer,
     numeric,
     pgEnum,
     pgTable,
@@ -35,6 +36,7 @@ export const cafe = pgTable(
         photoUrl: text("photo_url"),
         ruc: text("ruc"),
         contactPhone: text("contact_phone"),
+        chainCafeId: integer("chain_cafe_id").unique(),
         onboardingStatus: cafeOnboardingStatus("onboarding_status")
             .default("draft")
             .notNull(),
@@ -72,6 +74,7 @@ export const cafeProduct = pgTable(
             .references(() => cafe.id, { onDelete: "cascade" }),
         name: text("name").notNull(),
         description: text("description"),
+        chainProductId: integer("chain_product_id"),
         priceSoles: numeric("price_soles").notNull(),
         cogsSoles: numeric("cogs_soles"),
         type: cafeProductType("type").notNull(),
