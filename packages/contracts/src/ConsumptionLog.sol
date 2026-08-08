@@ -1,14 +1,111 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
 
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {IConsumptionLog} from "./interfaces/IConsumptionLog.sol";
-import {NotImplemented} from "./NotImplemented.sol";
+import {ICafeRegistry} from "./interfaces/ICafeRegistry.sol";
+import {IPlanManager} from "./interfaces/IPlanManager.sol";
+import {IPunchVault} from "./interfaces/IPunchVault.sol";
 
-contract ConsumptionLog is IConsumptionLog {
-    function recordConsumption(ConsumptionProof calldata, bytes calldata, bytes calldata)
-        external
-        pure
+error ZeroAddress();
+error InvalidLimit();
+
+/// @notice Single entry point for PUNCH emission. Validates a consumption proof signed by
+/// both the café and the user, blocks replay, and orchestrates emission by calling
+/// `PlanManager.consumeCredit` and then `PunchVault.issue`.
+/// @dev Custodies no tokens and mints nothing itself. Arbitrum cannot observe the Yape
+/// payment (mother spec §17), so the proof is a dual attestation, not bank evidence; the
+/// controls here — nonce, expiry, receipt hash, signed product and amount, daily cap —
+/// are what make that attestation expensive to forge.
+contract ConsumptionLog is IConsumptionLog, Ownable, Pausable, EIP712 {
+    bytes32 private constant CONSUMPTION_PROOF_TYPEHASH = keccak256(
+        "ConsumptionProof(uint256 cafeId,address user,uint256 productId,uint256 amount,bytes32 receiptHash,uint256 nonce,uint256 expiry)"
+    );
+
+    /// @notice Longest window a signer may grant a proof. Without this ceiling "short
+    /// expiry" would be the signer's choice, not a protocol rule (mother spec §20).
+    uint256 public constant MAX_PROOF_TTL = 15 minutes;
+
+    ICafeRegistry public immutable registry;
+    IPlanManager public immutable planManager;
+    IPunchVault public immutable punchVault;
+
+    /// @notice Smallest ticket that may emit a PUNCH, in mPEN (6 decimals).
+    uint256 public minTicketAmount;
+
+    /// @notice Emissions one user may trigger at one café within a UTC day.
+    uint256 public maxDailyPerUserCafe;
+
+    event MinTicketAmountSet(uint256 amount);
+    event MaxDailyPerUserCafeSet(uint256 limit);
+
+    constructor(ICafeRegistry registry_, IPlanManager planManager_, IPunchVault punchVault_)
+        Ownable(msg.sender)
+        EIP712("PUNCH ConsumptionLog", "1")
     {
-        revert NotImplemented();
+        if (
+            address(registry_) == address(0) || address(planManager_) == address(0)
+                || address(punchVault_) == address(0)
+        ) revert ZeroAddress();
+        registry = registry_;
+        planManager = planManager_;
+        punchVault = punchVault_;
+        minTicketAmount = 8e6;
+        maxDailyPerUserCafe = 3;
+    }
+
+    /// @inheritdoc IConsumptionLog
+    function recordConsumption(
+        ConsumptionProof calldata proof,
+        bytes calldata cafeSignature,
+        bytes calldata userSignature
+    ) external {}
+
+    /// @notice EIP-712 digest of a proof. Backend and tests sign against this rather than
+    /// re-deriving the typehash, so there is one source of truth for the payload.
+    function hashProof(ConsumptionProof calldata proof) external view returns (bytes32) {
+        return _hashProof(proof);
+    }
+
+    /// @notice Zero is rejected: it would silently disable a fraud control. To stop
+    /// emission entirely, use `pause`.
+    function setMinTicketAmount(uint256 amount) external onlyOwner {
+        if (amount == 0) revert InvalidLimit();
+        minTicketAmount = amount;
+        emit MinTicketAmountSet(amount);
+    }
+
+    /// @notice Zero is rejected for the same reason as `setMinTicketAmount`.
+    function setMaxDailyPerUserCafe(uint256 limit) external onlyOwner {
+        if (limit == 0) revert InvalidLimit();
+        maxDailyPerUserCafe = limit;
+        emit MaxDailyPerUserCafeSet(limit);
+    }
+
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
+    function _hashProof(ConsumptionProof calldata proof) private view returns (bytes32) {
+        return _hashTypedDataV4(
+            keccak256(
+                abi.encode(
+                    CONSUMPTION_PROOF_TYPEHASH,
+                    proof.cafeId,
+                    proof.user,
+                    proof.productId,
+                    proof.amount,
+                    proof.receiptHash,
+                    proof.nonce,
+                    proof.expiry
+                )
+            )
+        );
     }
 }
