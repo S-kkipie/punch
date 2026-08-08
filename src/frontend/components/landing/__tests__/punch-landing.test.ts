@@ -30,6 +30,20 @@ describe("PunchLanding", () => {
         expect(html).not.toContain('class="pnch-nav__menu is-open"');
     });
 
+    it("renders the problem, stable mechanism, and network journey", () => {
+        const html = render();
+        expect(html).toContain('id="como-funciona"');
+        expect(html).toContain('id="red-en-movimiento"');
+        expect(html).toContain("La calidad no compensa competir solo.");
+        expect(html).toContain(
+            "La red trae la visita. Tu café hace que vuelva.",
+        );
+        expect(html).toContain("VISITA → DESCUBRE → REGRESA");
+        expect(html).toContain(
+            "El umbral no es la promesa de PUNCH; la red sí.",
+        );
+    });
+
     it("does not server-render discarded economic claims", () => {
         const html = render();
         for (const claim of [
