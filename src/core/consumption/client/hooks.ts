@@ -34,9 +34,17 @@ const withError = <T extends object>(options: T) =>
 export const useCreatePurchaseProof = (cafeId: string) => {
     const client = useElysia().consumption;
     const queryClient = useQueryClient();
+    const options = client({ cafeId })[
+        "purchase-proofs"
+    ].post.mutationOptions();
     return useMutation(
         withError({
-            ...client({ cafeId })["purchase-proofs"].post.mutationOptions(),
+            ...options,
+            mutationFn: async (
+                variables: Parameters<
+                    NonNullable<typeof options.mutationFn>
+                >[0],
+            ) => unwrap(await options.mutationFn(variables)),
             onSuccess: () =>
                 queryClient.invalidateQueries({
                     queryKey: ["consumption", "proofs"],

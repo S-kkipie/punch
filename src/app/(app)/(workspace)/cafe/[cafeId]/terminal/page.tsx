@@ -34,7 +34,9 @@ export default function CafeTerminalPage() {
             product.approvalStatus === "approved" &&
             product.active,
     );
-    const proof = createProof.data as { deepLink: string } | undefined;
+    const proof = ((
+        createProof.data as { response?: { deepLink?: string } } | undefined
+    )?.response ?? createProof.data) as { deepLink?: string } | undefined;
 
     useEffect(() => {
         if (!proof?.deepLink || !canvasRef.current) return;
