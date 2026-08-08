@@ -5,7 +5,6 @@ import {Test} from "forge-std/Test.sol";
 import {NotImplemented} from "../src/NotImplemented.sol";
 import {ConsumptionLog} from "../src/ConsumptionLog.sol";
 import {PunchVault} from "../src/PunchVault.sol";
-import {NetworkFund} from "../src/NetworkFund.sol";
 import {CampaignEscrow} from "../src/CampaignEscrow.sol";
 import {MockPEN} from "../src/MockPEN.sol";
 import {IConsumptionLog} from "../src/interfaces/IConsumptionLog.sol";
@@ -13,14 +12,12 @@ import {IConsumptionLog} from "../src/interfaces/IConsumptionLog.sol";
 contract ScaffoldTest is Test {
     ConsumptionLog internal consumptionLog;
     PunchVault internal punchVault;
-    NetworkFund internal networkFund;
     CampaignEscrow internal campaignEscrow;
     MockPEN internal mockPEN;
 
     function setUp() public {
         consumptionLog = new ConsumptionLog();
         punchVault = new PunchVault();
-        networkFund = new NetworkFund();
         campaignEscrow = new CampaignEscrow();
         mockPEN = new MockPEN();
     }
@@ -38,19 +35,6 @@ contract ScaffoldTest is Test {
         punchVault.redeem(address(this), 1, 1);
         vm.expectRevert(NotImplemented.selector);
         punchVault.balanceOf(address(this));
-    }
-
-    function test_networkFund_reverts_notImplemented() public {
-        vm.expectRevert(NotImplemented.selector);
-        networkFund.fundEpoch(1, 1);
-        vm.expectRevert(NotImplemented.selector);
-        networkFund.recordReferral(1, 1);
-        vm.expectRevert(NotImplemented.selector);
-        networkFund.finalizeOriginEpoch(1);
-        vm.expectRevert(NotImplemented.selector);
-        networkFund.claimOriginCredit(1, 1);
-        vm.expectRevert(NotImplemented.selector);
-        networkFund.allocateCampaignBudget(1, 1);
     }
 
     function test_campaignEscrow_reverts_notImplemented() public {

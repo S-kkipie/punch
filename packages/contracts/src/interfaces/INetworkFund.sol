@@ -3,8 +3,8 @@ pragma solidity ^0.8.30;
 
 interface INetworkFund {
     event EpochFunded(uint256 indexed epoch, uint256 amount);
-    event ReferralRecorded(uint256 indexed epoch, uint256 indexed originCafeId);
-    event OriginEpochFinalized(uint256 indexed epoch);
+    event ReferralRecorded(uint256 indexed epoch, uint256 indexed originCafeId, bytes32 indexed referralId);
+    event OriginEpochFinalized(uint256 indexed epoch, uint256 totalReferrals, uint256 originPool);
     event OriginCreditClaimed(uint256 indexed epoch, uint256 indexed cafeId, uint256 amount);
     event CampaignBudgetAllocated(uint256 indexed epoch, uint256 amount);
 
