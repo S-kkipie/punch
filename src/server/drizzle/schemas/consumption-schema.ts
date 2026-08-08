@@ -26,10 +26,10 @@ export const consumptionProof = pgTable(
             .$defaultFn(() => crypto.randomUUID()),
         cafeId: text("cafe_id")
             .notNull()
-            .references(() => cafe.id, { onDelete: "cascade" }),
+            .references(() => cafe.id, { onDelete: "restrict" }),
         productId: text("product_id")
             .notNull()
-            .references(() => cafeProduct.id, { onDelete: "cascade" }),
+            .references(() => cafeProduct.id, { onDelete: "restrict" }),
         issuedByUserId: text("issued_by_user_id")
             .notNull()
             .references(() => user.id),

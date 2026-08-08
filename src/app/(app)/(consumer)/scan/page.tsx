@@ -26,12 +26,25 @@ export default function ScanPage() {
         if (!supportsCamera) return;
         let stream: MediaStream | undefined;
         let cancelled = false;
+        const stopCamera = () => {
+            cancelled = true;
+            stream?.getTracks().forEach((track) => {
+                track.stop();
+            });
+            stream = undefined;
+            if (videoRef.current) videoRef.current.srcObject = null;
+        };
         const start = async () => {
             try {
                 stream = await navigator.mediaDevices.getUserMedia({
                     video: true,
                 });
-                if (cancelled) return;
+                if (cancelled) {
+                    stream?.getTracks().forEach((track) => {
+                        track.stop();
+                    });
+                    return;
+                }
                 if (videoRef.current) videoRef.current.srcObject = stream;
                 const Detector = (
                     window as unknown as {
@@ -47,7 +60,16 @@ export default function ScanPage() {
                 const detector = new Detector({ formats: ["qr_code"] });
                 const tick = async () => {
                     if (cancelled || !videoRef.current) return;
-                    const codes = await detector.detect(videoRef.current);
+                    let codes: { rawValue: string }[];
+                    try {
+                        codes = await detector.detect(videoRef.current);
+                    } catch {
+                        stopCamera();
+                        setCameraError(
+                            "No se pudo leer el código con la cámara. Pega el enlace que te dio el barista.",
+                        );
+                        return;
+                    }
                     const proofId = codes[0]?.rawValue?.split("/purchase/")[1];
                     if (proofId) {
                         router.push(`/purchase/${proofId}`);
@@ -61,12 +83,7 @@ export default function ScanPage() {
             }
         };
         void start();
-        return () => {
-            cancelled = true;
-            stream?.getTracks().forEach((track) => {
-                track.stop();
-            });
-        };
+        return stopCamera;
     }, [router, supportsCamera]);
 
     const openPastedCode = () => {
@@ -93,7 +110,7 @@ export default function ScanPage() {
                     muted
                     playsInline
                     aria-label="Vista de la cámara para escanear"
-                    className="w-full rounded-3xl border border-[var(--color-line)] bg-black"
+                    className="min-h-11 w-full rounded-3xl border border-[var(--color-line)] bg-black"
                 />
             ) : (
                 <div className="consumer-panel p-5 text-[var(--color-ink-2)] text-sm">
@@ -104,6 +121,7 @@ export default function ScanPage() {
             )}
             <div className="flex gap-2">
                 <Input
+                    className="min-h-11"
                     value={pastedCode}
                     onChange={(event) => setPastedCode(event.target.value)}
                     placeholder="Pega el enlace o código"

@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, or } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 import { canTransitionTransaction } from "@/core/consumption/domain/transitions";
 import type { ConsumerTransactionStatus } from "@/core/consumption/domain/types";
 import { type DbClient, db } from "@/server/drizzle/db";
@@ -54,6 +54,26 @@ export async function findTransactionByRedemptionRequestId(
             eq(consumerTransaction.redemptionRequestId, redemptionRequestId),
         );
     return row ?? null;
+}
+
+export async function listConfirmedEmissionCafeIds(
+    client: DbClient,
+    consumerUserId: string,
+    cafeIds: string[],
+): Promise<string[]> {
+    if (cafeIds.length === 0) return [];
+    const rows = await client
+        .select({ cafeId: consumerTransaction.cafeId })
+        .from(consumerTransaction)
+        .where(
+            and(
+                eq(consumerTransaction.consumerUserId, consumerUserId),
+                eq(consumerTransaction.operation, "emission"),
+                eq(consumerTransaction.status, "confirmed"),
+                inArray(consumerTransaction.cafeId, cafeIds),
+            ),
+        );
+    return rows.map((row) => row.cafeId);
 }
 
 export async function findTransactionByIdForConsumer(

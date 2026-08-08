@@ -2,11 +2,16 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useMyCafes } from "@/core/cafe/client/hooks";
 import { useDashboard } from "@/core/punch/client/hooks";
 import { PunchMeter } from "@/core/punch/client/ui/punch-meter";
 import type { Dashboard } from "@/core/punch/domain/types";
+import { authClient } from "@/frontend/auth/auth";
+import {
+    readPunchSnapshot,
+    writePunchSnapshot,
+} from "@/frontend/components/consumer/offline-snapshot";
 import { Button } from "@/frontend/components/ui/button";
 import { Spinner } from "@/frontend/components/ui/spinner";
 
@@ -29,6 +34,31 @@ export default function HomePage() {
     const router = useRouter();
     const dashboardQuery = useDashboard();
     const myCafesQuery = useMyCafes();
+    const sessionQuery = authClient.useSession();
+    const [savedDashboard, setSavedDashboard] = useState<Dashboard | null>(
+        null,
+    );
+    const userId = sessionQuery.data?.user.id;
+
+    useEffect(() => {
+        if (!userId || typeof window === "undefined") return;
+        if (dashboardQuery.data) {
+            writePunchSnapshot(
+                window.localStorage,
+                userId,
+                "dashboard",
+                dashboardQuery.data,
+            );
+        } else if (dashboardQuery.isError && navigator.onLine === false) {
+            setSavedDashboard(
+                readPunchSnapshot<Dashboard>(
+                    window.localStorage,
+                    userId,
+                    "dashboard",
+                ),
+            );
+        }
+    }, [dashboardQuery.data, dashboardQuery.isError, userId]);
     const myCafes = myCafesQuery.data as
         | Array<{
               id: string;
@@ -51,17 +81,19 @@ export default function HomePage() {
             </div>
         );
     }
-    if (dashboardQuery.isError) {
+    if (dashboardQuery.isError && !savedDashboard) {
         return (
             <div className="consumer-panel grid gap-4 p-6 text-center">
-                <p>No se pudo cargar tu progreso.</p>
+                <p>
+                    No se pudo cargar tu progreso. Conéctate para actualizarlo.
+                </p>
                 <Button onClick={() => dashboardQuery.refetch()}>
                     Reintentar
                 </Button>
             </div>
         );
     }
-    if (!dashboardQuery.data) {
+    if (!dashboardQuery.data && !savedDashboard) {
         return (
             <div className="consumer-panel grid gap-3 p-6">
                 <h1 className="consumer-title text-3xl font-bold">
@@ -78,9 +110,17 @@ export default function HomePage() {
         );
     }
 
-    const dashboard = dashboardQuery.data as Dashboard;
+    const dashboard = (dashboardQuery.data ?? savedDashboard) as Dashboard;
     return (
         <div className="grid gap-6">
+            {savedDashboard && !dashboardQuery.data && (
+                <p
+                    className="rounded-md bg-[var(--color-surface-2)] p-3 text-sm"
+                    role="status"
+                >
+                    Datos guardados · Conéctate para actualizar
+                </p>
+            )}
             <section className="grid gap-2">
                 <span className="consumer-eyebrow">Tu mesa, tu barrio</span>
                 <h1 className="consumer-title text-4xl font-bold tracking-tight">

@@ -3,6 +3,7 @@
 import { useAuth, useSignOut } from "@better-auth-ui/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
+import { clearPunchSnapshots } from "@/frontend/components/consumer/offline-snapshot";
 import { Spinner } from "@/frontend/components/ui/spinner";
 import { cn } from "@/frontend/lib/utils";
 
@@ -42,6 +43,7 @@ export function SignOut({ className }: SignOutProps) {
     useEffect(() => {
         if (hasSignedOut.current) return;
         hasSignedOut.current = true;
+        if (typeof window !== "undefined") clearPunchSnapshots(window.localStorage);
 
         signOut();
     }, [signOut]);

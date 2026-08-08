@@ -58,6 +58,31 @@ export default function MorePage() {
                     </li>
                 ))}
             </ul>
+            <section
+                className="consumer-panel grid gap-2 p-5"
+                aria-labelledby="profile-title"
+            >
+                <span className="consumer-eyebrow">Tu cuenta</span>
+                <h2
+                    id="profile-title"
+                    className="consumer-title text-2xl font-bold"
+                >
+                    Perfil
+                </h2>
+                <p className="text-[var(--color-ink-2)]">
+                    Gestiona tu sesión desde este dispositivo. No mostramos
+                    datos de saldo ni información técnica aquí.
+                </p>
+            </section>
+            <details className="consumer-panel p-5">
+                <summary className="min-h-11 cursor-pointer py-2 font-semibold">
+                    Instalar PUNCH
+                </summary>
+                <p className="mt-3 text-[var(--color-ink-2)]">
+                    En el menú de tu navegador elige “Añadir a pantalla de
+                    inicio” para abrir PUNCH como una app.
+                </p>
+            </details>
             <section className="consumer-panel flex items-center justify-between gap-4 p-4">
                 <div className="grid gap-1">
                     <span className="consumer-eyebrow">Tu cuenta</span>
