@@ -13,7 +13,9 @@ const proof = {
     expiry: "9999999999",
 };
 const signature = `0x${"aa".repeat(65)}` as `0x${string}`;
-const addresses = { consumptionLog: `0x${"33".repeat(20)}` } as never;
+const addresses = {
+    consumptionLog: `0x${"33".repeat(20)}`,
+} as { consumptionLog: `0x${string}` };
 const baseJob = (overrides = {}) =>
     ({
         id: "job",
@@ -47,6 +49,7 @@ function deps(job = baseJob(), receipt: "success" | "reverted" = "success") {
                 .fn()
                 .mockResolvedValue({ status: receipt }),
             getTransactionReceipt: vi.fn(),
+            simulateContract: vi.fn(),
         },
         addresses,
         submitter: `0x${"55".repeat(20)}`,
@@ -122,6 +125,40 @@ describe("relayer loop", () => {
         expect(d.setOrderStatus).toHaveBeenCalledWith("order", "confirmed");
     });
 
+    it("decodes a reverted receipt by replaying the submission", async () => {
+        const d = deps();
+        d.pub.waitForTransactionReceipt = vi.fn().mockResolvedValue({
+            status: "reverted",
+        });
+        d.pub.simulateContract = vi.fn().mockRejectedValue(revert("NoCredits"));
+
+        await runRelayerOnce(d);
+
+        expect(d.pub.simulateContract).toHaveBeenCalledWith({
+            address: addresses.consumptionLog,
+            abi: abis.consumptionLog,
+            functionName: "recordConsumption",
+            args: [
+                {
+                    cafeId: 1n,
+                    user: proof.user,
+                    productId: 2n,
+                    amount: 1n,
+                    receiptHash: proof.receiptHash,
+                    nonce: 3n,
+                    expiry: 9999999999n,
+                },
+                signature,
+                signature,
+            ],
+            account: `0x${"55".repeat(20)}`,
+        });
+        expect(d.markJobFailed).toHaveBeenCalledWith("job", "no_credits");
+        expect(d.setOrderStatus).toHaveBeenCalledWith("order", "failed", {
+            failureReason: "no_credits",
+        });
+    });
+
     it.each([
         0, 1, 2,
     ])("retries unknown attempt %s with exponential backoff", async (attempts) => {
@@ -188,6 +225,30 @@ describe("relayer loop", () => {
         await recoverStuckJobs(d);
         expect(d.markJobPending).toHaveBeenCalledWith("job", expect.any(Date));
         expect(d.setOrderStatus).toHaveBeenCalledWith("order", "queued");
+    });
+
+    it("replays reverted submitted jobs to keep failure reasons decodable", async () => {
+        const d = deps(
+            baseJob({ status: "submitted", txHash: `0x${"66".repeat(32)}` }),
+        );
+        d.findJobsToRun = vi.fn();
+        d.findSubmittedJobs = vi.fn().mockResolvedValue([
+            baseJob({
+                status: "submitted",
+                txHash: `0x${"66".repeat(32)}`,
+            }),
+        ]);
+        d.pub.getTransactionReceipt = vi.fn().mockResolvedValue({
+            status: "reverted",
+        });
+        d.pub.simulateContract = vi.fn().mockRejectedValue(revert("NoCredits"));
+
+        await recoverStuckJobs(d);
+
+        expect(d.markJobFailed).toHaveBeenCalledWith("job", "no_credits");
+        expect(d.setOrderStatus).toHaveBeenCalledWith("order", "failed", {
+            failureReason: "no_credits",
+        });
     });
 
     it("continues after a state update failure", async () => {
