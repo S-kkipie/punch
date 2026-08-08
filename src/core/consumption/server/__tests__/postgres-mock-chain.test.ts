@@ -23,7 +23,18 @@ vi.mock("@/core/punch/server/repository/balance", () => ({
     incrementBalance: vi.fn(),
     decrementBalance: vi.fn(),
 }));
+vi.mock("@/core/punch/domain/campaign", async (importOriginal) => {
+    const actual =
+        await importOriginal<typeof import("@/core/punch/domain/campaign")>();
+    return {
+        ...actual,
+        isEligibleForAcquisitionCampaign: vi.fn(
+            actual.isEligibleForAcquisitionCampaign,
+        ),
+    };
+});
 
+import { isEligibleForAcquisitionCampaign } from "@/core/punch/domain/campaign";
 import {
     getBalance,
     incrementBalance,
@@ -338,30 +349,48 @@ describe("PostgresMockConsumerChain.submitConsumption campaign + crawl side effe
     });
 
     it("does not unlock an active campaign when purchase is outside its window", async () => {
+        const windowStart = new Date(Date.now() + 60_000);
         vi.mocked(findActiveCampaignForCafe).mockResolvedValue({
             id: "campaign-window",
             cafeId: "cafe-target",
-            windowStart: new Date(Date.now() + 60_000),
+            windowStart,
             windowEnd: new Date(Date.now() + 120_000),
         } as never);
         vi.mocked(hasPriorPaidPurchase).mockResolvedValue(false);
         vi.mocked(findActiveCrawlForCafe).mockResolvedValue(null);
         await finalizeEmission("campaign-window");
         expect(hasPriorPaidPurchase).toHaveBeenCalledTimes(1);
+        const eligibilityInput = vi.mocked(isEligibleForAcquisitionCampaign)
+            .mock.calls[0]?.[0];
+        expect(eligibilityInput?.hadPriorPaidPurchaseAtCafe).toBe(false);
+        expect(eligibilityInput?.purchaseAt.getTime()).toBeLessThan(
+            windowStart.getTime(),
+        );
         expect(unlockCampaignVoucher).not.toHaveBeenCalled();
     });
 
     it("does not unlock an in-window campaign after a prior purchase", async () => {
+        const windowStart = new Date(Date.now() - 60_000);
+        const windowEnd = new Date(Date.now() + 60_000);
         vi.mocked(findActiveCampaignForCafe).mockResolvedValue({
             id: "campaign-prior",
             cafeId: "cafe-target",
-            windowStart: new Date(Date.now() - 60_000),
-            windowEnd: new Date(Date.now() + 60_000),
+            windowStart,
+            windowEnd,
         } as never);
         vi.mocked(hasPriorPaidPurchase).mockResolvedValue(true);
         vi.mocked(findActiveCrawlForCafe).mockResolvedValue(null);
         await finalizeEmission("campaign-prior");
         expect(hasPriorPaidPurchase).toHaveBeenCalledTimes(1);
+        const eligibilityInput = vi.mocked(isEligibleForAcquisitionCampaign)
+            .mock.calls[0]?.[0];
+        expect(eligibilityInput?.hadPriorPaidPurchaseAtCafe).toBe(true);
+        expect(eligibilityInput?.purchaseAt.getTime()).toBeGreaterThanOrEqual(
+            windowStart.getTime(),
+        );
+        expect(eligibilityInput?.purchaseAt.getTime()).toBeLessThanOrEqual(
+            windowEnd.getTime(),
+        );
         expect(unlockCampaignVoucher).not.toHaveBeenCalled();
     });
 
