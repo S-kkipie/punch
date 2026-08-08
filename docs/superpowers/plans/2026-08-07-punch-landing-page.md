@@ -992,7 +992,7 @@ Expected: every command exits 0.
 Run:
 
 ```bash
-grep -RInE 'S/0\.01|1,200|S/12 completos|10–15 %|gratis para siempre|Arequipa|RewardVault' src/app src/frontend/components/landing
+grep -RInE --exclude-dir='__tests__' 'S/0\.01|1,200|S/12 completos|10–15 %|gratis para siempre|Arequipa|RewardVault' src/app src/frontend/components/landing
 ```
 
 Expected: no output.

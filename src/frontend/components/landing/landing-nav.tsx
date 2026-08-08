@@ -1,4 +1,3 @@
-/* biome-ignore-all lint/a11y/useValidAnchor: landing links provide default section navigation */
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -107,6 +106,7 @@ export function LandingNav() {
                     >
                         <ul className="pnch-nav__links">
                             <li>
+                                {/* biome-ignore lint/a11y/useValidAnchor: this hash link intentionally targets a page section */}
                                 <a
                                     className="pnch-nav__link"
                                     href="#como-funciona"
@@ -116,6 +116,7 @@ export function LandingNav() {
                                 </a>
                             </li>
                             <li>
+                                {/* biome-ignore lint/a11y/useValidAnchor: this hash link intentionally targets a page section */}
                                 <a
                                     className="pnch-nav__link"
                                     href="#para-tu-cafe"
@@ -125,6 +126,7 @@ export function LandingNav() {
                                 </a>
                             </li>
                             <li>
+                                {/* biome-ignore lint/a11y/useValidAnchor: this hash link intentionally targets a page section */}
                                 <a
                                     className="pnch-nav__link"
                                     href="#el-modelo"

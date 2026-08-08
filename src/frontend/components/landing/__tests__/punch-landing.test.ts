@@ -79,14 +79,31 @@ describe("PunchLanding", () => {
         }
     });
 
-    it("offers distinct café and consumer doors", () => {
+    it("offers distinct, labelled café and consumer doors", () => {
         const html = render();
         expect(html).toContain(
-            "Tu café puede seguir siendo independiente sin competir solo.",
+            'aria-labelledby="final-cta-heading" class="pnch-dual-cta"',
         );
-        expect(html).toContain("¿Buscas mejor café, no otra cadena?");
+        expect(html).toContain(
+            "Elige cómo participar en PUNCH: suma tu café o descubre la red",
+        );
+        expect(html).toContain(
+            '<article aria-labelledby="final-cta-cafe-title" class="pnch-dual-cta__cafe">',
+        );
+        expect(html).toContain(
+            '<h3 id="final-cta-cafe-title">Tu café puede seguir siendo independiente sin competir solo.</h3>',
+        );
+        expect(html).toContain(
+            '<article aria-labelledby="final-cta-consumer-title" class="pnch-dual-cta__consumer">',
+        );
+        expect(html).toContain(
+            '<h3 id="final-cta-consumer-title">¿Buscas mejor café, no otra cadena?</h3>',
+        );
         expect(html).toContain('href="/auth/sign-up?rol=cafe"');
         expect(html).toContain('href="/auth/sign-up"');
+        expect(html.indexOf('class="pnch-dual-cta__cafe"')).toBeLessThan(
+            html.indexOf('class="pnch-dual-cta__consumer"'),
+        );
     });
 
     it("renders honest Lima and demo disclosures", () => {
