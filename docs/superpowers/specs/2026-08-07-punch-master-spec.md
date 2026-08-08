@@ -571,22 +571,48 @@ Usuario final no necesita conocer Arbitrum.
 Responsabilidad:
 
 - Identidad on-chain de café.
-- Estado `pending | active | suspended | exited`.
-- Cuentas autorizadas.
-- Productos de emisión/reward.
+- Estado `pending | active | suspended | exited`, con transiciones validadas y `exited` terminal.
+- Cuentas autorizadas; el owner queda autorizado implícitamente.
+- Productos de emisión/reward: solo el bit de aprobación. Precio, COGS y el tope de retail S/12 se verifican fuera de cadena (§07); ningún contrato lee un precio para liquidar.
+- Traspaso de titularidad en dos pasos.
 
-Operaciones conceptuales:
+No mueve valor: ni PUNCH, ni reserva, ni PEN.
+
+Roles:
+
+- `DEFAULT_ADMIN_ROLE` — multisig PUNCH; otorga y revoca roles.
+- `REGISTRAR_ROLE` — backend de operación PUNCH; `registerCafe` y `setCafeStatus`.
+- Escrituras del café (`authorizeOperator`, `setEligibleProduct`, `proposeOwner`) no usan rol: se validan contra la titularidad del `cafeId`.
+
+Sin `Pausable`: el freno granular es `setCafeStatus(id, Suspended)` y una llave de registrar comprometida se responde con `revokeRole`. La pausa vive en los contratos que mueven valor.
+
+Operaciones:
 
 - `registerCafe`
 - `setCafeStatus`
 - `authorizeOperator`
 - `setEligibleProduct`
+- `proposeOwner`
+- `acceptOwnership`
+
+Lecturas:
+
+- `getCafe`
+- `isAuthorized`
+- `isEligible`
+- `isOperational`
+- `cafeCount`
 
 Eventos:
 
 - `CafeRegistered`
 - `CafeStatusChanged`
 - `ProductEligibilityChanged`
+- `OperatorAuthorized`
+- `CafeOwnerProposed`
+- `CafeOwnerTransferred`
+
+`setCafeStatus(id, exited)` no toca reserva ni balances; esas obligaciones (§02.8, §21) son de `PunchVault` y `PlanManager`.
 
 ### `PlanManager`
 
