@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../repository/redemption-requests", () => ({
     decideRedemptionRequest: vi.fn(),
+    findRedemptionRequestById: vi.fn(),
 }));
 vi.mock("@/server/auth/membership/require-cafe-role", () => ({
     requireCafeRole: vi.fn(),
@@ -17,7 +18,10 @@ vi.mock("../../postgres-mock-chain", () => ({
 
 import { requireCafeRole } from "@/server/auth/membership/require-cafe-role";
 import { ok } from "@/server/common/responses";
-import { decideRedemptionRequest } from "../../repository/redemption-requests";
+import {
+    decideRedemptionRequest,
+    findRedemptionRequestById,
+} from "../../repository/redemption-requests";
 import { decidePunchRedemptionService } from "../decide-punch-redemption-service";
 
 const rejectedRequest = {
@@ -32,7 +36,13 @@ const rejectedRequest = {
 };
 
 describe("decidePunchRedemptionService", () => {
-    beforeEach(() => vi.clearAllMocks());
+    beforeEach(() => {
+        vi.clearAllMocks();
+        vi.mocked(findRedemptionRequestById).mockResolvedValue({
+            ...rejectedRequest,
+            status: "pending",
+        } as never);
+    });
 
     it("authorizes barista and submits approval", async () => {
         vi.mocked(requireCafeRole).mockResolvedValue(
@@ -47,6 +57,19 @@ describe("decidePunchRedemptionService", () => {
             decision: "approved",
         });
         expect(result.ok).toBe(true);
+    });
+
+    it.each([
+        null,
+        { ...rejectedRequest, cafeId: "other" },
+        { ...rejectedRequest, kind: "voucher" },
+    ])("denies missing, foreign, or wrong-kind requests", async (request) => {
+        vi.mocked(findRedemptionRequestById).mockResolvedValue(request as never);
+        const result = await decidePunchRedemptionService("u", "c", "r", {
+            decision: "approved",
+        });
+        expect(result.ok).toBe(false);
+        expect(decideRedemptionRequest).not.toHaveBeenCalled();
     });
 
     it("rejects with actionable reason without chain", async () => {
