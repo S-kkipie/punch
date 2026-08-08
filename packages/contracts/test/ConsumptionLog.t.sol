@@ -18,7 +18,8 @@ import {
     InvalidCafeSignature,
     InvalidUserSignature,
     NonceUsed,
-    ReceiptUsed
+    ReceiptUsed,
+    DailyLimitReached
 } from "../src/ConsumptionLog.sol";
 import {PlanManager, PlanNotActive} from "../src/PlanManager.sol";
 import {CafeRegistry} from "../src/CafeRegistry.sol";
@@ -492,6 +493,80 @@ contract ConsumptionLogTest is Test {
         assertEq(manager.credits(cafeId), creditsBefore);
         assertFalse(consumptionLog.nonceUsed(cafeId, 1));
         assertFalse(consumptionLog.receiptUsed(cafeId, proof.receiptHash));
+    }
+
+    function test_recordConsumption_dailyCapBlocksFourth() public {
+        _record(1);
+        _record(2);
+        _record(3);
+
+        IConsumptionLog.ConsumptionProof memory proof = _proof(4);
+        bytes memory cafeSig = _sign(operatorKey, proof);
+        bytes memory userSig = _sign(userKey, proof);
+        vm.expectRevert(abi.encodeWithSelector(DailyLimitReached.selector, cafeId, user));
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
+
+        assertEq(consumptionLog.dailyCount(cafeId, user, block.timestamp / 1 days), 3);
+        assertEq(vault.issueCount(), 3);
+    }
+
+    function test_recordConsumption_dailyCapResetsNextDay() public {
+        _record(1);
+        _record(2);
+        _record(3);
+
+        vm.warp(block.timestamp + 1 days);
+        _record(4);
+        assertEq(vault.issueCount(), 4);
+    }
+
+    function test_recordConsumption_dailyCapIsPerCafe() public {
+        _record(1);
+        _record(2);
+        _record(3);
+
+        (address otherOperator, uint256 otherOperatorKey) = makeAddrAndKey("otherOperator2");
+        vm.prank(registrar);
+        uint256 otherCafe = registry.registerCafe(cafeOwner);
+        vm.prank(registrar);
+        registry.setCafeStatus(otherCafe, ICafeRegistry.CafeStatus.Active);
+        vm.startPrank(cafeOwner);
+        registry.authorizeOperator(otherCafe, otherOperator, true);
+        registry.setEligibleProduct(otherCafe, PRODUCT_ID, ICafeRegistry.ProductKind.Emission, true);
+        manager.subscribe(otherCafe);
+        vm.stopPrank();
+
+        IConsumptionLog.ConsumptionProof memory proof = _proof(10);
+        proof.cafeId = otherCafe;
+        bytes memory cafeSig = _sign(otherOperatorKey, proof);
+        bytes memory userSig = _sign(userKey, proof);
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
+
+        assertEq(vault.issueCount(), 4);
+    }
+
+    function test_recordConsumption_dailyCapIsPerUser() public {
+        _record(1);
+        _record(2);
+        _record(3);
+
+        (address otherUser, uint256 otherUserKey) = makeAddrAndKey("otherUser2");
+        IConsumptionLog.ConsumptionProof memory proof = _proof(11);
+        proof.user = otherUser;
+        bytes memory cafeSig = _sign(operatorKey, proof);
+        bytes memory userSig = _sign(otherUserKey, proof);
+        consumptionLog.recordConsumption(proof, cafeSig, userSig);
+
+        assertEq(vault.issueCount(), 4);
+    }
+
+    function test_recordConsumption_raisedCapTakesEffect() public {
+        _record(1);
+        _record(2);
+        _record(3);
+        consumptionLog.setMaxDailyPerUserCafe(4);
+        _record(4);
+        assertEq(vault.issueCount(), 4);
     }
 
     function test_recordConsumption_planCancelledReverts() public {

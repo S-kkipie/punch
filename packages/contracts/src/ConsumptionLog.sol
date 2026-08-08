@@ -22,6 +22,7 @@ error InvalidCafeSignature();
 error InvalidUserSignature();
 error NonceUsed(uint256 cafeId, uint256 nonce);
 error ReceiptUsed(uint256 cafeId, bytes32 receiptHash);
+error DailyLimitReached(uint256 cafeId, address user);
 
 /// @notice Single entry point for PUNCH emission. Validates a consumption proof signed by
 /// both the café and the user, blocks replay, and orchestrates emission by calling
@@ -57,6 +58,10 @@ contract ConsumptionLog is IConsumptionLog, Ownable, Pausable, EIP712 {
     /// another café is going to use.
     mapping(uint256 cafeId => mapping(bytes32 receiptHash => bool)) public receiptUsed;
 
+    /// @notice Emissions per (café, user, UTC day). Fixed window, not sliding: the goal is
+    /// to break a sustained farming loop (mother spec §20), not to police the midnight edge.
+    mapping(uint256 cafeId => mapping(address user => mapping(uint256 day => uint256))) public dailyCount;
+
     event MinTicketAmountSet(uint256 amount);
     event MaxDailyPerUserCafeSet(uint256 limit);
 
@@ -89,10 +94,15 @@ contract ConsumptionLog is IConsumptionLog, Ownable, Pausable, EIP712 {
         if (receiptUsed[proof.cafeId][proof.receiptHash]) {
             revert ReceiptUsed(proof.cafeId, proof.receiptHash);
         }
+        uint256 day = block.timestamp / 1 days;
+        if (dailyCount[proof.cafeId][proof.user][day] >= maxDailyPerUserCafe) {
+            revert DailyLimitReached(proof.cafeId, proof.user);
+        }
         _verifySignatures(proof, cafeSignature, userSignature);
 
         nonceUsed[proof.cafeId][proof.nonce] = true;
         receiptUsed[proof.cafeId][proof.receiptHash] = true;
+        dailyCount[proof.cafeId][proof.user][day] += 1;
 
         emit ConsumptionRecorded(proof.cafeId, proof.user, proof.receiptHash);
 
