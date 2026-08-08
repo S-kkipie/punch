@@ -34,7 +34,7 @@ export function DemoLogin() {
             setPending(null);
             return;
         }
-        router.push("/");
+        router.push("/home");
         router.refresh();
     }
 

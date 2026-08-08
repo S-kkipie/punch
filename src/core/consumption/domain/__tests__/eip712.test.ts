@@ -8,14 +8,14 @@ import {
 describe("purchaseProofDomain", () => {
     it("builds the demo EIP-712 domain", () => {
         const domain = purchaseProofDomain({
-            verifyingContract: "0x000000000000000000000000000000000000fA",
+            verifyingContract: "0x00000000000000000000000000000000000000fa",
             chainId: 421614,
         });
         expect(domain).toEqual({
             name: "PunchConsumption",
             version: "1",
             chainId: 421614,
-            verifyingContract: "0x000000000000000000000000000000000000fA",
+            verifyingContract: "0x00000000000000000000000000000000000000fa",
         });
     });
 });
