@@ -5,6 +5,11 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/frontend/components/ui/button";
 import { Input } from "@/frontend/components/ui/input";
 
+export function extractProofId(value: string): string | undefined {
+    const proofId = value.trim().split("/purchase/").pop();
+    return proofId || undefined;
+}
+
 export default function ScanPage() {
     const router = useRouter();
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -65,7 +70,7 @@ export default function ScanPage() {
     }, [router, supportsCamera]);
 
     const openPastedCode = () => {
-        const proofId = pastedCode.trim().split("/purchase/").pop();
+        const proofId = extractProofId(pastedCode);
         if (proofId) router.push(`/purchase/${proofId}`);
     };
 

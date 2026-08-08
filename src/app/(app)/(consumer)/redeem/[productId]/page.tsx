@@ -13,7 +13,9 @@ import { Spinner } from "@/frontend/components/ui/spinner";
 
 export default function RedeemPage() {
     const { productId } = useParams<{ productId: string }>();
-    const cafeId = useSearchParams().get("cafeId") ?? "";
+    const searchParams = useSearchParams();
+    const cafeId = searchParams.get("cafeId") ?? "";
+    const voucherId = searchParams.get("voucherId");
     const dashboard = useDashboard();
     const products = useCafeProducts(cafeId);
     const vouchers = useVouchers();
@@ -30,14 +32,23 @@ export default function RedeemPage() {
     const product = (
         (products.data ?? []) as Array<{ id: string; name: string }>
     ).find((item) => item.id === productId);
-    const voucher = (
-        (vouchers.data ?? []) as Array<{ id: string; productId?: string }>
-    ).find((item) => item.productId === productId);
+    const voucher = voucherId
+        ? (
+              (vouchers.data ?? []) as Array<{
+                  id: string;
+                  cafeId: string | null;
+              }>
+          ).find((item) => item.id === voucherId && item.cafeId === cafeId)
+        : undefined;
     const eligible = canRedeem(balance);
-    const redeem = () =>
-        voucher
-            ? voucherRedemption.mutate({ voucherId: voucher.id })
-            : punchRedemption.mutate({ productId });
+    const isVoucherFlow = Boolean(voucherId);
+    const redeem = () => {
+        if (voucherId) {
+            if (voucher) voucherRedemption.mutate({ voucherId });
+            return;
+        }
+        punchRedemption.mutate({ productId });
+    };
     return (
         <div className="mx-auto grid w-full max-w-md gap-5">
             <section className="grid gap-2">
@@ -48,9 +59,13 @@ export default function RedeemPage() {
             </section>
             <div className="consumer-panel grid gap-2 p-5">
                 <p className="font-semibold">
-                    {voucher ? "Voucher disponible" : "Costo fijo: 12 PUNCH"}
+                    {isVoucherFlow
+                        ? voucher
+                            ? "Voucher disponible"
+                            : "Voucher no disponible"
+                        : "Costo fijo: 12 PUNCH"}
                 </p>
-                {!voucher && (
+                {!isVoucherFlow && (
                     <p className="text-[var(--color-ink-2)] text-sm">
                         Tu progreso: {balance} / 12
                     </p>
@@ -65,7 +80,7 @@ export default function RedeemPage() {
                 size="lg"
                 className="min-h-12 w-full"
                 disabled={
-                    (!voucher && !eligible) ||
+                    (isVoucherFlow ? !voucher : !eligible) ||
                     punchRedemption.isPending ||
                     voucherRedemption.isPending
                 }
