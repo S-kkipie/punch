@@ -1,4 +1,6 @@
 import type { Address } from "viem";
+import { env } from "@/config/env";
+import localAddresses from "./addresses.local.json";
 
 export const contractNames = [
     "cafeRegistry",
@@ -27,3 +29,10 @@ export const addresses: Record<"arbitrumSepolia", AddressMap> = {
         mockPEN: ZERO_ADDRESS,
     },
 };
+
+// addresses.local.json is written by scripts/dev-chain.ts. Committed with
+// zero addresses so imports never fail before the first local deploy.
+export function getAddresses(): AddressMap {
+    if (env.CHAIN_ENV === "local") return localAddresses as AddressMap;
+    return addresses.arbitrumSepolia;
+}

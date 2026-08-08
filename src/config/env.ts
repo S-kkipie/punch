@@ -14,6 +14,8 @@ export const env = createEnv({
                 message:
                     "WALLET_MASTER_MNEMONIC must be a valid BIP-39 mnemonic (12–24 words)",
             }),
+        CHAIN_ENV: z.enum(["local", "arbitrumSepolia"]).default("local"),
+        CHAIN_RPC_URL: z.url().default("http://127.0.0.1:8545"),
     },
     client: {
         NEXT_PUBLIC_APP_URL: z.url(),
@@ -27,6 +29,8 @@ export const env = createEnv({
         DATABASE_URL: process.env.DATABASE_URL,
         BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
         WALLET_MASTER_MNEMONIC: process.env.WALLET_MASTER_MNEMONIC,
+        CHAIN_ENV: process.env.CHAIN_ENV,
+        CHAIN_RPC_URL: process.env.CHAIN_RPC_URL,
         NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
         NEXT_PUBLIC_DEMO_MODE: process.env.NEXT_PUBLIC_DEMO_MODE,
         NEXT_PUBLIC_DEMO_PASSWORD: process.env.NEXT_PUBLIC_DEMO_PASSWORD,

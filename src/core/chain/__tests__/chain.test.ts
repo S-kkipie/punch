@@ -8,9 +8,9 @@ describe("chain config", () => {
         expect(chain.id).toBe(421614);
     });
 
-    it("creates a public client bound to the chain", () => {
+    it("creates a public client bound to the configured local chain", () => {
         const client = createChainPublicClient();
-        expect(client.chain?.id).toBe(421614);
+        expect(client.chain?.id).toBe(31337);
     });
 
     it("has a valid address entry per contract", () => {
