@@ -17,7 +17,7 @@ import {
 import { ProductList } from "@/core/cafe/client/ui/product-list";
 import { StatusBadge } from "@/core/cafe/client/ui/status-badge";
 import { submissionGaps } from "@/core/cafe/domain/transitions";
-import type { CafeAdmin, Product } from "@/core/cafe/domain/types";
+import type { CafeAdmin, ProductAdmin } from "@/core/cafe/domain/types";
 import { Button } from "@/frontend/components/ui/button";
 import {
     Card,
@@ -43,7 +43,7 @@ export default function CafePanelPage() {
     const createProduct = useCreateProduct(cafeId);
     const submitCafe = useSubmitCafe(cafeId);
     const cafe = cafeQuery.data as CafeAdmin | undefined;
-    const products = (productsQuery.data ?? []) as Product[];
+    const products = (productsQuery.data ?? []) as ProductAdmin[];
 
     const localGaps = useMemo(
         () =>

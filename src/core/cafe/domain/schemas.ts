@@ -121,8 +121,12 @@ export const productSchema = z.object({
     cogsSoles: z.string().nullable(),
     type: productTypeSchema,
     approvalStatus: productApprovalSchema,
-    reviewNote: z.string().nullable(),
     active: z.boolean(),
     createdAt: z.string(),
     updatedAt: z.string(),
+});
+
+/** Owner/ops wire shape — includes review note. */
+export const productAdminSchema = productSchema.extend({
+    reviewNote: z.string().nullable(),
 });

@@ -6,6 +6,14 @@ import type { CafeAdmin, Product } from "@/core/cafe/domain/types";
 import { Card, CardContent } from "@/frontend/components/ui/card";
 import { Spinner } from "@/frontend/components/ui/spinner";
 
+function errorStatus(error: unknown): number | undefined {
+    const value = error as {
+        status?: number;
+        value?: { status?: number };
+    } | null;
+    return value?.status ?? value?.value?.status;
+}
+
 export default function OpsPage() {
     const cafesQuery = useReviewQueue();
     const productsQuery = usePendingProducts();
@@ -19,14 +27,22 @@ export default function OpsPage() {
     }
 
     if (cafesQuery.isError || productsQuery.isError) {
+        const status =
+            errorStatus(cafesQuery.error) ?? errorStatus(productsQuery.error);
+        const unauthorized = status === 403;
         return (
             <div className="mx-auto w-full max-w-5xl p-6">
                 <Card>
                     <CardContent className="p-6">
-                        <p className="font-medium">No autorizado</p>
+                        <p className="font-medium">
+                            {unauthorized
+                                ? "No autorizado"
+                                : "No se pudo cargar la consola"}
+                        </p>
                         <p className="mt-1 text-muted-foreground text-sm">
-                            Esta consola está disponible únicamente para
-                            operaciones.
+                            {unauthorized
+                                ? "Esta consola está disponible únicamente para operaciones."
+                                : "Intenta nuevamente en unos momentos."}
                         </p>
                     </CardContent>
                 </Card>

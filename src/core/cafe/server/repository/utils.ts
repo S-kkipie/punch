@@ -1,5 +1,10 @@
 import "server-only";
-import type { Cafe, CafeAdmin, Product } from "@/core/cafe/domain/types";
+import type {
+    Cafe,
+    CafeAdmin,
+    Product,
+    ProductAdmin,
+} from "@/core/cafe/domain/types";
 import type {
     CafeProductRow,
     CafeRow,
@@ -33,7 +38,7 @@ export function toCafe(row: CafeRow): Cafe {
     } = toCafeAdmin(row);
     return rest;
 }
-export function toProduct(row: CafeProductRow): Product {
+export function toProductAdmin(row: CafeProductRow): ProductAdmin {
     return {
         id: row.id,
         cafeId: row.cafeId,
@@ -48,6 +53,10 @@ export function toProduct(row: CafeProductRow): Product {
         createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),
     };
+}
+export function toProduct(row: CafeProductRow): Product {
+    const { reviewNote: _reviewNote, ...publicProduct } = toProductAdmin(row);
+    return publicProduct;
 }
 export function slugify(name: string): string {
     return name

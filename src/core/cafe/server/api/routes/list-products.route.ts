@@ -1,6 +1,6 @@
 import { Elysia } from "elysia";
 import { z } from "zod";
-import { productSchema } from "@/core/cafe/domain/schemas";
+import { productAdminSchema, productSchema } from "@/core/cafe/domain/schemas";
 import { auth } from "@/server/auth/auth";
 import {
     CommonResponse,
@@ -26,7 +26,10 @@ export const listProductsRoute = new Elysia().get(
     {
         params: z.object({ id: z.string() }),
         response: {
-            200: successResponseSchema(productSchema.array(), "Products"),
+            200: successResponseSchema(
+                z.union([productAdminSchema.array(), productSchema.array()]),
+                "Products",
+            ),
             500: errorResponseSchema(500),
         },
         detail: { tags: ["Cafes"], summary: "List cafe products" },

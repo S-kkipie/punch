@@ -5,6 +5,7 @@ import type {
     cafeSchema,
     createCafeSchema,
     createProductSchema,
+    productAdminSchema,
     productSchema,
     reviewSchema,
     updateCafeSchema,
@@ -20,3 +21,4 @@ export type Review = z.infer<typeof reviewSchema>;
 export type CreateProduct = z.infer<typeof createProductSchema>;
 export type UpdateProduct = z.infer<typeof updateProductSchema>;
 export type Product = z.infer<typeof productSchema>;
+export type ProductAdmin = z.infer<typeof productAdminSchema>;

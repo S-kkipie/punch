@@ -169,7 +169,10 @@ describe("product services", () => {
         ]);
         const r = await listProductsService({ id: "u1", isOps: false }, "c1");
         expect(r.ok).toBe(true);
-        if (r.ok) expect(r.data.map((p) => p.id)).toEqual(["p1", "p2", "p3"]);
+        if (r.ok) {
+            expect(r.data.map((p) => p.id)).toEqual(["p1", "p2", "p3"]);
+            expect(r.data[0]).toHaveProperty("reviewNote", null);
+        }
     });
     it("public list excludes pending and inactive", async () => {
         vi.mocked(listProductsByCafe).mockResolvedValue([
@@ -179,6 +182,9 @@ describe("product services", () => {
         ]);
         const r = await listProductsService(null, "c1");
         expect(r.ok).toBe(true);
-        if (r.ok) expect(r.data.map((p) => p.id)).toEqual(["p1"]);
+        if (r.ok) {
+            expect(r.data.map((p) => p.id)).toEqual(["p1"]);
+            expect(r.data[0]).not.toHaveProperty("reviewNote");
+        }
     });
 });

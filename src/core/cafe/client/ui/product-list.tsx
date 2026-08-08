@@ -1,4 +1,4 @@
-import type { Product } from "@/core/cafe/domain/types";
+import type { ProductAdmin } from "@/core/cafe/domain/types";
 import { Badge } from "@/frontend/components/ui/badge";
 import {
     Table,
@@ -15,7 +15,7 @@ const approvalLabels = {
     rejected: "Rechazado",
 } as const;
 
-export function ProductList({ products }: { products: Product[] }) {
+export function ProductList({ products }: { products: ProductAdmin[] }) {
     if (products.length === 0) {
         return (
             <p className="text-muted-foreground text-sm">

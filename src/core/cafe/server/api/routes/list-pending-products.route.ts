@@ -1,5 +1,5 @@
 import { Elysia } from "elysia";
-import { productSchema } from "@/core/cafe/domain/schemas";
+import { productAdminSchema } from "@/core/cafe/domain/schemas";
 import { requireOps } from "@/server/auth/membership/require-cafe-role";
 import { authed } from "@/server/auth/middleware/authed";
 import {
@@ -10,7 +10,7 @@ import {
     successResponseSchema,
 } from "@/server/common/responses";
 import { listPendingProducts } from "../../repository/list-pending-products";
-import { toProduct } from "../../repository/utils";
+import { toProductAdmin } from "../../repository/utils";
 export const listPendingProductsRoute = new Elysia().use(authed).get(
     "/products/pending",
     async ({ user, status }) => {
@@ -20,7 +20,9 @@ export const listPendingProductsRoute = new Elysia().use(authed).get(
             const rows = await listPendingProducts();
             return status(
                 200,
-                CommonResponse.successful({ response: rows.map(toProduct) }),
+                CommonResponse.successful({
+                    response: rows.map(toProductAdmin),
+                }),
             );
         } catch (cause) {
             return status(500, errorToResponse(AppErrors.unexpected(cause)));
@@ -29,7 +31,7 @@ export const listPendingProductsRoute = new Elysia().use(authed).get(
     {
         authed: true,
         response: {
-            200: successResponseSchema(productSchema.array(), "Products"),
+            200: successResponseSchema(productAdminSchema.array(), "Products"),
             400: errorResponseSchema(400),
             401: errorResponseSchema(401),
             403: errorResponseSchema(403),
