@@ -20,6 +20,7 @@ contract CampaignEscrowHandler is Test {
     uint256[] public campaignIds;
 
     uint256 public cafeId;
+    mapping(uint256 campaignId => bool) public recovered;
     uint256 public ghostPaidOut; // redeems + refunds + recoveries
 
     uint256 internal constant MAX_PAYOUT = 10_000_000;
@@ -110,6 +111,7 @@ contract CampaignEscrowHandler is Test {
         if (c.budget == 0) return;
         vm.warp(c.expiry + 1);
         escrow.recoverExpiredBudget(id);
+        recovered[id] = true;
         ghostPaidOut += c.budget;
     }
 
@@ -141,6 +143,7 @@ contract CampaignEscrowInvariantTest is Test {
 
         escrow = new CampaignEscrow(IERC20(address(pen)), registry);
         handler = new CampaignEscrowHandler(pen, registry, escrow, cafeId);
+        pen.transferOwnership(address(handler));
         // The handler drives owner-gated and operator-gated paths alike.
         escrow.setCampaignOperator(address(handler));
         escrow.transferOwnership(address(handler));
@@ -169,6 +172,7 @@ contract CampaignEscrowInvariantTest is Test {
         for (uint256 i = 0; i < n; i++) {
             CampaignEscrow.Campaign memory c = escrow.campaigns(handler.campaignIdAt(i));
             if (uint8(c.status) != uint8(CampaignEscrow.CampaignStatus.Published)) continue;
+            if (handler.recovered(handler.campaignIdAt(i))) continue;
             if (block.timestamp > c.expiry) continue; // expired promises die
             assertGe(c.budget, (c.maxVouchers - c.redeemedCount) * c.voucherPayout);
         }
