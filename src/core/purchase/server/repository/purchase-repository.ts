@@ -301,7 +301,8 @@ export async function expirePurchases(): Promise<number> {
 
 export const RELAYER_CLAIM_LEASE_MS = 60_000;
 
-export async function findJobsToRun(
+async function claimJobsByStatus(
+    status: RelayerJobRow["status"],
     limit: number,
     leaseMs = RELAYER_CLAIM_LEASE_MS,
 ): Promise<RelayerJobRow[]> {
@@ -312,7 +313,7 @@ export async function findJobsToRun(
             .from(relayerJob)
             .where(
                 and(
-                    eq(relayerJob.status, "pending"),
+                    eq(relayerJob.status, status),
                     lte(relayerJob.nextRetryAt, new Date()),
                 ),
             )
@@ -333,24 +334,80 @@ export async function findJobsToRun(
     });
 }
 
-export async function markJobSubmitted(id: string, txHash: string) {
-    const [row] = await db
-        .update(relayerJob)
-        .set({ status: "submitted", txHash })
-        .where(eq(relayerJob.id, id))
-        .returning();
-    return row;
+export async function findJobsToRun(
+    limit: number,
+    leaseMs = RELAYER_CLAIM_LEASE_MS,
+): Promise<RelayerJobRow[]> {
+    return claimJobsByStatus("pending", limit, leaseMs);
+}
+
+export async function claimSubmittedJobs(
+    limit: number,
+    leaseMs = RELAYER_CLAIM_LEASE_MS,
+): Promise<RelayerJobRow[]> {
+    return claimJobsByStatus("submitted", limit, leaseMs);
+}
+
+export async function markJobSubmitted(
+    id: string,
+    txHash: string,
+    nextRetryAt: Date,
+) {
+    return db.transaction(async (tx) => {
+        const [job] = await tx
+            .update(relayerJob)
+            .set({
+                status: "submitted",
+                txHash,
+                lastError: null,
+                nextRetryAt,
+            })
+            .where(and(eq(relayerJob.id, id), eq(relayerJob.status, "pending")))
+            .returning({ orderId: relayerJob.orderId });
+        if (!job) return null;
+        const [order] = await tx
+            .update(purchaseOrder)
+            .set({ status: "submitted", txHash, failureReason: null })
+            .where(
+                and(
+                    eq(purchaseOrder.id, job.orderId),
+                    eq(purchaseOrder.status, "queued"),
+                ),
+            )
+            .returning({ id: purchaseOrder.id });
+        if (!order)
+            throw new Error("relayer submitted order transition rejected");
+        return job;
+    });
 }
 
 export async function markJobConfirmed(id: string) {
-    const [job] = await db
-        .update(relayerJob)
-        .set({ status: "confirmed" })
-        .where(eq(relayerJob.id, id))
-        .returning({ orderId: relayerJob.orderId });
-    if (job)
-        await setOrderStatus(job.orderId, "confirmed", { txHash: undefined });
-    return job;
+    return db.transaction(async (tx) => {
+        const [job] = await tx
+            .update(relayerJob)
+            .set({ status: "confirmed", lastError: null })
+            .where(
+                and(
+                    eq(relayerJob.id, id),
+                    inArray(relayerJob.status, ["pending", "submitted"]),
+                ),
+            )
+            .returning({ orderId: relayerJob.orderId });
+        if (!job) return null;
+        const [order] = await tx
+            .update(purchaseOrder)
+            .set({ status: "confirmed", failureReason: null })
+            .where(
+                and(
+                    eq(purchaseOrder.id, job.orderId),
+                    inArray(purchaseOrder.status, ["queued", "submitted"]),
+                ),
+            )
+            .returning({ id: purchaseOrder.id });
+        if (!order)
+            throw new Error("relayer confirmed order transition rejected");
+        return job;
+    });
 }
 
 export async function markJobRetry(
@@ -359,44 +416,94 @@ export async function markJobRetry(
     attempts: number,
     nextRetryAt: Date,
 ) {
-    const [row] = await db
-        .update(relayerJob)
-        .set({
-            status: "pending",
-            lastError: error,
-            attempts,
-            nextRetryAt,
-        })
-        .where(eq(relayerJob.id, id))
-        .returning();
-    return row;
-}
-
-export async function findSubmittedJobs(): Promise<RelayerJobRow[]> {
-    return db
-        .select()
-        .from(relayerJob)
-        .where(eq(relayerJob.status, "submitted"));
+    return db.transaction(async (tx) => {
+        const [job] = await tx
+            .update(relayerJob)
+            .set({
+                status: "pending",
+                lastError: error,
+                attempts,
+                nextRetryAt,
+            })
+            .where(
+                and(
+                    eq(relayerJob.id, id),
+                    inArray(relayerJob.status, ["pending", "submitted"]),
+                ),
+            )
+            .returning({ orderId: relayerJob.orderId });
+        if (!job) return null;
+        const [order] = await tx
+            .update(purchaseOrder)
+            .set({ status: "queued" })
+            .where(
+                and(
+                    eq(purchaseOrder.id, job.orderId),
+                    inArray(purchaseOrder.status, ["queued", "submitted"]),
+                ),
+            )
+            .returning({ id: purchaseOrder.id });
+        if (!order) throw new Error("relayer retry order transition rejected");
+        return job;
+    });
 }
 
 export async function markJobPending(id: string, nextRetryAt: Date) {
-    const [row] = await db
-        .update(relayerJob)
-        .set({ status: "pending", nextRetryAt })
-        .where(eq(relayerJob.id, id))
-        .returning();
-    return row;
+    return db.transaction(async (tx) => {
+        const [job] = await tx
+            .update(relayerJob)
+            .set({ status: "pending", nextRetryAt, lastError: null })
+            .where(
+                and(eq(relayerJob.id, id), eq(relayerJob.status, "submitted")),
+            )
+            .returning({ orderId: relayerJob.orderId });
+        if (!job) return null;
+        const [order] = await tx
+            .update(purchaseOrder)
+            .set({ status: "queued" })
+            .where(
+                and(
+                    eq(purchaseOrder.id, job.orderId),
+                    eq(purchaseOrder.status, "submitted"),
+                ),
+            )
+            .returning({ id: purchaseOrder.id });
+        if (!order)
+            throw new Error("relayer pending order transition rejected");
+        return job;
+    });
 }
 
-export async function markJobFailed(id: string, error: string) {
-    const [job] = await db
-        .update(relayerJob)
-        .set({ status: "failed", lastError: error })
-        .where(eq(relayerJob.id, id))
-        .returning({ orderId: relayerJob.orderId });
-    if (job)
-        await setOrderStatus(job.orderId, "failed", { failureReason: error });
-    return job;
+export async function markJobFailed(
+    id: string,
+    error: string,
+    failureReason: string,
+) {
+    return db.transaction(async (tx) => {
+        const [job] = await tx
+            .update(relayerJob)
+            .set({ status: "failed", lastError: error })
+            .where(
+                and(
+                    eq(relayerJob.id, id),
+                    inArray(relayerJob.status, ["pending", "submitted"]),
+                ),
+            )
+            .returning({ orderId: relayerJob.orderId });
+        if (!job) return null;
+        const [order] = await tx
+            .update(purchaseOrder)
+            .set({ status: "failed", failureReason })
+            .where(
+                and(
+                    eq(purchaseOrder.id, job.orderId),
+                    inArray(purchaseOrder.status, ["queued", "submitted"]),
+                ),
+            )
+            .returning({ id: purchaseOrder.id });
+        if (!order) throw new Error("relayer failed order transition rejected");
+        return job;
+    });
 }
 
 export async function setOrderStatus(
@@ -424,11 +531,11 @@ export const purchaseRepository = {
     updateOrderAndQueue,
     expirePurchases,
     findJobsToRun,
+    claimSubmittedJobs,
     markJobSubmitted,
     markJobConfirmed,
     markJobRetry,
     markJobPending,
-    findSubmittedJobs,
     markJobFailed,
     setOrderStatus,
 };

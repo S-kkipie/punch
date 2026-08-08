@@ -7,7 +7,14 @@ import {
     purchaseOrder,
     relayerJob,
 } from "@/server/drizzle/schemas/purchase-schema";
-import { findJobsToRun, updateOrderAndQueue } from "../purchase-repository";
+import {
+    claimSubmittedJobs,
+    findJobsToRun,
+    markJobConfirmed,
+    markJobPending,
+    markJobSubmitted,
+    updateOrderAndQueue,
+} from "../purchase-repository";
 
 const runIntegration = process.env.PUNCH_RUN_INTEGRATION === "1";
 const describeIntegration = describe.skipIf(!runIntegration);
@@ -123,6 +130,82 @@ describeIntegration("purchase repository concurrency", () => {
 
         await new Promise((resolve) => setTimeout(resolve, leaseMs + 10));
         const afterLease = await findJobsToRun(1, leaseMs);
+        expect(afterLease.map((claimed) => claimed.id)).toEqual([job.id]);
+    });
+
+    it("updates job and order atomically for submitted and confirmed transitions", async () => {
+        const fixture = await createFixture();
+        await updateOrderAndQueue(fixture.orderId, { proof: {} });
+        const [job] = await db
+            .select()
+            .from(relayerJob)
+            .where(eq(relayerJob.orderId, fixture.orderId));
+
+        await markJobSubmitted(
+            job.id,
+            `0x${"77".repeat(32)}`,
+            new Date(Date.now() + 60_000),
+        );
+        const [submittedJob] = await db
+            .select()
+            .from(relayerJob)
+            .where(eq(relayerJob.id, job.id));
+        const [submittedOrder] = await db
+            .select()
+            .from(purchaseOrder)
+            .where(eq(purchaseOrder.id, fixture.orderId));
+        expect(submittedJob.status).toBe("submitted");
+        expect(submittedOrder.status).toBe("submitted");
+        expect(submittedOrder.txHash).toBe(`0x${"77".repeat(32)}`);
+
+        await markJobConfirmed(job.id);
+        const [confirmedJob] = await db
+            .select()
+            .from(relayerJob)
+            .where(eq(relayerJob.id, job.id));
+        const [confirmedOrder] = await db
+            .select()
+            .from(purchaseOrder)
+            .where(eq(purchaseOrder.id, fixture.orderId));
+        expect(confirmedJob.status).toBe("confirmed");
+        expect(confirmedOrder.status).toBe("confirmed");
+
+        await markJobPending(job.id, new Date(Date.now() + 1_000));
+        const [unchangedJob] = await db
+            .select()
+            .from(relayerJob)
+            .where(eq(relayerJob.id, job.id));
+        const [unchangedOrder] = await db
+            .select()
+            .from(purchaseOrder)
+            .where(eq(purchaseOrder.id, fixture.orderId));
+        expect(unchangedJob.status).toBe("confirmed");
+        expect(unchangedOrder.status).toBe("confirmed");
+    });
+
+    it("claims submitted jobs once across recovery workers", async () => {
+        const fixture = await createFixture();
+        await updateOrderAndQueue(fixture.orderId, { proof: {} });
+        const [job] = await db
+            .select()
+            .from(relayerJob)
+            .where(eq(relayerJob.orderId, fixture.orderId));
+        await markJobSubmitted(
+            job.id,
+            `0x${"88".repeat(32)}`,
+            new Date(Date.now() - 1_000),
+        );
+
+        const leaseMs = 200;
+        const [first, second] = await Promise.all([
+            claimSubmittedJobs(1, leaseMs),
+            claimSubmittedJobs(1, leaseMs),
+        ]);
+        expect(first).toHaveLength(1);
+        expect(second).toHaveLength(0);
+
+        await new Promise((resolve) => setTimeout(resolve, leaseMs + 10));
+        const afterLease = await claimSubmittedJobs(1, leaseMs);
         expect(afterLease.map((claimed) => claimed.id)).toEqual([job.id]);
     });
 });

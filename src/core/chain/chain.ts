@@ -1,6 +1,11 @@
 import "server-only";
 
-import { createPublicClient, createWalletClient, http } from "viem";
+import {
+    type Account,
+    createPublicClient,
+    createWalletClient,
+    http,
+} from "viem";
 import { arbitrumSepolia, foundry } from "viem/chains";
 import { env } from "@/config/env";
 
@@ -17,8 +22,9 @@ export function createChainPublicClient(rpcUrl?: string) {
     });
 }
 
-export function createChainWalletClient(rpcUrl?: string) {
+export function createChainWalletClient(rpcUrl?: string, account?: Account) {
     return createWalletClient({
+        account,
         chain: chainForEnv(),
         transport: http(rpcUrl ?? env.CHAIN_RPC_URL),
     });
