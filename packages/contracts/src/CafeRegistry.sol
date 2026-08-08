@@ -60,8 +60,18 @@ contract CafeRegistry is ICafeRegistry, AccessControl {
 
     // --- Implemented in Tasks 2-5. Temporary so the contract satisfies ICafeRegistry. ---
 
-    function setCafeStatus(uint256, CafeStatus) external {
-        revert("todo: task 2");
+    /// @inheritdoc ICafeRegistry
+    function setCafeStatus(uint256 cafeId, CafeStatus status) external onlyRole(REGISTRAR_ROLE) {
+        Cafe storage cafe = _cafes[cafeId];
+        if (cafe.owner == address(0)) revert CafeNotFound(cafeId);
+
+        CafeStatus current = cafe.status;
+        if (!_isValidTransition(current, status)) {
+            revert InvalidStatusTransition(current, status);
+        }
+
+        cafe.status = status;
+        emit CafeStatusChanged(cafeId, status);
     }
 
     function authorizeOperator(uint256, address, bool) external {
@@ -80,8 +90,19 @@ contract CafeRegistry is ICafeRegistry, AccessControl {
         return false;
     }
 
-    function isOperational(uint256) external view returns (bool) {
-        return false;
+    /// @inheritdoc ICafeRegistry
+    function isOperational(uint256 cafeId) external view returns (bool) {
+        return _cafes[cafeId].status == CafeStatus.Active && _cafes[cafeId].owner != address(0);
+    }
+
+    /// @dev Exited is terminal; a café that leaves re-registers under a new id.
+    function _isValidTransition(CafeStatus from, CafeStatus to) private pure returns (bool) {
+        if (from == to) return false;
+        if (from == CafeStatus.Exited) return false;
+        if (to == CafeStatus.Exited) return true;
+        if (from == CafeStatus.Pending) return to == CafeStatus.Active;
+        if (from == CafeStatus.Active) return to == CafeStatus.Suspended;
+        return to == CafeStatus.Active; // from == Suspended
     }
 
     function proposeOwner(uint256, address) external {
