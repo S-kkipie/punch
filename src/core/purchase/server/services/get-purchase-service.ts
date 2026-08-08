@@ -1,7 +1,12 @@
 import "server-only";
 
 import { requireCafeRole } from "@/server/auth/membership/require-cafe-role";
-import { AppErrors, err, ok, type AsyncAppResult } from "@/server/common/responses";
+import {
+    AppErrors,
+    type AsyncAppResult,
+    err,
+    ok,
+} from "@/server/common/responses";
 import { purchaseRepository } from "../repository/purchase-repository";
 import { toPurchaseView } from "./purchase-view";
 
@@ -14,13 +19,19 @@ const defaults: GetDeps = {
     requireMember: requireCafeRole,
 };
 
-export async function getPurchaseService(userId: string, orderId: string, deps: Partial<GetDeps> = {}): AsyncAppResult<ReturnType<typeof toPurchaseView>> {
+export async function getPurchaseService(
+    userId: string,
+    orderId: string,
+    deps: Partial<GetDeps> = {},
+): AsyncAppResult<ReturnType<typeof toPurchaseView>> {
     try {
         const d = { ...defaults, ...deps };
         const order = await d.findOrder(orderId);
         if (!order) return err(AppErrors.notFound({ targets: ["orderId"] }));
         if (order.userId !== userId) {
-            const membership = await d.requireMember(userId, order.cafeId, ["owner"]);
+            const membership = await d.requireMember(userId, order.cafeId, [
+                "owner",
+            ]);
             if (!membership.ok) return membership;
         }
         return ok(toPurchaseView(order));

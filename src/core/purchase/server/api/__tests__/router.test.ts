@@ -21,6 +21,11 @@ import { auth } from "@/server/auth/auth";
 import { err, ok } from "@/server/common/responses";
 import { confirmPurchaseService } from "../../services/confirm-purchase-service";
 import { createPurchaseService } from "../../services/create-purchase-service";
+import { getPurchaseService } from "../../services/get-purchase-service";
+import {
+    listCafePurchasesService,
+    listMyPurchasesService,
+} from "../../services/list-purchases-service";
 import { purchaseRouter } from "../router";
 
 const order = {
@@ -34,12 +39,21 @@ const order = {
     expiry: "2026-08-08T12:00:00.000Z",
     createdAt: "2026-08-08T11:00:00.000Z",
 };
-
 const session = { user: { id: "user-1" }, session: { id: "session-1" } };
+const validBody = {
+    cafeId: "cafe-1",
+    productId: "product-1",
+    amountSoles: 10,
+    yapeRef: "YAPE-1234",
+};
 
 async function request(path: string, init?: RequestInit) {
     return purchaseRouter.handle(new Request(`http://localhost${path}`, init));
 }
+const authedRequest = (path: string, init?: RequestInit) => {
+    vi.mocked(auth.api.getSession).mockResolvedValue(session as never);
+    return request(path, init);
+};
 
 describe("purchase API routes", () => {
     beforeEach(() => {
@@ -47,27 +61,99 @@ describe("purchase API routes", () => {
         vi.mocked(auth.api.getSession).mockResolvedValue(null);
     });
 
-    it("rejects unauthenticated create", async () => {
-        const response = await request("/purchases/", { method: "POST" });
-        expect(response.status).toBe(401);
-    });
-
-    it("creates an order for the authenticated user", async () => {
-        vi.mocked(auth.api.getSession).mockResolvedValue(session as never);
-        vi.mocked(createPurchaseService).mockResolvedValue(ok(order));
+    it("rejects unauthenticated create before invoking service", async () => {
         const response = await request("/purchases/", {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ cafeId: "cafe-1", productId: "product-1", amountSoles: 10, yapeRef: "YAPE-1234" }),
+            body: JSON.stringify(validBody),
+        });
+        expect(response.status).toBe(401);
+        expect(createPurchaseService).not.toHaveBeenCalled();
+    });
+
+    it("creates an order without exposing private fields", async () => {
+        vi.mocked(createPurchaseService).mockResolvedValue(ok(order));
+        const response = await authedRequest("/purchases/", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(validBody),
         });
         expect(response.status).toBe(201);
-        expect((await response.json()).response).toEqual(order);
+        const body = await response.json();
+        expect(body.response).toEqual(order);
+        expect(JSON.stringify(body)).not.toMatch(
+            /yapeRef|receiptHash|nonce|wallet|signature|relayer/i,
+        );
+    });
+
+    it("allows the café owner to confirm", async () => {
+        vi.mocked(confirmPurchaseService).mockResolvedValue(
+            ok({ ...order, status: "queued" }),
+        );
+        const response = await authedRequest("/purchases/order-1/confirm", {
+            method: "POST",
+        });
+        expect(response.status).toBe(200);
+        expect(confirmPurchaseService).toHaveBeenCalledWith(
+            "user-1",
+            "order-1",
+        );
     });
 
     it("maps non-owner confirmation to 403", async () => {
-        vi.mocked(auth.api.getSession).mockResolvedValue(session as never);
-        vi.mocked(confirmPurchaseService).mockResolvedValue(err({ type: "ForbiddenError", code: "FORBIDDEN", status: 403 }));
-        const response = await request("/purchases/order-1/confirm", { method: "POST" });
+        vi.mocked(confirmPurchaseService).mockResolvedValue(
+            err({ type: "ForbiddenError", code: "FORBIDDEN", status: 403 }),
+        );
+        const response = await authedRequest("/purchases/order-1/confirm", {
+            method: "POST",
+        });
         expect(response.status).toBe(403);
+    });
+
+    it("denies cross-user get and allows the order participant", async () => {
+        vi.mocked(getPurchaseService).mockResolvedValue(
+            err({ type: "ForbiddenError", code: "FORBIDDEN", status: 403 }),
+        );
+        expect((await authedRequest("/purchases/order-1")).status).toBe(403);
+        vi.mocked(getPurchaseService).mockResolvedValue(ok(order));
+        expect((await authedRequest("/purchases/order-1")).status).toBe(200);
+    });
+
+    it("routes /mine to the current-user listing, not /:id", async () => {
+        vi.mocked(listMyPurchasesService).mockResolvedValue(ok([order]));
+        const response = await authedRequest("/purchases/mine");
+        expect(response.status).toBe(200);
+        expect(listMyPurchasesService).toHaveBeenCalledWith("user-1");
+        expect(getPurchaseService).not.toHaveBeenCalled();
+    });
+
+    it("allows café members and forwards valid status", async () => {
+        vi.mocked(listCafePurchasesService).mockResolvedValue(ok([order]));
+        const response = await authedRequest(
+            "/purchases/cafe/cafe-1?status=user_confirmed",
+        );
+        expect(response.status).toBe(200);
+        expect(listCafePurchasesService).toHaveBeenCalledWith(
+            "user-1",
+            "cafe-1",
+            "user_confirmed",
+        );
+    });
+
+    it("denies non-members from café listing", async () => {
+        vi.mocked(listCafePurchasesService).mockResolvedValue(
+            err({ type: "ForbiddenError", code: "FORBIDDEN", status: 403 }),
+        );
+        expect((await authedRequest("/purchases/cafe/cafe-1")).status).toBe(
+            403,
+        );
+    });
+
+    it("rejects invalid café status without calling service", async () => {
+        const response = await authedRequest(
+            "/purchases/cafe/cafe-1?status=bogus",
+        );
+        expect(response.status).toBe(422);
+        expect(listCafePurchasesService).not.toHaveBeenCalled();
     });
 });
