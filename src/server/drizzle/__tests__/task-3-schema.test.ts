@@ -1,4 +1,5 @@
 import { getTableName } from "drizzle-orm";
+import { getTableConfig } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 import {
     campaign,
@@ -37,5 +38,14 @@ describe("consumer domain Drizzle schemas", () => {
             "coffee_crawl_step",
             "consumer_crawl_progress",
         ]);
+    });
+
+    it("guards punch balances without adding a fake crawl balance check", () => {
+        expect(
+            getTableConfig(punchBalanceProjection).checks.map(
+                (check) => check.name,
+            ),
+        ).toEqual(["punch_balance_projection_balance_nonneg"]);
+        expect(getTableConfig(consumerCrawlProgress).checks).toHaveLength(0);
     });
 });
