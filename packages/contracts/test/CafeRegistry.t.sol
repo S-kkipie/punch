@@ -10,7 +10,8 @@ import {
     InvalidStatusTransition,
     NotCafeOwner,
     CafeNotConfigurable,
-    NoStateChange
+    NoStateChange,
+    NotPendingOwner
 } from "../src/CafeRegistry.sol";
 import {ICafeRegistry} from "../src/interfaces/ICafeRegistry.sol";
 
@@ -365,5 +366,147 @@ contract CafeRegistryTest is Test {
         vm.expectRevert(abi.encodeWithSelector(CafeNotConfigurable.selector, cafeId, ICafeRegistry.CafeStatus.Exited));
         vm.prank(owner1);
         registry.setEligibleProduct(cafeId, 47, ICafeRegistry.ProductKind.Emission, true);
+    }
+
+    function test_proposeOwner_emitsAndDoesNotTransferYet() public {
+        uint256 cafeId = _register(owner1);
+        vm.expectEmit(true, true, false, false);
+        emit ICafeRegistry.CafeOwnerProposed(cafeId, owner2);
+        vm.prank(owner1);
+        registry.proposeOwner(cafeId, owner2);
+
+        (address who,) = registry.getCafe(cafeId);
+        assertEq(who, owner1, "ownership moved before acceptance");
+    }
+
+    function test_acceptOwnership_transfersAndEmits() public {
+        uint256 cafeId = _register(owner1);
+        vm.prank(owner1);
+        registry.proposeOwner(cafeId, owner2);
+
+        vm.expectEmit(true, true, true, false);
+        emit ICafeRegistry.CafeOwnerTransferred(cafeId, owner1, owner2);
+        vm.prank(owner2);
+        registry.acceptOwnership(cafeId);
+
+        (address who,) = registry.getCafe(cafeId);
+        assertEq(who, owner2);
+        assertTrue(registry.isAuthorized(cafeId, owner2));
+        assertFalse(registry.isAuthorized(cafeId, owner1));
+    }
+
+    function test_acceptOwnership_oldOwnerLosesWriteAccess() public {
+        uint256 cafeId = _register(owner1);
+        vm.prank(owner1);
+        registry.proposeOwner(cafeId, owner2);
+        vm.prank(owner2);
+        registry.acceptOwnership(cafeId);
+
+        vm.expectRevert(abi.encodeWithSelector(NotCafeOwner.selector, cafeId, owner1));
+        vm.prank(owner1);
+        registry.authorizeOperator(cafeId, operator, true);
+    }
+
+    function test_acceptOwnership_operatorsAndProductsSurvive() public {
+        uint256 cafeId = _register(owner1);
+        vm.startPrank(owner1);
+        registry.authorizeOperator(cafeId, operator, true);
+        registry.setEligibleProduct(cafeId, 47, ICafeRegistry.ProductKind.Emission, true);
+        registry.proposeOwner(cafeId, owner2);
+        vm.stopPrank();
+
+        vm.prank(owner2);
+        registry.acceptOwnership(cafeId);
+
+        assertTrue(registry.isAuthorized(cafeId, operator));
+        assertTrue(registry.isEligible(cafeId, 47, ICafeRegistry.ProductKind.Emission));
+    }
+
+    function test_proposeOwner_secondProposalInvalidatesFirst() public {
+        uint256 cafeId = _register(owner1);
+        vm.startPrank(owner1);
+        registry.proposeOwner(cafeId, owner2);
+        registry.proposeOwner(cafeId, stranger);
+        vm.stopPrank();
+
+        vm.expectRevert(abi.encodeWithSelector(NotPendingOwner.selector, cafeId, owner2));
+        vm.prank(owner2);
+        registry.acceptOwnership(cafeId);
+
+        vm.prank(stranger);
+        registry.acceptOwnership(cafeId);
+        (address who,) = registry.getCafe(cafeId);
+        assertEq(who, stranger);
+    }
+
+    function test_acceptOwnership_cannotBeReplayed() public {
+        uint256 cafeId = _register(owner1);
+        vm.prank(owner1);
+        registry.proposeOwner(cafeId, owner2);
+        vm.prank(owner2);
+        registry.acceptOwnership(cafeId);
+
+        vm.expectRevert(abi.encodeWithSelector(NotPendingOwner.selector, cafeId, owner2));
+        vm.prank(owner2);
+        registry.acceptOwnership(cafeId);
+    }
+
+    function test_acceptOwnership_byNonProposedReverts() public {
+        uint256 cafeId = _register(owner1);
+        vm.prank(owner1);
+        registry.proposeOwner(cafeId, owner2);
+
+        vm.expectRevert(abi.encodeWithSelector(NotPendingOwner.selector, cafeId, stranger));
+        vm.prank(stranger);
+        registry.acceptOwnership(cafeId);
+    }
+
+    function test_acceptOwnership_unknownCafeReverts() public {
+        vm.expectRevert(abi.encodeWithSelector(CafeNotFound.selector, uint256(1)));
+        vm.prank(owner2);
+        registry.acceptOwnership(1);
+    }
+
+    function test_proposeOwner_nonOwnerReverts() public {
+        uint256 cafeId = _register(owner1);
+        vm.expectRevert(abi.encodeWithSelector(NotCafeOwner.selector, cafeId, stranger));
+        vm.prank(stranger);
+        registry.proposeOwner(cafeId, owner2);
+    }
+
+    function test_proposeOwner_zeroAddressReverts() public {
+        uint256 cafeId = _register(owner1);
+        vm.expectRevert(ZeroAddress.selector);
+        vm.prank(owner1);
+        registry.proposeOwner(cafeId, address(0));
+    }
+
+    function test_proposeOwner_selfReverts() public {
+        uint256 cafeId = _register(owner1);
+        vm.expectRevert(NoStateChange.selector);
+        vm.prank(owner1);
+        registry.proposeOwner(cafeId, owner1);
+    }
+
+    function test_proposeOwner_exitedCafeReverts() public {
+        uint256 cafeId = _register(owner1);
+        _setStatus(cafeId, ICafeRegistry.CafeStatus.Exited);
+        vm.expectRevert(abi.encodeWithSelector(CafeNotConfigurable.selector, cafeId, ICafeRegistry.CafeStatus.Exited));
+        vm.prank(owner1);
+        registry.proposeOwner(cafeId, owner2);
+    }
+
+    /// @dev Unlike operator/product writes, a Suspended café MAY still hand over ownership —
+    /// selling or repairing a suspended café is exactly when a transfer is needed.
+    function test_proposeOwner_suspendedCafeAllowed() public {
+        uint256 cafeId = _register(owner1);
+        _setStatus(cafeId, ICafeRegistry.CafeStatus.Active);
+        _setStatus(cafeId, ICafeRegistry.CafeStatus.Suspended);
+        vm.prank(owner1);
+        registry.proposeOwner(cafeId, owner2);
+        vm.prank(owner2);
+        registry.acceptOwnership(cafeId);
+        (address who,) = registry.getCafe(cafeId);
+        assertEq(who, owner2);
     }
 }

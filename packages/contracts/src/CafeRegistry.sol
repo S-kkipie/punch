@@ -74,8 +74,6 @@ contract CafeRegistry is ICafeRegistry, AccessControl {
         return _cafeCount;
     }
 
-    // --- Implemented in Tasks 2-5. Temporary so the contract satisfies ICafeRegistry. ---
-
     /// @inheritdoc ICafeRegistry
     function setCafeStatus(uint256 cafeId, CafeStatus status) external onlyRole(REGISTRAR_ROLE) {
         Cafe storage cafe = _cafes[cafeId];
@@ -143,11 +141,31 @@ contract CafeRegistry is ICafeRegistry, AccessControl {
         return to == CafeStatus.Active; // from == Suspended
     }
 
-    function proposeOwner(uint256, address) external {
-        revert("todo: task 5");
+    /// @inheritdoc ICafeRegistry
+    /// @dev Two-step so a café cannot be sent to an address that cannot claim it.
+    /// Allowed while Suspended: selling or repairing a suspended café needs this.
+    function proposeOwner(uint256 cafeId, address newOwner) external onlyCafeOwner(cafeId) {
+        Cafe storage cafe = _cafes[cafeId];
+        if (cafe.status == CafeStatus.Exited) {
+            revert CafeNotConfigurable(cafeId, CafeStatus.Exited);
+        }
+        if (newOwner == address(0)) revert ZeroAddress();
+        if (newOwner == cafe.owner) revert NoStateChange();
+
+        cafe.pendingOwner = newOwner;
+        emit CafeOwnerProposed(cafeId, newOwner);
     }
 
-    function acceptOwnership(uint256) external {
-        revert("todo: task 5");
+    /// @inheritdoc ICafeRegistry
+    /// @dev Operators and product eligibility are keyed by cafeId, so they survive the transfer.
+    function acceptOwnership(uint256 cafeId) external {
+        Cafe storage cafe = _cafes[cafeId];
+        if (cafe.owner == address(0)) revert CafeNotFound(cafeId);
+        if (cafe.pendingOwner != msg.sender) revert NotPendingOwner(cafeId, msg.sender);
+
+        address previous = cafe.owner;
+        cafe.owner = msg.sender;
+        cafe.pendingOwner = address(0);
+        emit CafeOwnerTransferred(cafeId, previous, msg.sender);
     }
 }
