@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { getTableName } from "drizzle-orm";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
@@ -12,6 +13,20 @@ import {
     punchBalanceProjection,
     redemptionRequest,
 } from "@/server/drizzle/schemas";
+
+const normalizeSql = (sql: string) =>
+    sql.replace(/--.*$/gm, "").replaceAll('"', "").replace(/\s+/g, " ").trim();
+
+const generatedMigration = normalizeSql(
+    ["0004_flaky_cardiac.sql", "0005_exotic_payback.sql"]
+        .map((file) =>
+            readFileSync(
+                new URL(`../../../../drizzle/${file}`, import.meta.url),
+                "utf8",
+            ),
+        )
+        .join("\n"),
+);
 
 describe("consumer domain Drizzle schemas", () => {
     it("exports every consumer and punch table with its database name", () => {
@@ -79,6 +94,36 @@ describe("consumer domain Drizzle schemas", () => {
                 "consumer_transaction_proof_id_uq",
                 "consumer_transaction_redemption_request_id_uq",
             ]),
+        );
+    });
+
+    it("preserves the generated bodies of every new check and partial index", () => {
+        expect(generatedMigration).toContain(
+            "CHECK (consumption_proof.status <> 'confirmed' OR (consumption_proof.consumer_user_id IS NOT NULL AND consumption_proof.cafe_signature IS NOT NULL AND consumption_proof.consumer_signature IS NOT NULL))",
+        );
+        expect(generatedMigration).toContain(
+            "CHECK ((consumer_transaction.operation = 'emission' AND consumer_transaction.proof_id IS NOT NULL AND consumer_transaction.redemption_request_id IS NULL) OR (consumer_transaction.operation IN ('punch_redemption', 'voucher_redemption') AND consumer_transaction.proof_id IS NULL AND consumer_transaction.redemption_request_id IS NOT NULL))",
+        );
+        expect(generatedMigration).toContain(
+            "CHECK ((redemption_request.kind = 'punch_reward' AND redemption_request.product_id IS NOT NULL AND redemption_request.voucher_id IS NULL) OR (redemption_request.kind = 'voucher' AND redemption_request.product_id IS NULL AND redemption_request.voucher_id IS NOT NULL))",
+        );
+        expect(generatedMigration).toContain(
+            "CHECK ((consumer_voucher.source = 'campaign' AND consumer_voucher.campaign_id IS NOT NULL AND consumer_voucher.crawl_id IS NULL) OR (consumer_voucher.source = 'crawl' AND consumer_voucher.campaign_id IS NULL AND consumer_voucher.crawl_id IS NOT NULL))",
+        );
+        expect(generatedMigration).toContain(
+            "CHECK (campaign.window_start <= campaign.window_end)",
+        );
+        expect(generatedMigration).toContain(
+            "CHECK (punch_balance_projection.balance >= 0)",
+        );
+        expect(generatedMigration).toContain(
+            "CHECK (coffee_crawl_step.step_index >= 0)",
+        );
+        expect(generatedMigration).toContain(
+            "CREATE UNIQUE INDEX consumer_transaction_proof_id_uq ON consumer_transaction USING btree (proof_id) WHERE consumer_transaction.proof_id IS NOT NULL",
+        );
+        expect(generatedMigration).toContain(
+            "CREATE UNIQUE INDEX consumer_transaction_redemption_request_id_uq ON consumer_transaction USING btree (redemption_request_id) WHERE consumer_transaction.redemption_request_id IS NOT NULL",
         );
     });
 
