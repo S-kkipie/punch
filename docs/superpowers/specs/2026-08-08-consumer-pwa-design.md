@@ -164,10 +164,8 @@ Both domains follow the established `domain`, `server`, and `client` organizatio
 Application services depend on a `ConsumerChainPort` with these capabilities:
 
 - `submitConsumption(proof)`
-- `requestPunchRedemption(input)`
-- `confirmPunchRedemption(input)`
-- `requestVoucherRedemption(input)`
-- `confirmVoucherRedemption(input)`
+- `submitPunchRedemption(approvedRequest)`
+- `submitVoucherRedemption(approvedRequest)`
 - `getTransactionStatus(transactionId)`
 - `getPunchBalance(userId)`
 
@@ -320,23 +318,36 @@ Implementation follows test-driven development.
 - `pnpm build`
 - manual mobile and desktop run-through of the two-role demo
 
-## 12. Acceptance journey
+## 12. Deterministic demo state
+
+The demo seed is repeatable and starts the seeded consumer with:
+
+- 11 PUNCH;
+- two confirmed steps of a three-café crawl;
+- no prior paid purchase at the final target café;
+- one verified-acquisition campaign targeting that same café;
+- no previously used proof, reward redemption, or campaign voucher.
+
+The next valid target-café purchase therefore increments progress to `12 / 12`, completes the crawl, and satisfies the acquisition campaign without violating `1 compra válida = 1 PUNCH`. It unlocks separate acquisition and crawl vouchers. The normal database seed command restores this canonical demo state only in development/demo mode. Ordinary server restarts preserve current projected state.
+
+## 13. Acceptance journey
 
 The implementation is accepted when this three-to-five-minute journey works:
 
-1. Sign in as the seeded barista.
-2. Generate a Brújula Café QR for an approved emission product.
+1. Restore the canonical demo seed and sign in as the seeded target-café barista.
+2. Generate a QR for an approved emission product.
 3. Sign in as the seeded consumer and scan/open the proof.
 4. Review and explicitly confirm the purchase.
-5. Observe pending then confirmed state and progress increase.
-6. Complete the seeded campaign/crawl condition and see a separate voucher become available.
-7. Reach `12 / 12` and request an approved reward product.
+5. Observe pending then confirmed state and progress increase from `11 / 12` to `12 / 12`.
+6. See the acquisition campaign and coffee crawl complete and their vouchers appear separately from PUNCH.
+7. Request an approved reward product for the fixed cost of 12 PUNCH.
 8. Return to the café role and approve the request.
 9. Observe confirmed redemption, balance reduced by 12, and complete history.
-10. Reload the server and retain projected demo state.
-11. Go offline and view the last safe snapshot while every mutation remains disabled.
+10. Use one available voucher through the distinct café-approval flow and confirm that PUNCH does not change.
+11. Reload the server and retain projected demo state.
+12. Go offline and view the last safe snapshot while every mutation remains disabled.
 
-## 13. Scope
+## 14. Scope
 
 ### Included
 
