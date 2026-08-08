@@ -15,6 +15,11 @@ export type ConsumptionProof = {
     expiry: bigint;
 };
 
+export type ProofDomainContext = {
+    chainId: number;
+    verifyingContract: `0x${string}`;
+};
+
 type SerializedConsumptionProof = {
     cafeId: string;
     user: `0x${string}`;
@@ -50,13 +55,38 @@ export function randomNonce(): bigint {
     return BigInt(`0x${Buffer.from(bytes).toString("hex")}`);
 }
 
-export function proofTypedData(proof: ConsumptionProof) {
+export function configuredProofDomain(): ProofDomainContext {
+    return {
+        chainId: chainForEnv().id,
+        verifyingContract: getAddresses().consumptionLog,
+    };
+}
+
+function proofDomain(context?: ProofDomainContext): ProofDomainContext {
+    const domain = context ?? configuredProofDomain();
+    if (!Number.isSafeInteger(domain.chainId) || domain.chainId <= 0) {
+        throw new Error("Invalid proof domain field: chainId");
+    }
+    if (
+        typeof domain.verifyingContract !== "string" ||
+        !isAddress(domain.verifyingContract, { strict: false })
+    ) {
+        throw new Error("Invalid proof domain field: verifyingContract");
+    }
+    return domain;
+}
+
+export function proofTypedData(
+    proof: ConsumptionProof,
+    context?: ProofDomainContext,
+) {
+    const domain = proofDomain(context);
     return {
         domain: {
             name: "PUNCH ConsumptionLog",
             version: "1",
-            chainId: chainForEnv().id,
-            verifyingContract: getAddresses().consumptionLog,
+            chainId: domain.chainId,
+            verifyingContract: domain.verifyingContract,
         },
         types: PROOF_TYPES,
         primaryType: "ConsumptionProof",
@@ -67,8 +97,11 @@ export function proofTypedData(proof: ConsumptionProof) {
 export async function signProofAs(
     walletIndex: number,
     proof: ConsumptionProof,
+    context?: ProofDomainContext,
 ): Promise<`0x${string}`> {
-    return deriveUserAccount(walletIndex).signTypedData(proofTypedData(proof));
+    return deriveUserAccount(walletIndex).signTypedData(
+        proofTypedData(proof, context),
+    );
 }
 
 export function serializeProof(

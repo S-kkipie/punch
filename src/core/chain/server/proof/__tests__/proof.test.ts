@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import { deriveAccount } from "../../wallet/derive";
 import {
     buildReceiptHash,
+    configuredProofDomain,
     deserializeProof,
+    type ProofDomainContext,
     proofTypedData,
     randomNonce,
     serializeProof,
@@ -45,6 +47,92 @@ describe("proof module", () => {
             signature,
         });
         expect(recovered).toBe(deriveAccount(MNEMONIC, 5).address);
+    });
+
+    it("uses explicit verifying contracts in the typed-data domain", () => {
+        const contextA: ProofDomainContext = {
+            chainId: 31337,
+            verifyingContract: "0x1111111111111111111111111111111111111111",
+        };
+        const contextB: ProofDomainContext = {
+            ...contextA,
+            verifyingContract: "0x2222222222222222222222222222222222222222",
+        };
+
+        expect(hashTypedData(proofTypedData(proof, contextA))).not.toBe(
+            hashTypedData(proofTypedData(proof, contextB)),
+        );
+        expect(proofTypedData(proof, contextA).domain.verifyingContract).toBe(
+            contextA.verifyingContract,
+        );
+    });
+
+    it("uses explicit chain IDs in the typed-data domain", () => {
+        const contextA: ProofDomainContext = {
+            chainId: 31337,
+            verifyingContract: "0x1111111111111111111111111111111111111111",
+        };
+        const contextB: ProofDomainContext = { ...contextA, chainId: 31338 };
+
+        expect(hashTypedData(proofTypedData(proof, contextA))).not.toBe(
+            hashTypedData(proofTypedData(proof, contextB)),
+        );
+    });
+
+    it("signProofAs passes explicit domain context through", async () => {
+        const context: ProofDomainContext = {
+            chainId: 31337,
+            verifyingContract: "0x3333333333333333333333333333333333333333",
+        };
+        const signature = await signProofAs(5, proof, context);
+        const recovered = await recoverTypedDataAddress({
+            ...proofTypedData(proof, context),
+            signature,
+        });
+
+        expect(recovered).toBe(deriveAccount(MNEMONIC, 5).address);
+    });
+
+    it.each([
+        ["zero chain ID", { chainId: 0 }, "chainId"],
+        ["fractional chain ID", { chainId: 1.5 }, "chainId"],
+        [
+            "unsafe chain ID",
+            { chainId: Number.MAX_SAFE_INTEGER + 1 },
+            "chainId",
+        ],
+        [
+            "invalid contract",
+            { chainId: 1, verifyingContract: "0x1234" },
+            "verifyingContract",
+        ],
+    ])("rejects invalid proof domain: %s", (_case, context, field) => {
+        expect(() =>
+            proofTypedData(proof, context as ProofDomainContext),
+        ).toThrow(field);
+    });
+
+    it("omitted context uses the configured proof domain", () => {
+        const configured = configuredProofDomain();
+        expect(proofTypedData(proof).domain).toMatchObject(configured);
+    });
+
+    it("accepts a positive safe integer chain ID", () => {
+        expect(
+            proofTypedData(proof, {
+                chainId: 1,
+                verifyingContract: "0x4444444444444444444444444444444444444444",
+            }).domain.chainId,
+        ).toBe(1);
+    });
+
+    it("rejects a non-integer contract context", () => {
+        expect(() =>
+            proofTypedData(proof, {
+                chainId: Number.NaN,
+                verifyingContract: "0x4444444444444444444444444444444444444444",
+            }),
+        ).toThrow("chainId");
     });
 
     it("serialize/deserialize round-trips bigints", () => {

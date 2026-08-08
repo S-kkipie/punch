@@ -42,3 +42,15 @@ Re-review-fix verification:
 - `pnpm test src/core/chain/server/proof` — passed: 1 file, 20 tests.
 - `pnpm typecheck` — passed.
 - `pnpm exec biome check src/core/chain/server/proof/proof.ts src/core/chain/server/proof/__tests__/proof.test.ts` — passed.
+
+## Bootstrap blocker F fix
+
+Added a request/test-local `ProofDomainContext` seam. `configuredProofDomain()` preserves the existing environment-driven default, while explicit contexts control both chain ID and verifying contract for `proofTypedData` and `signProofAs`. Explicit contexts are validated at the boundary for positive safe-integer chain IDs and non-checksummed-valid EVM addresses, without mutable global state or address rewriting. Added digest-isolation, explicit signing/recovery, default-domain, and invalid-context coverage.
+
+Full live `hashProof` parity remains Task 8 integration coverage; this fix provides the required injected domain seam for that parity test.
+
+Bootstrap-fix verification:
+
+- `pnpm test src/core/chain/server/proof` — passed: 1 file, 30 tests.
+- `pnpm typecheck` — passed.
+- `pnpm exec biome check src/core/chain/server/proof/proof.ts src/core/chain/server/proof/__tests__/proof.test.ts` — passed.
