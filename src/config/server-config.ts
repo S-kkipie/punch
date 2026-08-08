@@ -2,6 +2,7 @@ import { env } from "@/config/env";
 
 export const ServerConfig = {
     databaseURL: env.DATABASE_URL,
+    databaseSSL: env.DATABASE_SSL,
     baseUrl: env.NEXT_PUBLIC_APP_URL,
     betterAuthSecret: env.BETTER_AUTH_SECRET,
     info: {

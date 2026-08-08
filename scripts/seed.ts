@@ -1,4 +1,10 @@
 import { eq } from "drizzle-orm";
+import {
+    DEMO_CRAWL_NAME,
+    demoCampaignValues,
+    demoCrawlSteps,
+    demoCrawlValues,
+} from "@/core/punch/domain/demo-state";
 import { auth } from "@/server/auth/auth";
 import { db } from "@/server/drizzle/db";
 import { user } from "@/server/drizzle/schemas/auth-schema";
@@ -146,20 +152,11 @@ async function seedDemoState() {
             set: { balance: 11 },
         });
 
-    const campaignWindowStart = new Date(Date.now() - 7 * 86_400_000);
-    const campaignWindowEnd = new Date(Date.now() + 30 * 86_400_000);
     const [existingCampaign] = await db
         .select({ id: campaign.id })
         .from(campaign)
         .where(eq(campaign.cafeId, targetCafe.id));
-    const campaignValues = {
-        kind: "verified_acquisition" as const,
-        cafeId: targetCafe.id,
-        name: "Bienvenida a Esquina Sur",
-        windowStart: campaignWindowStart,
-        windowEnd: campaignWindowEnd,
-        active: true,
-    };
+    const campaignValues = demoCampaignValues(Date.now(), targetCafe.id);
     if (existingCampaign) {
         await db
             .update(campaign)
@@ -172,16 +169,12 @@ async function seedDemoState() {
     const [namedCrawl] = await db
         .select({ id: coffeeCrawl.id })
         .from(coffeeCrawl)
-        .where(eq(coffeeCrawl.name, "Ruta Miraflores–Barranco–Surquillo"));
+        .where(eq(coffeeCrawl.name, DEMO_CRAWL_NAME));
     const [existingCrawl] = namedCrawl
         ? [namedCrawl]
         : await db.select({ id: coffeeCrawl.id }).from(coffeeCrawl);
     let crawlId = existingCrawl?.id;
-    const crawlValues = {
-        name: "Ruta Miraflores–Barranco–Surquillo",
-        expiresAt: new Date(Date.now() + 60 * 86_400_000),
-        active: true,
-    };
+    const crawlValues = demoCrawlValues(Date.now());
     if (!crawlId) {
         const [inserted] = await db
             .insert(coffeeCrawl)
@@ -198,11 +191,15 @@ async function seedDemoState() {
             .delete(coffeeCrawlStep)
             .where(eq(coffeeCrawlStep.crawlId, crawlId));
     }
-    await db.insert(coffeeCrawlStep).values([
-        { crawlId, stepIndex: 0, cafeId: crawlCafeA.id },
-        { crawlId, stepIndex: 1, cafeId: crawlCafeB.id },
-        { crawlId, stepIndex: 2, cafeId: targetCafe.id },
-    ]);
+    await db
+        .insert(coffeeCrawlStep)
+        .values(
+            demoCrawlSteps(crawlId, [
+                crawlCafeA.id,
+                crawlCafeB.id,
+                targetCafe.id,
+            ]),
+        );
 
     await db
         .insert(consumerCrawlProgress)
