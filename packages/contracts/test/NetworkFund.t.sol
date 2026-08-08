@@ -14,7 +14,10 @@ import {
     NotReferralRecorder,
     ReferralProofRequired,
     ReferralIdUsed,
-    CafeNotOperational
+    CafeNotOperational,
+    EpochNotFinalized,
+    OriginAlreadyClaimed,
+    NoReferrals
 } from "../src/NetworkFund.sol";
 import {CafeRegistry} from "../src/CafeRegistry.sol";
 import {MockPEN} from "../src/MockPEN.sol";
@@ -238,5 +241,131 @@ contract NetworkFundTest is Test {
         emit NetworkFund.CampaignEscrowSet(ops);
         fund.setCampaignEscrow(ops);
         assertEq(fund.campaignEscrow(), ops);
+    }
+
+    function test_finalize_freezesSnapshotAndBlocksMoreInput() public {
+        _seed(100e6);
+        fund.fundEpoch(EPOCH, 100e6);
+        _record(cafeA, keccak256("r1"));
+
+        vm.expectEmit(true, false, false, true, address(fund));
+        emit INetworkFund.OriginEpochFinalized(EPOCH, 1, 40e6);
+        fund.finalizeOriginEpoch(EPOCH);
+
+        assertTrue(fund.getEpoch(EPOCH).finalized);
+
+        _seed(10e6);
+        vm.expectRevert(abi.encodeWithSelector(EpochFinalized.selector, EPOCH));
+        fund.fundEpoch(EPOCH, 10e6);
+
+        vm.prank(recorder);
+        vm.expectRevert(abi.encodeWithSelector(EpochFinalized.selector, EPOCH));
+        fund.recordReferralWithProof(EPOCH, cafeA, keccak256("r2"));
+    }
+
+    function test_finalize_onlyOwnerAndOnlyOnce() public {
+        vm.prank(stranger);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
+        fund.finalizeOriginEpoch(EPOCH);
+
+        fund.finalizeOriginEpoch(EPOCH);
+        vm.expectRevert(abi.encodeWithSelector(EpochFinalized.selector, EPOCH));
+        fund.finalizeOriginEpoch(EPOCH);
+    }
+
+    function test_claim_paysProrataToCafeOwner() public {
+        _seed(100e6);
+        fund.fundEpoch(EPOCH, 100e6); // originPool = 40e6
+        _record(cafeA, keccak256("r1"));
+        _record(cafeA, keccak256("r2"));
+        _record(cafeA, keccak256("r3"));
+        _record(cafeB, keccak256("r4"));
+        fund.finalizeOriginEpoch(EPOCH);
+
+        assertEq(fund.pendingOriginCredit(EPOCH, cafeA), 30e6);
+        assertEq(fund.pendingOriginCredit(EPOCH, cafeB), 10e6);
+
+        vm.prank(stranger);
+        fund.claimOriginCredit(EPOCH, cafeA);
+
+        assertEq(pen.balanceOf(cafeOwnerA), 30e6);
+        assertEq(pen.balanceOf(stranger), 0);
+        assertEq(fund.pendingOriginCredit(EPOCH, cafeA), 0);
+        assertEq(fund.getEpoch(EPOCH).originPaid, 30e6);
+        assertEq(fund.totalBudgeted(), 70e6);
+    }
+
+    function test_claim_roundingDustStaysInPool() public {
+        _seed(100e6);
+        fund.fundEpoch(EPOCH, 100e6); // originPool = 40e6
+        _record(cafeA, keccak256("r1"));
+        _record(cafeA, keccak256("r2"));
+        _record(cafeB, keccak256("r3"));
+        fund.finalizeOriginEpoch(EPOCH);
+
+        vm.prank(cafeOwnerA);
+        fund.claimOriginCredit(EPOCH, cafeA);
+        vm.prank(cafeOwnerB);
+        fund.claimOriginCredit(EPOCH, cafeB);
+
+        assertEq(pen.balanceOf(cafeOwnerA), 26_666_666);
+        assertEq(pen.balanceOf(cafeOwnerB), 13_333_333);
+        NetworkFund.Epoch memory e = fund.getEpoch(EPOCH);
+        assertEq(e.originPool - e.originPaid, 1);
+    }
+
+    function test_claim_revertsOnSecondClaim() public {
+        _seed(100e6);
+        fund.fundEpoch(EPOCH, 100e6);
+        _record(cafeA, keccak256("r1"));
+        fund.finalizeOriginEpoch(EPOCH);
+
+        fund.claimOriginCredit(EPOCH, cafeA);
+        vm.expectRevert(abi.encodeWithSelector(OriginAlreadyClaimed.selector, EPOCH, cafeA));
+        fund.claimOriginCredit(EPOCH, cafeA);
+    }
+
+    function test_claim_revertsBeforeFinalize() public {
+        _seed(100e6);
+        fund.fundEpoch(EPOCH, 100e6);
+        _record(cafeA, keccak256("r1"));
+
+        vm.expectRevert(abi.encodeWithSelector(EpochNotFinalized.selector, EPOCH));
+        fund.claimOriginCredit(EPOCH, cafeA);
+    }
+
+    function test_claim_revertsWithoutReferrals() public {
+        _seed(100e6);
+        fund.fundEpoch(EPOCH, 100e6);
+        _record(cafeA, keccak256("r1"));
+        fund.finalizeOriginEpoch(EPOCH);
+
+        vm.expectRevert(abi.encodeWithSelector(NoReferrals.selector, EPOCH, cafeB));
+        fund.claimOriginCredit(EPOCH, cafeB);
+    }
+
+    function test_claim_revertsForSuspendedCafe() public {
+        _seed(100e6);
+        fund.fundEpoch(EPOCH, 100e6);
+        _record(cafeA, keccak256("r1"));
+        fund.finalizeOriginEpoch(EPOCH);
+
+        vm.prank(registrar);
+        registry.setCafeStatus(cafeA, ICafeRegistry.CafeStatus.Suspended);
+
+        vm.expectRevert(abi.encodeWithSelector(CafeNotOperational.selector, cafeA));
+        fund.claimOriginCredit(EPOCH, cafeA);
+        assertEq(fund.pendingOriginCredit(EPOCH, cafeA), 40e6);
+    }
+
+    function test_claim_revertsWhenPaused() public {
+        _seed(100e6);
+        fund.fundEpoch(EPOCH, 100e6);
+        _record(cafeA, keccak256("r1"));
+        fund.finalizeOriginEpoch(EPOCH);
+        fund.pause();
+
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        fund.claimOriginCredit(EPOCH, cafeA);
     }
 }

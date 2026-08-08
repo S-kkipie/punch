@@ -16,6 +16,10 @@ error NotReferralRecorder(address caller);
 error ReferralProofRequired();
 error ReferralIdUsed(bytes32 referralId);
 error CafeNotOperational(uint256 cafeId);
+error EpochNotFinalized(uint256 epoch);
+error OriginAlreadyClaimed(uint256 epoch, uint256 cafeId);
+error NoReferrals(uint256 epoch, uint256 cafeId);
+error OriginPoolReleased(uint256 epoch);
 
 /// @notice Custodies the shared network fund: budgets contributions per monthly epoch
 /// into four on-chain buckets (40/30/20/10), counts verified referrals, pays prorated
@@ -157,12 +161,39 @@ contract NetworkFund is INetworkFund, Ownable, Pausable {
         revert ReferralProofRequired();
     }
 
-    function finalizeOriginEpoch(uint256) external pure {
-        revert();
+    /// @inheritdoc INetworkFund
+    /// @dev Freezes the prorate denominator. Allowed with zero referrals so the pool of a
+    /// dead epoch can still be released (spec §11: a closed epoch is never rewritten).
+    function finalizeOriginEpoch(uint256 epoch) external onlyOwner {
+        Epoch storage e = epochs[epoch];
+        if (e.finalized) revert EpochFinalized(epoch);
+        e.finalized = true;
+        emit OriginEpochFinalized(epoch, e.totalReferrals, e.originPool);
     }
 
-    function claimOriginCredit(uint256, uint256) external pure {
-        revert();
+    /// @inheritdoc INetworkFund
+    /// @dev Permissionless so a relayer can pay the gas, but the mPEN always goes to the
+    /// owner the registry reports — never to `msg.sender`. `originPool` is never debited:
+    /// it stays the frozen denominator of §29, and `originPaid` tracks what left.
+    function claimOriginCredit(uint256 epoch, uint256 cafeId) external whenNotPaused {
+        Epoch storage e = epochs[epoch];
+        if (!e.finalized) revert EpochNotFinalized(epoch);
+        if (e.originReleased) revert OriginPoolReleased(epoch);
+        if (originClaimed[epoch][cafeId]) revert OriginAlreadyClaimed(epoch, cafeId);
+
+        uint256 cafeReferrals = referrals[epoch][cafeId];
+        if (cafeReferrals == 0) revert NoReferrals(epoch, cafeId);
+        if (!registry.isOperational(cafeId)) revert CafeNotOperational(cafeId);
+
+        (address cafeOwner,) = registry.getCafe(cafeId);
+        uint256 amount = e.originPool * cafeReferrals / e.totalReferrals;
+
+        originClaimed[epoch][cafeId] = true;
+        e.originPaid += amount;
+        totalBudgeted -= amount;
+        pen.safeTransfer(cafeOwner, amount);
+
+        emit OriginCreditClaimed(epoch, cafeId, amount);
     }
 
     function allocateCampaignBudget(uint256, uint256) external pure {
@@ -176,5 +207,15 @@ contract NetworkFund is INetworkFund, Ownable, Pausable {
 
     function getEpoch(uint256 epoch) external view returns (Epoch memory) {
         return epochs[epoch];
+    }
+
+    /// @notice Origin credit `cafeId` could claim for `epoch` right now; zero once claimed,
+    /// released, or before the epoch is finalized.
+    function pendingOriginCredit(uint256 epoch, uint256 cafeId) external view returns (uint256) {
+        Epoch storage e = epochs[epoch];
+        if (!e.finalized || e.originReleased || originClaimed[epoch][cafeId] || e.totalReferrals == 0) {
+            return 0;
+        }
+        return e.originPool * referrals[epoch][cafeId] / e.totalReferrals;
     }
 }
