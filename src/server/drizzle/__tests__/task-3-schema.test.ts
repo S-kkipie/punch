@@ -18,7 +18,11 @@ const normalizeSql = (sql: string) =>
     sql.replace(/--.*$/gm, "").replaceAll('"', "").replace(/\s+/g, " ").trim();
 
 const generatedMigration = normalizeSql(
-    ["0004_flaky_cardiac.sql", "0005_exotic_payback.sql"]
+    [
+        "0004_flaky_cardiac.sql",
+        "0005_exotic_payback.sql",
+        "0006_dusty_dormammu.sql",
+    ]
         .map((file) =>
             readFileSync(
                 new URL(`../../../../drizzle/${file}`, import.meta.url),
@@ -65,11 +69,15 @@ describe("consumer domain Drizzle schemas", () => {
     });
 
     it("declares transaction and redemption integrity constraints", () => {
+        expect(consumerTransaction.modeledHostPayoutCentimos).toBeDefined();
         expect(
             getTableConfig(consumerTransaction).checks.map(
                 (check) => check.name,
             ),
-        ).toEqual(["consumer_transaction_operation_shape"]);
+        ).toEqual([
+            "consumer_transaction_operation_shape",
+            "consumer_transaction_modeled_host_payout_shape",
+        ]);
         expect(
             getTableConfig(redemptionRequest).checks.map((check) => check.name),
         ).toEqual(["redemption_request_kind_shape"]);
@@ -100,6 +108,12 @@ describe("consumer domain Drizzle schemas", () => {
     it("preserves the generated bodies of every new check and partial index", () => {
         expect(generatedMigration).toContain(
             "CHECK (consumption_proof.status <> 'confirmed' OR (consumption_proof.consumer_user_id IS NOT NULL AND consumption_proof.cafe_signature IS NOT NULL AND consumption_proof.consumer_signature IS NOT NULL))",
+        );
+        expect(generatedMigration).toContain(
+            "ALTER TABLE consumer_transaction ADD COLUMN modeled_host_payout_centimos integer",
+        );
+        expect(generatedMigration).toContain(
+            "CHECK ((consumer_transaction.operation = 'punch_redemption' AND ((consumer_transaction.status = 'confirmed' AND coalesce(consumer_transaction.modeled_host_payout_centimos = 360, false)) OR (consumer_transaction.status IN ('pending', 'rejected', 'failed') AND consumer_transaction.modeled_host_payout_centimos IS NULL))) OR (consumer_transaction.operation IN ('emission', 'voucher_redemption') AND consumer_transaction.modeled_host_payout_centimos IS NULL))",
         );
         expect(generatedMigration).toContain(
             "CHECK ((consumer_transaction.operation = 'emission' AND consumer_transaction.proof_id IS NOT NULL AND consumer_transaction.redemption_request_id IS NULL) OR (consumer_transaction.operation IN ('punch_redemption', 'voucher_redemption') AND consumer_transaction.proof_id IS NULL AND consumer_transaction.redemption_request_id IS NOT NULL))",

@@ -4,12 +4,12 @@ import {
     advanceCrawl,
     type CrawlStepDefinition,
 } from "@/core/punch/domain/crawl";
+import { PUNCH_REDEMPTION_COST } from "@/core/punch/domain/progress";
 import {
     decrementBalance,
     getBalance,
     incrementBalance,
 } from "@/core/punch/server/repository/balance";
-import { PUNCH_REDEMPTION_COST } from "@/core/punch/domain/progress";
 import {
     findActiveCampaignForCafe,
     hasPriorPaidPurchase,
@@ -146,22 +146,53 @@ export class PostgresMockConsumerChain implements ConsumerChainPort {
                 return { transactionId: row.id, status: row.status };
             }
             if (row.operation === "punch_redemption") {
-                if (!row.redemptionRequestId) throw new ConsumerChainError("REQUEST_NOT_FOUND");
-                const request = await findRedemptionRequestById(row.redemptionRequestId, tx);
-                if (!request || request.status !== "approved") {
+                if (!row.redemptionRequestId)
+                    throw new ConsumerChainError("REQUEST_NOT_FOUND");
+                const request = await findRedemptionRequestById(
+                    row.redemptionRequestId,
+                    tx,
+                );
+                if (request?.status !== "approved") {
                     throw new ConsumerChainError("REQUEST_NOT_APPROVED");
                 }
                 try {
-                    await decrementBalance(tx, row.consumerUserId, PUNCH_REDEMPTION_COST);
+                    await decrementBalance(
+                        tx,
+                        row.consumerUserId,
+                        PUNCH_REDEMPTION_COST,
+                    );
                 } catch (cause) {
-                    if (cause instanceof Error && "code" in cause && cause.code === "INSUFFICIENT_BALANCE") {
-                        const rejected = await updateTransactionStatus(tx, row.id, "rejected", "Necesitas 12 PUNCH para canjear.");
-                        return { transactionId: rejected.id, status: rejected.status, rejectionReason: rejected.rejectionReason ?? undefined };
+                    if (
+                        cause instanceof Error &&
+                        "code" in cause &&
+                        cause.code === "INSUFFICIENT_BALANCE"
+                    ) {
+                        const rejected = await updateTransactionStatus(
+                            tx,
+                            row.id,
+                            "rejected",
+                            "Necesitas 12 PUNCH para canjear.",
+                        );
+                        return {
+                            transactionId: rejected.id,
+                            status: rejected.status,
+                            rejectionReason:
+                                rejected.rejectionReason ?? undefined,
+                        };
                     }
                     throw cause;
                 }
-                const confirmed = await updateTransactionStatus(tx, row.id, "confirmed");
-                return { transactionId: confirmed.id, status: confirmed.status };
+                const confirmed = await updateTransactionStatus(
+                    tx,
+                    row.id,
+                    "confirmed",
+                    null,
+                    { modeledHostPayoutCentimos: 360 },
+                );
+                return {
+                    transactionId: confirmed.id,
+                    status: confirmed.status,
+                };
             }
             if (row.operation !== "emission" || !row.proofId) {
                 throw new ConsumerChainError("UNSUPPORTED_OPERATION");
@@ -256,14 +287,25 @@ export class PostgresMockConsumerChain implements ConsumerChainPort {
         redemptionRequestId: string;
         idempotencyKey: string;
     }): Promise<ChainSubmission> {
-        const existing = await findTransactionByIdempotencyKey(input.idempotencyKey);
-        if (existing) return { transactionId: existing.id, status: existing.status };
+        const existing = await findTransactionByIdempotencyKey(
+            input.idempotencyKey,
+        );
+        if (existing)
+            return { transactionId: existing.id, status: existing.status };
         return db.transaction(async (tx) => {
-            const request = await findRedemptionRequestById(input.redemptionRequestId, tx);
+            const request = await findRedemptionRequestById(
+                input.redemptionRequestId,
+                tx,
+            );
             if (!request) throw new ConsumerChainError("REQUEST_NOT_FOUND");
-            if (request.status !== "approved") throw new ConsumerChainError("REQUEST_NOT_APPROVED");
-            const already = await findTransactionByRedemptionRequestId(tx, request.id);
-            if (already) return { transactionId: already.id, status: already.status };
+            if (request.status !== "approved")
+                throw new ConsumerChainError("REQUEST_NOT_APPROVED");
+            const already = await findTransactionByRedemptionRequestId(
+                tx,
+                request.id,
+            );
+            if (already)
+                return { transactionId: already.id, status: already.status };
             const row = await createTransaction(tx, {
                 operation: "punch_redemption",
                 consumerUserId: request.consumerUserId,

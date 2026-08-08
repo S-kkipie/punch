@@ -96,19 +96,41 @@ export class TransactionRepositoryError extends Error {
     }
 }
 
+export type UpdateTransactionStatusOptions = {
+    modeledHostPayoutCentimos?: number | null;
+};
+
 export async function updateTransactionStatus(
     client: DbClient,
     id: string,
     status: ConsumerTransactionStatus,
     rejectionReason: string | null = null,
+    options: UpdateTransactionStatusOptions = {},
 ): Promise<ConsumerTransactionRow> {
+    const { modeledHostPayoutCentimos } = options;
+    if (
+        modeledHostPayoutCentimos !== undefined &&
+        modeledHostPayoutCentimos !== null &&
+        (!Number.isInteger(modeledHostPayoutCentimos) ||
+            modeledHostPayoutCentimos < 0)
+    ) {
+        throw new Error(
+            "modeledHostPayoutCentimos must be a non-negative integer or null",
+        );
+    }
     const transitionableFrom = (
         ["pending", "confirmed", "rejected", "failed"] as const
     ).filter((current) => canTransitionTransaction(current, status));
     const [row] = transitionableFrom.length
         ? await client
               .update(consumerTransaction)
-              .set({ status, rejectionReason })
+              .set({
+                  status,
+                  rejectionReason,
+                  ...(modeledHostPayoutCentimos !== undefined
+                      ? { modeledHostPayoutCentimos }
+                      : {}),
+              })
               .where(
                   and(
                       eq(consumerTransaction.id, id),
