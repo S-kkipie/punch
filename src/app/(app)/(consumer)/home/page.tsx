@@ -10,6 +10,16 @@ import type { Dashboard } from "@/core/punch/domain/types";
 import { Button } from "@/frontend/components/ui/button";
 import { Spinner } from "@/frontend/components/ui/spinner";
 
+export function postAuthDestination(
+    cafes: Array<{ id: string; onboardingStatus: string }>,
+): string {
+    const cafe = cafes[0];
+    if (!cafe) return "/home";
+    return cafe.onboardingStatus === "approved"
+        ? `/cafe/${cafe.id}/terminal`
+        : `/cafe/${cafe.id}`;
+}
+
 export default function HomePage() {
     const router = useRouter();
     const dashboardQuery = useDashboard();
@@ -21,18 +31,14 @@ export default function HomePage() {
           }>
         | undefined;
 
-    const workspaceCafe = myCafes?.[0];
-    const workspacePath = workspaceCafe
-        ? workspaceCafe.onboardingStatus === "approved"
-            ? `/cafe/${workspaceCafe.id}/terminal`
-            : `/cafe/${workspaceCafe.id}`
-        : null;
+    const workspacePath = myCafes ? postAuthDestination(myCafes) : null;
+    const hasWorkspace = Boolean(workspacePath && workspacePath !== "/home");
 
     useEffect(() => {
-        if (workspacePath) router.replace(workspacePath);
-    }, [router, workspacePath]);
+        if (workspacePath && hasWorkspace) router.replace(workspacePath);
+    }, [hasWorkspace, router, workspacePath]);
 
-    if (myCafesQuery.isPending || workspacePath) {
+    if (myCafesQuery.isPending || hasWorkspace) {
         return (
             <div className="flex min-h-64 items-center justify-center">
                 <span className="sr-only">Cargando</span>
