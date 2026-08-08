@@ -26,6 +26,15 @@ export const useCafes = () => {
     });
 };
 
+export const useMyCafes = () => {
+    const client = useElysia().cafes;
+    return useQuery({
+        ...(client.my.get.queryOptions() as unknown as Record<string, unknown>),
+        queryKey: ["cafes", "my"],
+        select: unwrapResponse,
+    });
+};
+
 export const useCafe = (id: string) => {
     const client = useElysia().cafes;
     return useQuery({
