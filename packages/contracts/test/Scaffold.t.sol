@@ -3,32 +3,16 @@ pragma solidity ^0.8.30;
 
 import {Test} from "forge-std/Test.sol";
 import {NotImplemented} from "../src/NotImplemented.sol";
-import {NetworkFund} from "../src/NetworkFund.sol";
 import {CampaignEscrow} from "../src/CampaignEscrow.sol";
 import {MockPEN} from "../src/MockPEN.sol";
 
 contract ScaffoldTest is Test {
-    NetworkFund internal networkFund;
     CampaignEscrow internal campaignEscrow;
     MockPEN internal mockPEN;
 
     function setUp() public {
-        networkFund = new NetworkFund();
         campaignEscrow = new CampaignEscrow();
         mockPEN = new MockPEN();
-    }
-
-    function test_networkFund_reverts_notImplemented() public {
-        vm.expectRevert(NotImplemented.selector);
-        networkFund.fundEpoch(1, 1);
-        vm.expectRevert(NotImplemented.selector);
-        networkFund.recordReferral(1, 1);
-        vm.expectRevert(NotImplemented.selector);
-        networkFund.finalizeOriginEpoch(1);
-        vm.expectRevert(NotImplemented.selector);
-        networkFund.claimOriginCredit(1, 1);
-        vm.expectRevert(NotImplemented.selector);
-        networkFund.allocateCampaignBudget(1, 1);
     }
 
     function test_campaignEscrow_reverts_notImplemented() public {
