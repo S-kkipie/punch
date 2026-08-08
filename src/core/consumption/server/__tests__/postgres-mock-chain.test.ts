@@ -344,6 +344,7 @@ describe("PostgresMockConsumerChain.submitConsumption campaign + crawl side effe
             expect.anything(),
             "cafe-target",
         );
+        expect(isEligibleForAcquisitionCampaign).not.toHaveBeenCalled();
         expect(hasPriorPaidPurchase).not.toHaveBeenCalled();
         expect(unlockCampaignVoucher).not.toHaveBeenCalled();
     });
