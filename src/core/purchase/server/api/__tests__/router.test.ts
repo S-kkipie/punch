@@ -1,8 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/server/auth/auth", () => ({
-    auth: { api: { getSession: vi.fn() } },
-}));
+vi.mock("@/server/auth/auth", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("@/server/auth/auth")>();
+    return {
+        ...actual,
+        auth: {
+            ...actual.auth,
+            api: { ...actual.auth.api, getSession: vi.fn() },
+        },
+    };
+});
 vi.mock("../../services/create-purchase-service", () => ({
     createPurchaseService: vi.fn(),
 }));
@@ -19,6 +26,7 @@ vi.mock("../../services/list-purchases-service", () => ({
 
 import { auth } from "@/server/auth/auth";
 import { err, ok } from "@/server/common/responses";
+import app from "@/server/router";
 import { confirmPurchaseService } from "../../services/confirm-purchase-service";
 import { createPurchaseService } from "../../services/create-purchase-service";
 import { getPurchaseService } from "../../services/get-purchase-service";
@@ -26,7 +34,6 @@ import {
     listCafePurchasesService,
     listMyPurchasesService,
 } from "../../services/list-purchases-service";
-import { purchaseRouter } from "../router";
 
 const order = {
     id: "order-1",
@@ -48,7 +55,7 @@ const validBody = {
 };
 
 async function request(path: string, init?: RequestInit) {
-    return purchaseRouter.handle(new Request(`http://localhost${path}`, init));
+    return app.handle(new Request(`http://localhost${path}`, init));
 }
 const authedRequest = (path: string, init?: RequestInit) => {
     vi.mocked(auth.api.getSession).mockResolvedValue(session as never);
@@ -62,7 +69,7 @@ describe("purchase API routes", () => {
     });
 
     it("rejects unauthenticated create before invoking service", async () => {
-        const response = await request("/purchases/", {
+        const response = await request("/api/v1/purchases/", {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify(validBody),
@@ -73,7 +80,7 @@ describe("purchase API routes", () => {
 
     it("creates an order without exposing private fields", async () => {
         vi.mocked(createPurchaseService).mockResolvedValue(ok(order));
-        const response = await authedRequest("/purchases/", {
+        const response = await authedRequest("/api/v1/purchases/", {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify(validBody),
@@ -90,9 +97,12 @@ describe("purchase API routes", () => {
         vi.mocked(confirmPurchaseService).mockResolvedValue(
             ok({ ...order, status: "queued" }),
         );
-        const response = await authedRequest("/purchases/order-1/confirm", {
-            method: "POST",
-        });
+        const response = await authedRequest(
+            "/api/v1/purchases/order-1/confirm",
+            {
+                method: "POST",
+            },
+        );
         expect(response.status).toBe(200);
         expect(confirmPurchaseService).toHaveBeenCalledWith(
             "user-1",
@@ -104,9 +114,12 @@ describe("purchase API routes", () => {
         vi.mocked(confirmPurchaseService).mockResolvedValue(
             err({ type: "ForbiddenError", code: "FORBIDDEN", status: 403 }),
         );
-        const response = await authedRequest("/purchases/order-1/confirm", {
-            method: "POST",
-        });
+        const response = await authedRequest(
+            "/api/v1/purchases/order-1/confirm",
+            {
+                method: "POST",
+            },
+        );
         expect(response.status).toBe(403);
     });
 
@@ -114,14 +127,18 @@ describe("purchase API routes", () => {
         vi.mocked(getPurchaseService).mockResolvedValue(
             err({ type: "ForbiddenError", code: "FORBIDDEN", status: 403 }),
         );
-        expect((await authedRequest("/purchases/order-1")).status).toBe(403);
+        expect((await authedRequest("/api/v1/purchases/order-1")).status).toBe(
+            403,
+        );
         vi.mocked(getPurchaseService).mockResolvedValue(ok(order));
-        expect((await authedRequest("/purchases/order-1")).status).toBe(200);
+        expect((await authedRequest("/api/v1/purchases/order-1")).status).toBe(
+            200,
+        );
     });
 
     it("routes /mine to the current-user listing, not /:id", async () => {
         vi.mocked(listMyPurchasesService).mockResolvedValue(ok([order]));
-        const response = await authedRequest("/purchases/mine");
+        const response = await authedRequest("/api/v1/purchases/mine");
         expect(response.status).toBe(200);
         expect(listMyPurchasesService).toHaveBeenCalledWith("user-1");
         expect(getPurchaseService).not.toHaveBeenCalled();
@@ -130,7 +147,7 @@ describe("purchase API routes", () => {
     it("allows café members and forwards valid status", async () => {
         vi.mocked(listCafePurchasesService).mockResolvedValue(ok([order]));
         const response = await authedRequest(
-            "/purchases/cafe/cafe-1?status=user_confirmed",
+            "/api/v1/purchases/cafe/cafe-1?status=user_confirmed",
         );
         expect(response.status).toBe(200);
         expect(listCafePurchasesService).toHaveBeenCalledWith(
@@ -144,16 +161,20 @@ describe("purchase API routes", () => {
         vi.mocked(listCafePurchasesService).mockResolvedValue(
             err({ type: "ForbiddenError", code: "FORBIDDEN", status: 403 }),
         );
-        expect((await authedRequest("/purchases/cafe/cafe-1")).status).toBe(
-            403,
-        );
+        expect(
+            (await authedRequest("/api/v1/purchases/cafe/cafe-1")).status,
+        ).toBe(403);
     });
 
     it("rejects invalid café status without calling service", async () => {
         const response = await authedRequest(
-            "/purchases/cafe/cafe-1?status=bogus",
+            "/api/v1/purchases/cafe/cafe-1?status=bogus",
         );
-        expect(response.status).toBe(422);
+        expect(response.status).toBe(400);
+        expect(await response.json()).toMatchObject({
+            code: "VALIDATION",
+            status: 400,
+        });
         expect(listCafePurchasesService).not.toHaveBeenCalled();
     });
 });

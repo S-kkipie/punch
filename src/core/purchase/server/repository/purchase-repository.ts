@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, gte, inArray, lte } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import type { PurchaseOrderStatus } from "@/core/purchase/domain/types";
 import { db } from "@/server/drizzle/db";
 import { user } from "@/server/drizzle/schemas/auth-schema";
@@ -246,7 +246,8 @@ export async function listByUser(
         .from(purchaseOrder)
         .innerJoin(cafe, eq(cafe.id, purchaseOrder.cafeId))
         .innerJoin(cafeProduct, eq(cafeProduct.id, purchaseOrder.productId))
-        .where(eq(purchaseOrder.userId, userId));
+        .where(eq(purchaseOrder.userId, userId))
+        .orderBy(desc(purchaseOrder.createdAt), desc(purchaseOrder.id));
 }
 
 export async function listByCafe(
@@ -277,7 +278,8 @@ export async function listByCafe(
         .from(purchaseOrder)
         .innerJoin(cafe, eq(cafe.id, purchaseOrder.cafeId))
         .innerJoin(cafeProduct, eq(cafeProduct.id, purchaseOrder.productId))
-        .where(and(...conditions));
+        .where(and(...conditions))
+        .orderBy(desc(purchaseOrder.createdAt), desc(purchaseOrder.id));
 }
 
 export async function expirePurchases(): Promise<number> {
