@@ -476,14 +476,6 @@ Append these tests to `ConsumptionLogTest`:
         log.recordConsumption(proof, "", "");
     }
 
-    function test_recordConsumption_expiryAtDeadlineStillValid() public {
-        IConsumptionLog.ConsumptionProof memory proof = _proof(1);
-        vm.warp(proof.expiry);
-        // Passes the expiry gate and fails later, on the signature check.
-        vm.expectRevert();
-        log.recordConsumption(proof, "", "");
-    }
-
     function test_recordConsumption_expiryTooFarReverts() public {
         IConsumptionLog.ConsumptionProof memory proof = _proof(1);
         proof.expiry = block.timestamp + 16 minutes;
@@ -659,26 +651,6 @@ Add the signing helper and the tests to `ConsumptionLogTest`:
         log.recordConsumption(proof, cafeSig, userSig);
     }
 
-    function test_recordConsumption_cafeOwnerSignatureAccepted() public {
-        // The owner is authorized for their own café, so their signature must pass the
-        // café gate. It then proceeds; a later stage is what stops it in this task.
-        IConsumptionLog.ConsumptionProof memory proof = _proof(1);
-        (address ownerSigner, uint256 ownerKey) = makeAddrAndKey("cafeOwnerSigner");
-        vm.prank(registrar);
-        uint256 otherCafe = registry.registerCafe(ownerSigner);
-        vm.prank(registrar);
-        registry.setCafeStatus(otherCafe, ICafeRegistry.CafeStatus.Active);
-        vm.prank(ownerSigner);
-        registry.setEligibleProduct(otherCafe, PRODUCT_ID, ICafeRegistry.ProductKind.Emission, true);
-
-        proof.cafeId = otherCafe;
-        bytes memory cafeSig = _sign(ownerKey, proof);
-        bytes memory userSig = _sign(userKey, proof);
-        // Café and user signatures both valid; the call gets past signature checks.
-        vm.expectRevert();
-        log.recordConsumption(proof, cafeSig, userSig);
-    }
-
     function test_recordConsumption_badUserSignatureReverts() public {
         IConsumptionLog.ConsumptionProof memory proof = _proof(1);
         (, uint256 otherKey) = makeAddrAndKey("otherUser");
@@ -697,18 +669,6 @@ Add the signing helper and the tests to `ConsumptionLogTest`:
         log.recordConsumption(proof, cafeSig, userSig);
     }
 
-    function test_recordConsumption_eip1271UserAccepted() public {
-        MockSmartAccount account = new MockSmartAccount();
-        IConsumptionLog.ConsumptionProof memory proof = _proof(1);
-        proof.user = address(account);
-        account.approve(log.hashProof(proof));
-
-        bytes memory cafeSig = _sign(operatorKey, proof);
-        // Gets past both signature gates on a contract signature.
-        vm.expectRevert();
-        log.recordConsumption(proof, cafeSig, "");
-    }
-
     function test_recordConsumption_eip1271UserRejected() public {
         MockSmartAccount account = new MockSmartAccount();
         IConsumptionLog.ConsumptionProof memory proof = _proof(1);
@@ -720,7 +680,7 @@ Add the signing helper and the tests to `ConsumptionLogTest`:
     }
 ```
 
-Note on the two tests that use a bare `vm.expectRevert()`: at this point in the plan the call reverts inside `PlanManager.consumeCredit` or the vault, and Task 4 makes them succeed. When Task 4 lands, tighten `test_recordConsumption_cafeOwnerSignatureAccepted` to expect `PlanNotActive` (the second café never subscribed) and rewrite `test_recordConsumption_eip1271UserAccepted` to assert success — both are handled explicitly in Task 4, Step 1.
+Every test in this task asserts an exact revert selector. The happy-path counterparts — a café owner's signature accepted, an EIP-1271 signature accepted — live in Task 4, where emission actually completes and success can be asserted precisely instead of by a bare `vm.expectRevert()`.
 
 - [ ] **Step 2: Run tests to verify they fail**
 
@@ -829,7 +789,7 @@ import {IPlanManager} from "../src/interfaces/IPlanManager.sol";
 import {PlanNotActive} from "../src/PlanManager.sol";
 ```
 
-Retarget the two placeholder assertions from Task 3 — replace those two test bodies with:
+Add the happy-path signature tests deferred from Task 3, now that emission completes and success is assertable:
 
 ```solidity
     function test_recordConsumption_cafeOwnerSignatureAccepted() public {
@@ -894,6 +854,17 @@ Add the helper and the new tests:
         assertEq(pen.balanceOf(address(vault)) - vaultPenBefore, 300_000);
         assertTrue(log.nonceUsed(cafeId, 1));
         assertTrue(log.receiptUsed(cafeId, proof.receiptHash));
+    }
+
+    function test_recordConsumption_expiryAtDeadlineStillValid() public {
+        IConsumptionLog.ConsumptionProof memory proof = _proof(1);
+        bytes memory cafeSig = _sign(operatorKey, proof);
+        bytes memory userSig = _sign(userKey, proof);
+
+        vm.warp(proof.expiry); // exactly at the deadline: inclusive, still valid
+        log.recordConsumption(proof, cafeSig, userSig);
+
+        assertEq(vault.issueCount(), 1);
     }
 
     function test_recordConsumption_replaySameProofReverts() public {
