@@ -1,12 +1,69 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-vi.mock("../../repository/redemption-requests", () => ({ decideRedemptionRequest: vi.fn() }));
-vi.mock("@/server/auth/membership/require-cafe-role", () => ({ requireCafeRole: vi.fn() }));
-vi.mock("../../postgres-mock-chain", () => ({ PostgresMockConsumerChain: vi.fn().mockImplementation(() => ({ submitPunchRedemption: vi.fn().mockResolvedValue({ transactionId: "tx", status: "pending" }) })) }));
+
+vi.mock("../../repository/redemption-requests", () => ({
+    decideRedemptionRequest: vi.fn(),
+}));
+vi.mock("@/server/auth/membership/require-cafe-role", () => ({
+    requireCafeRole: vi.fn(),
+}));
+vi.mock("../../postgres-mock-chain", () => ({
+    PostgresMockConsumerChain: vi.fn().mockImplementation(() => ({
+        submitPunchRedemption: vi.fn().mockResolvedValue({
+            transactionId: "tx",
+            status: "pending",
+        }),
+    })),
+}));
+
 import { requireCafeRole } from "@/server/auth/membership/require-cafe-role";
 import { ok } from "@/server/common/responses";
 import { decideRedemptionRequest } from "../../repository/redemption-requests";
 import { decidePunchRedemptionService } from "../decide-punch-redemption-service";
-describe("decidePunchRedemptionService", () => { beforeEach(() => vi.clearAllMocks());
- it("authorizes barista and submits approval", async () => { vi.mocked(requireCafeRole).mockResolvedValue(ok({ userId: "u", cafeId: "c", role: "barista" } as never)); vi.mocked(decideRedemptionRequest).mockResolvedValue({ id: "r", status: "approved" } as never); const r = await decidePunchRedemptionService("u", "c", "r", { decision: "approved" }); expect(r.ok).toBe(true); });
- it("rejects with actionable reason without chain", async () => { vi.mocked(requireCafeRole).mockResolvedValue(ok({} as never)); vi.mocked(decideRedemptionRequest).mockResolvedValue({ id: "r", status: "rejected", rejectionReason: "Sin stock" } as never); const r = await decidePunchRedemptionService("u", "c", "r", { decision: "rejected", rejectionReason: "Sin stock" }); expect(r.ok).toBe(true); expect(decideRedemptionRequest).toHaveBeenCalledWith("r", "u", "rejected", "Sin stock"); });
+
+const rejectedRequest = {
+    id: "r",
+    kind: "punch_reward",
+    cafeId: "c",
+    productId: "p",
+    voucherId: null,
+    status: "rejected",
+    rejectionReason: "Sin stock",
+    createdAt: new Date(),
+};
+
+describe("decidePunchRedemptionService", () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    it("authorizes barista and submits approval", async () => {
+        vi.mocked(requireCafeRole).mockResolvedValue(
+            ok({ userId: "u", cafeId: "c", role: "barista" } as never),
+        );
+        vi.mocked(decideRedemptionRequest).mockResolvedValue({
+            ...rejectedRequest,
+            status: "approved",
+            rejectionReason: null,
+        } as never);
+        const result = await decidePunchRedemptionService("u", "c", "r", {
+            decision: "approved",
+        });
+        expect(result.ok).toBe(true);
+    });
+
+    it("rejects with actionable reason without chain", async () => {
+        vi.mocked(requireCafeRole).mockResolvedValue(ok({} as never));
+        vi.mocked(decideRedemptionRequest).mockResolvedValue(
+            rejectedRequest as never,
+        );
+        const result = await decidePunchRedemptionService("u", "c", "r", {
+            decision: "rejected",
+            rejectionReason: "Sin stock",
+        });
+        expect(result.ok).toBe(true);
+        expect(decideRedemptionRequest).toHaveBeenCalledWith(
+            "r",
+            "u",
+            "rejected",
+            "Sin stock",
+        );
+    });
 });
