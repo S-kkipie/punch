@@ -13,6 +13,7 @@ function deps(overrides: Record<string, unknown> = {}) {
             type: "emission",
             approvalStatus: "approved",
             chainProductId: 1,
+            active: true,
         }),
         ensureWallet: vi.fn().mockResolvedValue({
             walletIndex: 5,
@@ -73,6 +74,7 @@ describe("createPurchaseService", () => {
                 type: "emission",
                 approvalStatus: "approved",
                 chainProductId: 1,
+                active: true,
             }),
         });
 
@@ -113,6 +115,31 @@ describe("createPurchaseService", () => {
         }
     });
 
+    it("rejects an inactive emission product", async () => {
+        const d = deps({
+            findEmissionProduct: vi.fn().mockResolvedValue({
+                id: "prod-1",
+                cafeId: "cafe-1",
+                type: "emission",
+                approvalStatus: "approved",
+                chainProductId: 1,
+                active: false,
+            }),
+        });
+        const result = await createPurchaseService(
+            "user-1",
+            {
+                cafeId: "cafe-1",
+                productId: "prod-1",
+                amountSoles: 8,
+                yapeRef: "op-123",
+            },
+            d,
+        );
+        expect(result.ok).toBe(false);
+        expect(d.insertOrder).not.toHaveBeenCalled();
+    });
+
     it("rejects an unapproved emission product or missing chain mapping", async () => {
         for (const product of [
             {
@@ -121,6 +148,7 @@ describe("createPurchaseService", () => {
                 type: "reward",
                 approvalStatus: "approved",
                 chainProductId: 1,
+                active: true,
             },
             {
                 id: "prod-1",
@@ -128,6 +156,7 @@ describe("createPurchaseService", () => {
                 type: "emission",
                 approvalStatus: "pending",
                 chainProductId: 1,
+                active: true,
             },
             {
                 id: "prod-1",

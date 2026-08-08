@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, inArray, lte } from "drizzle-orm";
+import { and, eq, gte, inArray, lte } from "drizzle-orm";
 import type { PurchaseOrderStatus } from "@/core/purchase/domain/types";
 import { db } from "@/server/drizzle/db";
 import { user } from "@/server/drizzle/schemas/auth-schema";
@@ -22,7 +22,7 @@ export type PurchaseCafe = Pick<
 >;
 export type PurchaseProduct = Pick<
     typeof cafeProduct.$inferSelect,
-    "id" | "cafeId" | "chainProductId" | "type" | "approvalStatus"
+    "id" | "cafeId" | "chainProductId" | "type" | "approvalStatus" | "active"
 >;
 export type PurchaseOrderWithChain = PurchaseOrderRow & {
     chainCafeId: number | null;
@@ -54,6 +54,7 @@ export async function findEmissionProduct(
             chainProductId: cafeProduct.chainProductId,
             type: cafeProduct.type,
             approvalStatus: cafeProduct.approvalStatus,
+            active: cafeProduct.active,
         })
         .from(cafeProduct)
         .where(eq(cafeProduct.id, productId))
@@ -124,21 +125,57 @@ export async function findUserWallet(userId: string): Promise<{
     return row ?? null;
 }
 
+export type QueueOrderResult =
+    | { outcome: "queued"; order: PurchaseOrderWithChain }
+    | { outcome: "current"; order: PurchaseOrderWithChain };
+
 export async function updateOrderAndQueue(
     orderId: string,
     payload: Record<string, unknown>,
-): Promise<PurchaseOrderWithChain> {
+): Promise<QueueOrderResult> {
     try {
         return await db.transaction(async (tx) => {
-            await tx
+            const [transitioned] = await tx
                 .update(purchaseOrder)
                 .set({ status: "cafe_confirmed" })
                 .where(
                     and(
                         eq(purchaseOrder.id, orderId),
                         eq(purchaseOrder.status, "user_confirmed"),
+                        gte(purchaseOrder.expiry, new Date()),
                     ),
-                );
+                )
+                .returning({ id: purchaseOrder.id });
+            if (!transitioned) {
+                const [current] = await tx
+                    .select({
+                        id: purchaseOrder.id,
+                        cafeId: purchaseOrder.cafeId,
+                        userId: purchaseOrder.userId,
+                        productId: purchaseOrder.productId,
+                        amount: purchaseOrder.amount,
+                        yapeRef: purchaseOrder.yapeRef,
+                        receiptHash: purchaseOrder.receiptHash,
+                        nonce: purchaseOrder.nonce,
+                        expiry: purchaseOrder.expiry,
+                        status: purchaseOrder.status,
+                        failureReason: purchaseOrder.failureReason,
+                        txHash: purchaseOrder.txHash,
+                        createdAt: purchaseOrder.createdAt,
+                        updatedAt: purchaseOrder.updatedAt,
+                        chainCafeId: cafe.chainCafeId,
+                        chainProductId: cafeProduct.chainProductId,
+                    })
+                    .from(purchaseOrder)
+                    .innerJoin(cafe, eq(cafe.id, purchaseOrder.cafeId))
+                    .innerJoin(
+                        cafeProduct,
+                        eq(cafeProduct.id, purchaseOrder.productId),
+                    )
+                    .where(eq(purchaseOrder.id, orderId));
+                if (!current) throw new Error("purchase order not found");
+                return { outcome: "current", order: current };
+            }
             await tx.insert(relayerJob).values({ orderId, payload });
             await tx
                 .update(purchaseOrder)
@@ -174,13 +211,13 @@ export async function updateOrderAndQueue(
                 throw new Error(
                     "purchase order disappeared during confirmation",
                 );
-            return row;
+            return { outcome: "queued", order: row };
         });
     } catch (cause) {
         if ((cause as { code?: string })?.code !== "23505") throw cause;
         const current = await findOrder(orderId);
         if (!current) throw cause;
-        return current;
+        return { outcome: "current", order: current };
     }
 }
 
@@ -201,9 +238,15 @@ export async function expirePurchases(): Promise<number> {
     return rows.length;
 }
 
-export async function findJobsToRun(limit: number): Promise<RelayerJobRow[]> {
-    return db.transaction(async (tx) =>
-        tx
+export const RELAYER_CLAIM_LEASE_MS = 60_000;
+
+export async function findJobsToRun(
+    limit: number,
+    leaseMs = RELAYER_CLAIM_LEASE_MS,
+): Promise<RelayerJobRow[]> {
+    if (limit <= 0) return [];
+    return db.transaction(async (tx) => {
+        const due = await tx
             .select()
             .from(relayerJob)
             .where(
@@ -213,8 +256,20 @@ export async function findJobsToRun(limit: number): Promise<RelayerJobRow[]> {
                 ),
             )
             .limit(limit)
-            .for("update", { skipLocked: true }),
-    );
+            .for("update", { skipLocked: true });
+        if (due.length === 0) return [];
+        const leaseUntil = new Date(Date.now() + leaseMs);
+        return tx
+            .update(relayerJob)
+            .set({ nextRetryAt: leaseUntil })
+            .where(
+                inArray(
+                    relayerJob.id,
+                    due.map((job) => job.id),
+                ),
+            )
+            .returning();
+    });
 }
 
 export async function markJobSubmitted(id: string, txHash: string) {

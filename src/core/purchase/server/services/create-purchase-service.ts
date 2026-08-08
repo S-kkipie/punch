@@ -65,6 +65,7 @@ export async function createPurchaseService(
             product.cafeId !== cafe.id ||
             product.type !== "emission" ||
             product.approvalStatus !== "approved" ||
+            product.active !== true ||
             product.chainProductId === null
         ) {
             return err(AppErrors.notFound({ targets: ["productId"] }));

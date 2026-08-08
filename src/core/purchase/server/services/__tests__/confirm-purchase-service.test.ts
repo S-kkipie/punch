@@ -90,6 +90,24 @@ describe("confirmPurchaseService", () => {
         expect(d.transaction).not.toHaveBeenCalled();
     });
 
+    it("returns the current expired state when the queue transition loses an expiry race", async () => {
+        const d = deps({
+            updateOrderAndQueue: vi.fn().mockResolvedValue({
+                outcome: "current",
+                order: {
+                    ...order,
+                    status: "expired",
+                    expiry: new Date(Date.now() - 1),
+                },
+            }),
+        });
+
+        const result = await confirmPurchaseService("owner-1", "order-1", d);
+
+        expect(result.ok).toBe(false);
+        expect(d.signProof).toHaveBeenCalledTimes(2);
+    });
+
     it("returns an expired error and does not sign an expired order", async () => {
         const d = deps({
             findOrder: vi.fn().mockResolvedValue({

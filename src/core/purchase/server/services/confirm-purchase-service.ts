@@ -94,11 +94,22 @@ export async function confirmPurchaseService(
             d.signProof(ownerWallet.walletIndex, proof),
         ]);
 
-        const queued = await d.updateOrderAndQueue(order.id, {
+        const queueResult = await d.updateOrderAndQueue(order.id, {
             proof: serializeProof(proof),
             cafeSignature,
             userSignature,
         });
+        const queued =
+            "outcome" in queueResult ? queueResult.order : queueResult;
+        if ("outcome" in queueResult && queueResult.outcome === "current") {
+            if (
+                queued.status === "expired" ||
+                queued.expiry.getTime() <= Date.now()
+            ) {
+                return err(AppErrors.conflict({ targets: ["expiry"] }));
+            }
+            return ok(toPurchaseView(queued));
+        }
         return ok(toPurchaseView(queued));
     } catch {
         return err(
