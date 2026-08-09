@@ -3,7 +3,6 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import type { DbClient } from "@/server/drizzle/db";
 import { chainPurchaseEffect } from "@/server/drizzle/schemas/punch-schema";
-import { purchaseOrder } from "@/server/drizzle/schemas/purchase-schema";
 import {
     findActiveCampaignForCafe,
     hasPriorPaidPurchase,
@@ -63,10 +62,6 @@ export async function applyChainPurchaseEffects(
     tx: Transaction,
     input: ChainPurchaseEffectsInput,
 ): Promise<void> {
-    const [order] = await tx
-        .select({ createdAt: purchaseOrder.createdAt })
-        .from(purchaseOrder)
-        .where(eq(purchaseOrder.id, input.purchaseOrderId));
     const campaign = await findActiveCampaignForCafe(
         tx as DbClient,
         input.cafeId,
@@ -98,12 +93,11 @@ export async function applyChainPurchaseEffects(
                 cafeId: input.cafeId,
                 expiresAt: campaign.windowEnd,
             });
-            if (
-                voucher &&
-                order &&
-                voucher.createdAt <=
-                    new Date(input.confirmedAt.getTime() + 1000)
-            ) {
+            // The (campaignId, consumerUserId) slot admits one voucher, and every
+            // production voucher comes from these unlock paths, so an existing
+            // available voucher converges to chain provenance here. Redeemed
+            // vouchers stay out of reach: reversal only deletes 'available' rows.
+            if (voucher) {
                 await tx
                     .update(chainPurchaseEffect)
                     .set({ createdVoucherId: voucher.id })

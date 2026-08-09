@@ -132,7 +132,7 @@ async function seedMinimalCase(options?: {
             cafeId: ids.cafeId,
             status: "available",
             expiresAt: new Date(Date.now() + 60_000),
-            createdAt: new Date(Date.now() + 60_000),
+            createdAt: new Date(Date.now() - 60_000),
         });
     }
     await db.transaction(async (tx) => {
@@ -149,7 +149,7 @@ async function seedMinimalCase(options?: {
             .set({ status: "redeemed", redeemedAt: new Date() })
             .where(eq(consumerVoucher.campaignId, ids.campaignId));
     }
-    return ids;
+    return { ...ids, txHash };
 }
 
 describeIntegration("clearChainDerivedPurchaseProjections", () => {
@@ -480,21 +480,23 @@ describeIntegration("clearChainDerivedPurchaseProjections", () => {
         ).toHaveLength(1);
     });
 
-    it("preserves a manual voucher for the same campaign and user", async () => {
+    it("keeps the campaign entitlement available across rebuild when a pre-existing voucher occupies the slot", async () => {
         const ids = await seedMinimalCase({ manualCampaignVoucher: true });
-        const [manual] = await db
+        await clearChainDerivedPurchaseProjections(db);
+        await db.transaction(async (tx) => {
+            await applyConfirmedConsumptionProjection(tx, {
+                orderId: ids.orderId,
+                txHash: ids.txHash,
+                logIndex: 0,
+                blockNumber: 12n,
+            });
+        });
+        const vouchers = await db
             .select()
             .from(consumerVoucher)
             .where(eq(consumerVoucher.campaignId, ids.campaignId));
-        await clearChainDerivedPurchaseProjections(db);
-        expect(
-            (
-                await db
-                    .select()
-                    .from(consumerVoucher)
-                    .where(eq(consumerVoucher.id, manual?.id ?? "missing"))
-            )[0]?.status,
-        ).toBe("available");
+        expect(vouchers).toHaveLength(1);
+        expect(vouchers[0]?.status).toBe("available");
     });
 });
 
