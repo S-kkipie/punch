@@ -35,6 +35,9 @@ vi.mock("@/core/consumption/client/hooks", () => ({
         mutate,
     }),
 }));
+vi.mock("@/core/plan/client/hooks", () => ({
+    usePlanStatus: () => ({ data: undefined, isLoading: true }),
+}));
 vi.mock("@/frontend/components/ui/button", () => ({
     Button: ({
         children,
