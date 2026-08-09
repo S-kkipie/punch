@@ -56,7 +56,6 @@ export const bootstrapRepository: BootstrapRepository = {
                 .where(
                     and(
                         eq(cafeProduct.cafeId, row.id),
-                        eq(cafeProduct.type, "emission"),
                         eq(cafeProduct.approvalStatus, "approved"),
                         eq(cafeProduct.active, true),
                     ),

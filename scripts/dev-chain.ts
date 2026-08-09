@@ -14,6 +14,7 @@ import {
 import { mnemonicToAccount } from "viem/accounts";
 import { foundry } from "viem/chains";
 import { abis } from "../src/core/chain/abis";
+import type { EligibleProduct } from "../src/core/chain/server/bootstrap-local/service";
 
 const RPC = process.env.CHAIN_RPC_URL ?? "http://127.0.0.1:8545";
 const ANVIL_MNEMONIC =
@@ -151,6 +152,20 @@ export async function deployAll(rpcUrl = RPC): Promise<AddressMap> {
         }),
         "set consumption log",
     );
+    const relayerIndex = Number(process.env.RELAYER_WALLET_INDEX ?? 0);
+    const redeemerAddress = mnemonicToAccount(appMnemonic, {
+        addressIndex: relayerIndex,
+    }).address;
+    await waitForWrite(
+        pub,
+        await wallet.writeContract({
+            address: punchVault,
+            abi: vaultAbi,
+            functionName: "setRedeemer",
+            args: [redeemerAddress],
+        }),
+        "set redeemer",
+    );
     await waitForWrite(
         pub,
         await wallet.writeContract({
@@ -178,6 +193,7 @@ export async function seedCafe(opts: {
     addresses: AddressMap;
     ownerWalletIndex: number;
     chainProductId?: bigint;
+    eligibleProducts?: readonly EligibleProduct[];
     eligibleProductIds?: readonly bigint[];
 }): Promise<{ chainCafeId: bigint; ownerAddress: `0x${string}` }> {
     const rpcUrl = opts.rpcUrl ?? RPC;
@@ -196,7 +212,11 @@ export async function seedCafe(opts: {
         chain: foundry,
         transport: http(rpcUrl),
     });
-    const productIds = opts.eligibleProductIds ?? [opts.chainProductId ?? 1n];
+    const products = opts.eligibleProducts ??
+        opts.eligibleProductIds?.map((productId) => ({
+            productId,
+            kind: 0 as const,
+        })) ?? [{ productId: opts.chainProductId ?? 1n, kind: 0 as const }];
 
     if (ownerAddress.toLowerCase() !== deployer.address.toLowerCase()) {
         await waitForWrite(
@@ -233,16 +253,16 @@ export async function seedCafe(opts: {
         }),
         "activate cafe",
     );
-    for (const productId of productIds) {
+    for (const product of products) {
         await waitForWrite(
             pub,
             await ownerWallet.writeContract({
                 address: opts.addresses.cafeRegistry,
                 abi: abis.cafeRegistry,
                 functionName: "setEligibleProduct",
-                args: [chainCafeId, productId, 0, true],
+                args: [chainCafeId, product.productId, product.kind, true],
             }),
-            `set eligible product ${productId}`,
+            `set eligible product ${product.productId}`,
         );
     }
     await waitForWrite(

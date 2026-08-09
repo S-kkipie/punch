@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
-import { createPublicClient, http } from "viem";
+import { createPublicClient, createWalletClient, http } from "viem";
+import { mnemonicToAccount } from "viem/accounts";
 import { foundry } from "viem/chains";
 import { abis } from "../src/core/chain/abis";
 import {
@@ -50,17 +51,19 @@ function liveChain(): BootstrapChain {
                 args: [chainCafeId],
             })) as readonly [`0x${string}`, number];
             const active = status === 1;
-            const eligibleProductIds: bigint[] = [];
+            const eligibleProducts: LiveCafe["eligibleProducts"] = [];
             for (let productId = 1n; productId <= 100n; productId++) {
-                if (
-                    await pub.readContract({
-                        address: addresses.cafeRegistry,
-                        abi: abis.cafeRegistry,
-                        functionName: "isEligible",
-                        args: [chainCafeId, productId, 0],
-                    })
-                )
-                    eligibleProductIds.push(productId);
+                for (const kind of [0, 1] as const) {
+                    if (
+                        await pub.readContract({
+                            address: addresses.cafeRegistry,
+                            abi: abis.cafeRegistry,
+                            functionName: "isEligible",
+                            args: [chainCafeId, productId, kind],
+                        })
+                    )
+                        eligibleProducts.push({ productId, kind });
+                }
             }
             const planActive = (await pub.readContract({
                 address: addresses.planManager,
@@ -78,30 +81,61 @@ function liveChain(): BootstrapChain {
                 chainCafeId,
                 ownerAddress: owner,
                 active,
-                eligibleProductIds,
+                eligibleProducts,
                 planActive,
                 credits,
             };
         },
-        seedCafe: async ({ ownerWalletIndex, eligibleProductIds }) => {
+        ensureEligibleProducts: async ({
+            chainCafeId,
+            ownerWalletIndex,
+            eligibleProducts,
+        }) => {
+            const owner = mnemonicToAccount(
+                process.env.WALLET_MASTER_MNEMONIC ??
+                    "test test test test test test test test test test test junk",
+                { addressIndex: ownerWalletIndex },
+            );
+            const wallet = createWalletClient({
+                account: owner,
+                chain: foundry,
+                transport: http(rpcUrl),
+            });
+            for (const product of eligibleProducts) {
+                const eligible = await pub.readContract({
+                    address: addresses.cafeRegistry,
+                    abi: abis.cafeRegistry,
+                    functionName: "isEligible",
+                    args: [chainCafeId, product.productId, product.kind],
+                });
+                if (!eligible) {
+                    await pub.waitForTransactionReceipt({
+                        hash: await wallet.writeContract({
+                            address: addresses.cafeRegistry,
+                            abi: abis.cafeRegistry,
+                            functionName: "setEligibleProduct",
+                            args: [
+                                chainCafeId,
+                                product.productId,
+                                product.kind,
+                                true,
+                            ],
+                        }),
+                    });
+                }
+            }
+        },
+        seedCafe: async ({ ownerWalletIndex, eligibleProducts }) => {
             const result = await seedCafe({
                 rpcUrl,
                 addresses,
                 ownerWalletIndex,
-                eligibleProductIds,
+                eligibleProducts,
             });
-            return { ...result, eligibleProductIds };
+            return { ...result, eligibleProducts };
         },
-        verifyCafe: async ({
-            chainCafeId,
-            ownerAddress,
-            eligibleProductIds,
-        }) => {
-            const live = await thisInspect(
-                pub,
-                chainCafeId,
-                eligibleProductIds,
-            );
+        verifyCafe: async ({ chainCafeId, ownerAddress, eligibleProducts }) => {
+            const live = await thisInspect(pub, chainCafeId, eligibleProducts);
             if (
                 !live ||
                 live.ownerAddress.toLowerCase() !==
@@ -109,7 +143,13 @@ function liveChain(): BootstrapChain {
                 !live.active ||
                 !live.planActive ||
                 live.credits !== 100n ||
-                live.eligibleProductIds.length !== eligibleProductIds.length
+                live.eligibleProducts.length !== eligibleProducts.length ||
+                live.eligibleProducts.some(
+                    (product, index) =>
+                        product.productId !==
+                            eligibleProducts[index]?.productId ||
+                        product.kind !== eligibleProducts[index]?.kind,
+                )
             ) {
                 throw new Error(
                     `bootstrap café ${chainCafeId}: live verification failed`,
@@ -122,7 +162,7 @@ function liveChain(): BootstrapChain {
 async function thisInspect(
     pub: ReturnType<typeof createPublicClient>,
     chainCafeId: bigint,
-    eligibleProductIds: bigint[],
+    eligibleProducts: LiveCafe["eligibleProducts"],
 ): Promise<LiveCafe | null> {
     const [owner, status] = (await pub.readContract({
         address: addresses.cafeRegistry,
@@ -131,12 +171,12 @@ async function thisInspect(
         args: [chainCafeId],
     })) as readonly [`0x${string}`, number];
     const actual = await Promise.all(
-        eligibleProductIds.map((id) =>
+        eligibleProducts.map(({ productId, kind }) =>
             pub.readContract({
                 address: addresses.cafeRegistry,
                 abi: abis.cafeRegistry,
                 functionName: "isEligible",
-                args: [chainCafeId, id, 0],
+                args: [chainCafeId, productId, kind],
             }),
         ),
     );
@@ -156,7 +196,7 @@ async function thisInspect(
         chainCafeId,
         ownerAddress: owner,
         active: status === 1,
-        eligibleProductIds: eligibleProductIds.filter((_, i) => actual[i]),
+        eligibleProducts: eligibleProducts.filter((_, i) => actual[i]),
         planActive,
         credits,
     };

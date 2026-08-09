@@ -27,7 +27,7 @@ function fixture() {
                 chainProductId: null,
                 type: "reward" as const,
                 approvalStatus: "approved" as const,
-                active: true,
+                active: false,
             },
         ],
     }));
@@ -39,10 +39,11 @@ function fixture() {
         ownerAddressForIndex: (index) => address(String(index)),
         countCafes: vi.fn(async () => 0n),
         inspectCafe: vi.fn(async () => null),
-        seedCafe: vi.fn(async ({ ownerWalletIndex, eligibleProductIds }) => ({
+        ensureEligibleProducts: vi.fn(async () => undefined),
+        seedCafe: vi.fn(async ({ ownerWalletIndex, eligibleProducts }) => ({
             chainCafeId: BigInt(ownerWalletIndex),
             ownerAddress: address(String(ownerWalletIndex)),
-            eligibleProductIds,
+            eligibleProducts,
         })),
         verifyCafe: vi.fn(async () => undefined),
     };
@@ -58,13 +59,36 @@ describe("bootstrapApprovedSeedCafes", () => {
         expect(chain.seedCafe).toHaveBeenCalledTimes(4);
         expect(chain.seedCafe).toHaveBeenNthCalledWith(1, {
             ownerWalletIndex: 1,
-            eligibleProductIds: [1n],
+            eligibleProducts: [{ productId: 1n, kind: 0 }],
         });
         expect(repository.persistCafeMappings).toHaveBeenCalledTimes(4);
         expect(repository.persistCafeMappings).toHaveBeenNthCalledWith(1, {
             cafeId: "cafe-1",
             chainCafeId: 1,
             products: [{ productId: "emission-1", chainProductId: 1 }],
+        });
+    });
+
+    it("registers rewards after emissions with reward kind", async () => {
+        const { repository, chain, cafes } = fixture();
+        cafes[0].products[1].active = true;
+
+        await bootstrapApprovedSeedCafes({ repository, chain });
+
+        expect(chain.seedCafe).toHaveBeenNthCalledWith(1, {
+            ownerWalletIndex: 1,
+            eligibleProducts: [
+                { productId: 1n, kind: 0 },
+                { productId: 2n, kind: 1 },
+            ],
+        });
+        expect(repository.persistCafeMappings).toHaveBeenCalledWith({
+            cafeId: "cafe-1",
+            chainCafeId: 1,
+            products: [
+                { productId: "emission-1", chainProductId: 1 },
+                { productId: "reward-1", chainProductId: 2 },
+            ],
         });
     });
 
@@ -91,7 +115,7 @@ describe("bootstrapApprovedSeedCafes", () => {
 
         expect(chain.seedCafe).toHaveBeenNthCalledWith(1, {
             ownerWalletIndex: 1,
-            eligibleProductIds: [1n],
+            eligibleProducts: [{ productId: 1n, kind: 0 }],
         });
         expect(repository.persistCafeMappings).toHaveBeenCalledWith({
             cafeId: "cafe-1",
@@ -113,7 +137,7 @@ describe("bootstrapApprovedSeedCafes", () => {
             chainCafeId: id,
             ownerAddress: address(String(id)),
             active: true,
-            eligibleProductIds: [1n],
+            eligibleProducts: [{ productId: 1n, kind: 0 }],
             planActive: true,
             credits: 100n,
         }));
@@ -136,7 +160,7 @@ describe("bootstrapApprovedSeedCafes", () => {
             chainCafeId: id,
             ownerAddress: address(String(id)),
             active: true,
-            eligibleProductIds: [1n],
+            eligibleProducts: [{ productId: 1n, kind: 0 }],
             planActive: true,
             credits: 100n,
         }));
@@ -161,7 +185,7 @@ describe("bootstrapApprovedSeedCafes", () => {
                       chainCafeId: 2n,
                       ownerAddress: address("2"),
                       active: true,
-                      eligibleProductIds: [1n],
+                      eligibleProducts: [{ productId: 1n, kind: 0 }],
                       planActive: true,
                       credits: 100n,
                   }
@@ -226,7 +250,7 @@ describe("bootstrapApprovedSeedCafes", () => {
             chainCafeId: 99n,
             ownerAddress: address("999"),
             active: true,
-            eligibleProductIds: [1n],
+            eligibleProducts: [{ productId: 1n, kind: 0 }],
             planActive: true,
             credits: 100n,
         });

@@ -6,12 +6,12 @@ vi.mock("../../repository/redemption-requests", () => ({
 vi.mock("@/core/cafe/server/repository/find-product-by-id", () => ({
     findProductById: vi.fn(),
 }));
-vi.mock("@/core/punch/server/repository/balance", () => ({
-    getBalance: vi.fn(),
+vi.mock("@/core/purchase/server/services/get-balance-service", () => ({
+    getConsumerBalance: vi.fn(),
 }));
 
 import { findProductById } from "@/core/cafe/server/repository/find-product-by-id";
-import { getBalance } from "@/core/punch/server/repository/balance";
+import { getConsumerBalance } from "@/core/purchase/server/services/get-balance-service";
 import { createRedemptionRequest } from "../../repository/redemption-requests";
 import { requestPunchRedemptionService } from "../request-punch-redemption-service";
 
@@ -28,7 +28,10 @@ describe("requestPunchRedemptionService", () => {
     beforeEach(() => vi.clearAllMocks());
 
     it.each([11, 0])("blocks balance %s", async (balance) => {
-        vi.mocked(getBalance).mockResolvedValue(balance);
+        vi.mocked(getConsumerBalance).mockResolvedValue({
+            ok: true,
+            data: { punchBalance: balance, stale: false },
+        });
         vi.mocked(findProductById).mockResolvedValue(product as never);
         const result = await requestPunchRedemptionService("u", "c", {
             productId: "p",
@@ -44,7 +47,10 @@ describe("requestPunchRedemptionService", () => {
         { ...product, active: false },
         { ...product, priceSoles: "12.01" },
     ])("blocks invalid reward product", async (candidate) => {
-        vi.mocked(getBalance).mockResolvedValue(12);
+        vi.mocked(getConsumerBalance).mockResolvedValue({
+            ok: true,
+            data: { punchBalance: 12, stale: false },
+        });
         vi.mocked(findProductById).mockResolvedValue(candidate as never);
         const result = await requestPunchRedemptionService("u", "c", {
             productId: "p",
@@ -52,8 +58,24 @@ describe("requestPunchRedemptionService", () => {
         expect(result.ok).toBe(false);
     });
 
+    it("blocks a stale null balance", async () => {
+        vi.mocked(getConsumerBalance).mockResolvedValue({
+            ok: true,
+            data: { punchBalance: null, stale: true },
+        });
+        vi.mocked(findProductById).mockResolvedValue(product as never);
+        const result = await requestPunchRedemptionService("u", "c", {
+            productId: "p",
+        });
+        expect(result.ok).toBe(false);
+        expect(createRedemptionRequest).not.toHaveBeenCalled();
+    });
+
     it("allows a reward priced at the S/12 cap", async () => {
-        vi.mocked(getBalance).mockResolvedValue(12);
+        vi.mocked(getConsumerBalance).mockResolvedValue({
+            ok: true,
+            data: { punchBalance: 12, stale: false },
+        });
         vi.mocked(findProductById).mockResolvedValue(product as never);
         vi.mocked(createRedemptionRequest).mockResolvedValue({
             id: "r",

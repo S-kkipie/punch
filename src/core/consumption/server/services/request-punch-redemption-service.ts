@@ -5,7 +5,7 @@ import type {
     RequestPunchRedemption,
 } from "@/core/consumption/domain/types";
 import { canRedeem } from "@/core/punch/domain/progress";
-import { getBalance } from "@/core/punch/server/repository/balance";
+import { getConsumerBalance } from "@/core/purchase/server/services/get-balance-service";
 import {
     AppErrors,
     type AsyncAppResult,
@@ -35,8 +35,9 @@ export async function requestPunchRedemptionService(
     ) {
         return err(AppErrors.unprocessableEntity({ targets: ["productId"] }));
     }
-    const balance = await getBalance(consumerUserId);
-    if (!canRedeem(balance)) {
+    const balanceResult = await getConsumerBalance(consumerUserId);
+    const balance = balanceResult.ok ? balanceResult.data.punchBalance : null;
+    if (balance === null || !canRedeem(balance)) {
         return err(
             AppErrors.unprocessableEntity({
                 targets: ["balance"],

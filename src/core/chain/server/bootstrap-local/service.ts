@@ -1,5 +1,10 @@
 import "server-only";
 
+export type EligibleProduct = {
+    productId: bigint;
+    kind: 0 | 1;
+};
+
 export type BootstrapProduct = {
     id: string;
     chainProductId: number | null;
@@ -32,7 +37,7 @@ export type LiveCafe = {
     chainCafeId: bigint;
     ownerAddress: `0x${string}`;
     active: boolean;
-    eligibleProductIds: bigint[];
+    eligibleProducts: EligibleProduct[];
     planActive: boolean;
     credits: bigint;
 };
@@ -41,18 +46,23 @@ export type BootstrapChain = {
     ownerAddressForIndex(index: number): `0x${string}`;
     countCafes(): Promise<bigint>;
     inspectCafe(chainCafeId: bigint): Promise<LiveCafe | null>;
+    ensureEligibleProducts(input: {
+        chainCafeId: bigint;
+        ownerWalletIndex: number;
+        eligibleProducts: EligibleProduct[];
+    }): Promise<void>;
     seedCafe(input: {
         ownerWalletIndex: number;
-        eligibleProductIds: bigint[];
+        eligibleProducts: EligibleProduct[];
     }): Promise<{
         chainCafeId: bigint;
         ownerAddress: `0x${string}`;
-        eligibleProductIds: bigint[];
+        eligibleProducts: EligibleProduct[];
     }>;
     verifyCafe(input: {
         chainCafeId: bigint;
         ownerAddress: `0x${string}`;
-        eligibleProductIds: bigint[];
+        eligibleProducts: EligibleProduct[];
     }): Promise<void>;
     authorizeOperator?(input: {
         chainCafeId: bigint;
@@ -120,7 +130,8 @@ export async function bootstrapApprovedSeedCafes(input: {
         const products = cafe.products
             .filter(
                 (product) =>
-                    product.type === "emission" &&
+                    (product.type === "emission" ||
+                        product.type === "reward") &&
                     product.approvalStatus === "approved" &&
                     product.active,
             )
@@ -130,11 +141,18 @@ export async function bootstrapApprovedSeedCafes(input: {
                     (b.createdAt?.getTime() ?? 0);
                 return createdAt || a.id.localeCompare(b.id);
             });
-        const eligibleProductIds = products.map((product, index) =>
-            BigInt(product.chainProductId ?? index + 1),
+        const emissions = products.filter(
+            (product) => product.type === "emission",
+        );
+        const rewards = products.filter((product) => product.type === "reward");
+        const eligibleProducts = [...emissions, ...rewards].map(
+            (product, index) => ({
+                productId: BigInt(product.chainProductId ?? index + 1),
+                kind: product.type === "emission" ? (0 as const) : (1 as const),
+            }),
         );
         let chainCafeId: bigint;
-        let chainProductIds = eligibleProductIds;
+        let chainProducts = eligibleProducts;
 
         if (cafe.chainCafeId !== null) {
             chainCafeId = BigInt(cafe.chainCafeId);
@@ -148,26 +166,42 @@ export async function bootstrapApprovedSeedCafes(input: {
                     `bootstrap ${cafe.slug}: mapped café owner mismatch`,
                 );
             }
+            await input.chain.ensureEligibleProducts({
+                chainCafeId,
+                ownerWalletIndex: cafe.ownerWalletIndex,
+                eligibleProducts,
+            });
             await input.chain.verifyCafe({
                 chainCafeId,
                 ownerAddress,
-                eligibleProductIds,
+                eligibleProducts,
             });
-            const recoveredProductIds = live.eligibleProductIds.map((id) =>
-                Number(id),
-            );
-            const needsBackfill = products.some(
-                (product, index) =>
-                    product.chainProductId !== recoveredProductIds[index],
-            );
+            const recoveredProducts = live.eligibleProducts;
+            const needsBackfill =
+                products.some(
+                    (product, index) =>
+                        product.chainProductId !==
+                        Number(recoveredProducts[index]?.productId),
+                ) ||
+                eligibleProducts.some(
+                    (product, index) =>
+                        product.productId !==
+                            recoveredProducts[index]?.productId ||
+                        product.kind !== recoveredProducts[index]?.kind,
+                );
             if (needsBackfill) {
                 await input.repository.persistCafeMappings({
                     cafeId: cafe.id,
                     chainCafeId: Number(chainCafeId),
-                    products: products.map((product, index) => ({
-                        productId: product.id,
-                        chainProductId: recoveredProductIds[index] ?? index + 1,
-                    })),
+                    products: [...emissions, ...rewards].map(
+                        (product, index) => ({
+                            productId: product.id,
+                            chainProductId: Number(
+                                recoveredProducts[index]?.productId ??
+                                    index + 1,
+                            ),
+                        }),
+                    ),
                 });
             }
             await authorizeOperators({
@@ -188,32 +222,42 @@ export async function bootstrapApprovedSeedCafes(input: {
         }
         if (recovered) {
             chainCafeId = recovered.chainCafeId;
-            chainProductIds = eligibleProductIds;
+            chainProducts = eligibleProducts;
+            await input.chain.ensureEligibleProducts({
+                chainCafeId,
+                ownerWalletIndex: cafe.ownerWalletIndex,
+                eligibleProducts,
+            });
             await input.chain.verifyCafe({
                 chainCafeId,
                 ownerAddress,
-                eligibleProductIds,
+                eligibleProducts,
             });
         } else {
             const seeded = await input.chain.seedCafe({
                 ownerWalletIndex: cafe.ownerWalletIndex,
-                eligibleProductIds,
+                eligibleProducts,
             });
             chainCafeId = seeded.chainCafeId;
-            chainProductIds = seeded.eligibleProductIds;
+            chainProducts = seeded.eligibleProducts;
+            await input.chain.ensureEligibleProducts({
+                chainCafeId,
+                ownerWalletIndex: cafe.ownerWalletIndex,
+                eligibleProducts,
+            });
             await input.chain.verifyCafe({
                 chainCafeId,
                 ownerAddress,
-                eligibleProductIds,
+                eligibleProducts,
             });
         }
 
         await input.repository.persistCafeMappings({
             cafeId: cafe.id,
             chainCafeId: Number(chainCafeId),
-            products: products.map((product, index) => ({
+            products: [...emissions, ...rewards].map((product, index) => ({
                 productId: product.id,
-                chainProductId: Number(chainProductIds[index]),
+                chainProductId: Number(chainProducts[index].productId),
             })),
         });
         await authorizeOperators({
