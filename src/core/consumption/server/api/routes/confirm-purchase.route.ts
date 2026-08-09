@@ -1,5 +1,9 @@
 import { Elysia, t } from "elysia";
-import { confirmPurchaseSchema } from "@/core/consumption/domain/schemas";
+import {
+    confirmPurchaseSchema,
+    purchaseProofStatusValues,
+} from "@/core/consumption/domain/schemas";
+import { purchaseOrderStatusValues } from "@/core/purchase/domain/schemas";
 import { authed } from "@/server/auth/middleware/authed";
 import {
     CommonResponse,
@@ -36,17 +40,9 @@ export const confirmPurchaseRoute = new Elysia().use(authed).post(
                         cafeId: t.String(),
                         productId: t.String(),
                         amountSoles: t.Number(),
-                        status: t.Union([
-                            t.Literal("user_confirmed"),
-                            t.Literal("cafe_confirmed"),
-                            t.Literal("queued"),
-                            t.Literal("submitted"),
-                            t.Literal("confirmed"),
-                            t.Literal("failed"),
-                            t.Literal("expired"),
-                        ]),
-                        failureReason: t.Union([t.String(), t.Null()]),
-                        txHash: t.Union([t.String(), t.Null()]),
+                        status: t.String({ enum: purchaseOrderStatusValues }),
+                        failureReason: t.Nullable(t.String()),
+                        txHash: t.Nullable(t.String()),
                         expiry: t.String(),
                         createdAt: t.String(),
                     }),
@@ -56,22 +52,13 @@ export const confirmPurchaseRoute = new Elysia().use(authed).post(
                         productId: t.String(),
                         amountCentimos: t.Number(),
                         expiresAt: t.String(),
-                        status: t.Union([
-                            t.Literal("issued"),
-                            t.Literal("submitted"),
-                            t.Literal("confirmed"),
-                            t.Literal("failed"),
-                            t.Literal("expired"),
-                        ]),
+                        status: t.String({ enum: purchaseProofStatusValues }),
                         maskedYapeRef: t.String(),
-                        purchaseOrderId: t.Union([t.String(), t.Null()]),
-                        failureReason: t.Union([t.String(), t.Null()]),
+                        purchaseOrderId: t.Nullable(t.String()),
+                        failureReason: t.Nullable(t.String()),
                         createdAt: t.String(),
                     }),
-                    outcome: t.Union([
-                        t.Literal("created"),
-                        t.Literal("existing"),
-                    ]),
+                    outcome: t.String({ enum: ["created", "existing"] }),
                 }),
             }),
             400: errorResponseSchema(400),

@@ -30,13 +30,15 @@ export const fulfillmentRequestStatusSchema = z.enum([
 
 export const redemptionRequestKindSchema = z.enum(["punch_reward", "voucher"]);
 
-export const purchaseProofStatusSchema = z.enum([
+export const purchaseProofStatusValues = [
     "issued",
     "submitted",
     "confirmed",
     "failed",
     "expired",
-]);
+] as const;
+
+export const purchaseProofStatusSchema = z.enum(purchaseProofStatusValues);
 
 export const purchaseProofSchema = z.object({
     id: z.string(),

@@ -1,6 +1,5 @@
 import "server-only";
 
-import { maskYapeRef } from "@/core/consumption/domain/quotes";
 import type { PurchaseQuoteView } from "@/core/consumption/domain/types";
 import { requireCafeRole } from "@/server/auth/membership/require-cafe-role";
 import {
@@ -10,6 +9,7 @@ import {
     ok,
 } from "@/server/common/responses";
 import { expireQuote, findProofById } from "../repository/proofs";
+import { toPurchaseQuoteView } from "./purchase-quote-view";
 
 export async function getPurchaseQuoteService(
     requestingUserId: string,
@@ -33,19 +33,12 @@ export async function getPurchaseQuoteService(
     ) {
         const expired = await expireQuote(quoteId);
         if (expired) current = { ...current, ...expired };
-        else current = { ...current, status: "expired" };
+        else {
+            const refreshed = await findProofById(quoteId);
+            if (refreshed) current = refreshed;
+            else return err(AppErrors.notFound({ targets: ["proofId"] }));
+        }
     }
 
-    return ok({
-        id: current.id,
-        cafeId: current.cafeId,
-        productId: current.productId,
-        amountCentimos: current.amountCentimos,
-        expiresAt: current.expiresAt.toISOString(),
-        status: current.status,
-        maskedYapeRef: maskYapeRef(current.yapeRef),
-        purchaseOrderId: current.purchaseOrderId,
-        failureReason: current.failureReason,
-        createdAt: current.createdAt.toISOString(),
-    });
+    return ok(toPurchaseQuoteView(current));
 }

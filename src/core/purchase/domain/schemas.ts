@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const purchaseOrderStatusSchema = z.enum([
+export const purchaseOrderStatusValues = [
     "user_confirmed",
     "cafe_confirmed",
     "queued",
@@ -8,7 +8,9 @@ export const purchaseOrderStatusSchema = z.enum([
     "confirmed",
     "failed",
     "expired",
-]);
+] as const;
+
+export const purchaseOrderStatusSchema = z.enum(purchaseOrderStatusValues);
 
 const amountSolesSchema = z
     .number()

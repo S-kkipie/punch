@@ -10,6 +10,7 @@ import {
 import { assignWallet } from "@/core/chain/server/wallet/assign-wallet";
 import { findUserWallet } from "@/core/chain/server/wallet/repository";
 import type { QuoteBridgeResult } from "@/core/purchase/domain/types";
+import { requireCafeRole } from "@/server/auth/membership/require-cafe-role";
 import {
     AppErrors,
     type AsyncAppResult,
@@ -29,9 +30,8 @@ type ConfirmQuoteDeps = {
     signProof: typeof signProofAs;
     findQuote: typeof findQuoteForBridge;
     findExistingBridge: typeof getExistingBridge;
-    ensureCurrentCafeAuthorization: (
-        quote: NonNullable<Awaited<ReturnType<typeof findQuoteForBridge>>>,
-    ) => Promise<boolean>;
+    requireCafeRole: typeof requireCafeRole;
+    isAuthorizedCafeOperator: typeof isAuthorizedCafeOperator;
     ensureWallet: typeof assignWallet;
     findUserWallet: typeof findUserWallet;
     bridgeQuoteToOrder: typeof bridgeQuoteToOrder;
@@ -44,20 +44,8 @@ const defaultDeps: ConfirmQuoteDeps = {
     signProof: signProofAs,
     findQuote: findQuoteForBridge,
     findExistingBridge: getExistingBridge,
-    ensureCurrentCafeAuthorization: async (quote) => {
-        const operatorWallet = await findUserWallet(quote.issuedByUserId);
-        if (
-            !operatorWallet?.walletAddress ||
-            operatorWallet.walletIndex === null
-        ) {
-            return false;
-        }
-        if (typeof quote.chainCafeId !== "number") return false;
-        return isAuthorizedCafeOperator({
-            chainCafeId: quote.chainCafeId,
-            walletAddress: operatorWallet.walletAddress as `0x${string}`,
-        });
-    },
+    requireCafeRole,
+    isAuthorizedCafeOperator,
     ensureWallet: assignWallet,
     findUserWallet,
     bridgeQuoteToOrder,
@@ -78,10 +66,9 @@ export async function confirmQuoteService(
         if (quote.purchaseOrderId) {
             return ok(await d.findExistingBridge(quote));
         }
-        const now = d.now();
         if (
             quote.status !== "issued" ||
-            quote.expiresAt.getTime() <= now.getTime()
+            quote.expiresAt.getTime() <= d.now().getTime()
         ) {
             return err(AppErrors.conflict({ targets: ["status"] }));
         }
@@ -93,8 +80,13 @@ export async function confirmQuoteService(
                 AppErrors.unprocessableEntity({ targets: ["chainMapping"] }),
             );
         }
-        const authorized = await d.ensureCurrentCafeAuthorization(quote);
-        if (!authorized) {
+
+        const membership = await d.requireCafeRole(
+            quote.issuedByUserId,
+            quote.cafeId,
+            ["owner", "barista"],
+        );
+        if (!membership.ok) {
             return err(
                 AppErrors.unprocessableEntity({ targets: ["operator"] }),
             );
@@ -110,6 +102,16 @@ export async function confirmQuoteService(
             return err(AppErrors.unprocessableEntity({ targets: ["wallet"] }));
         }
 
+        const authorized = await d.isAuthorizedCafeOperator({
+            chainCafeId: quote.chainCafeId,
+            walletAddress: operatorWallet.walletAddress as `0x${string}`,
+        });
+        if (!authorized) {
+            return err(
+                AppErrors.unprocessableEntity({ targets: ["operator"] }),
+            );
+        }
+
         const orderId = d.generateOrderId();
         const proof: ConsumptionProof = {
             cafeId: BigInt(quote.chainCafeId),
@@ -118,29 +120,18 @@ export async function confirmQuoteService(
             amount: BigInt(quote.amountCentimos) * 10_000n,
             receiptHash: buildReceiptHash(orderId, quote.yapeRef),
             nonce: d.randomNonce(),
-            expiry: BigInt(
-                Math.floor(
-                    Math.min(
-                        quote.expiresAt.getTime(),
-                        now.getTime() + 10 * 60 * 1000,
-                    ) / 1000,
-                ),
-            ),
+            expiry: BigInt(Math.floor(quote.expiresAt.getTime() / 1000)),
         };
-        const userSignature = await d.signProof(
-            consumerWallet.walletIndex,
-            proof,
-        );
-        const cafeSignature = await d.signProof(
-            operatorWallet.walletIndex,
-            proof,
-        );
+        const [userSignature, cafeSignature] = await Promise.all([
+            d.signProof(consumerWallet.walletIndex, proof),
+            d.signProof(operatorWallet.walletIndex, proof),
+        ]);
 
         return ok(
             await d.bridgeQuoteToOrder({
                 quoteId: quote.id,
                 consumerUserId,
-                now,
+                now: d.now(),
                 orderId,
                 proof,
                 cafeSignature,

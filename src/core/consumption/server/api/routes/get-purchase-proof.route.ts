@@ -1,4 +1,5 @@
 import { Elysia, t } from "elysia";
+import { purchaseProofStatusValues } from "@/core/consumption/domain/schemas";
 import { authed } from "@/server/auth/middleware/authed";
 import {
     CommonResponse,
@@ -34,14 +35,15 @@ export const getPurchaseProofRoute = new Elysia().use(authed).get(
                     productId: t.String(),
                     amountCentimos: t.Number(),
                     expiresAt: t.String(),
-                    status: t.String(),
+                    status: t.String({ enum: purchaseProofStatusValues }),
                     maskedYapeRef: t.String(),
-                    purchaseOrderId: t.Union([t.String(), t.Null()]),
-                    failureReason: t.Union([t.String(), t.Null()]),
+                    purchaseOrderId: t.Nullable(t.String()),
+                    failureReason: t.Nullable(t.String()),
                     createdAt: t.String(),
                 }),
             }),
             401: errorResponseSchema(401),
+            403: errorResponseSchema(403),
             404: errorResponseSchema(404),
             500: errorResponseSchema(500),
         },

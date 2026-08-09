@@ -205,6 +205,69 @@ describeIntegration("quote bridge repository", () => {
         expect(await countRelayerJobsForOrder(results[0].order.id)).toBe(1);
     });
 
+    it("rejects a second consumer without exposing the first consumer's order", async () => {
+        const fixture = await createFixture();
+        const first = bridgeInput(fixture);
+        const secondConsumerId = `second-${fixture.consumerUserId}`;
+        await db.insert(user).values({
+            id: secondConsumerId,
+            name: "Second Consumer",
+            email: `${secondConsumerId}@integration.invalid`,
+        });
+
+        const [winner, loser] = await Promise.allSettled([
+            bridgeQuoteToOrder(first),
+            bridgeQuoteToOrder({
+                ...first,
+                consumerUserId: secondConsumerId,
+                orderId: `${first.orderId}-other-consumer`,
+            }),
+        ]);
+
+        expect([winner.status, loser.status].sort()).toEqual([
+            "fulfilled",
+            "rejected",
+        ]);
+        const fulfilled = [winner, loser].find(
+            (
+                result,
+            ): result is PromiseFulfilledResult<
+                Awaited<ReturnType<typeof bridgeQuoteToOrder>>
+            > => result.status === "fulfilled",
+        );
+        const rejected = [winner, loser].find(
+            (result): result is PromiseRejectedResult =>
+                result.status === "rejected",
+        );
+        expect(fulfilled).toBeDefined();
+        expect(rejected).toBeDefined();
+        if (fulfilled && rejected) {
+            expect(String(rejected.reason)).not.toContain(
+                fulfilled.value.order.id,
+            );
+        }
+        await db.delete(user).where(eq(user.id, secondConsumerId));
+    });
+
+    it("rejects a quote that expires before the locked bridge transaction validates it", async () => {
+        const fixture = await createFixture();
+        const expiresAt = new Date(Date.now() + 50);
+        await db
+            .update(consumptionProof)
+            .set({ expiresAt })
+            .where(eq(consumptionProof.id, fixture.quoteId));
+
+        await new Promise((resolve) => setTimeout(resolve, 80));
+
+        await expect(
+            bridgeQuoteToOrder({
+                ...bridgeInput(fixture),
+                now: new Date(expiresAt.getTime() - 25),
+            }),
+        ).rejects.toThrow();
+        expect(await countPurchaseOrdersForQuote(fixture.quoteId)).toBe(0);
+    });
+
     it("rolls back the quote bridge when relayer job creation fails", async () => {
         const fixture = await createFixture();
         const input = bridgeInput(fixture);

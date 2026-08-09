@@ -169,6 +169,9 @@ describe("consumer domain Drizzle schemas", () => {
             "UPDATE consumption_proof SET yape_ref = 'legacy-' || id WHERE yape_ref IS NULL",
         );
         expect(generatedMigration).toContain(
+            "UPDATE consumption_proof SET status = 'issued', consumer_user_id = NULL, cafe_signature = NULL, consumer_signature = NULL, receipt_hash = NULL, nonce = NULL, expires_at = least(expires_at, now()) WHERE status = 'confirmed' AND purchase_order_id IS NULL",
+        );
+        expect(generatedMigration).toContain(
             "ALTER TABLE consumption_proof ALTER COLUMN yape_ref SET NOT NULL",
         );
     });

@@ -5,6 +5,7 @@ import { findProductById } from "@/core/cafe/server/repository/find-product-by-i
 import { isAuthorizedCafeOperator } from "@/core/chain/server/cafe-authorization";
 import { assignWallet } from "@/core/chain/server/wallet/assign-wallet";
 import type { CreatePurchaseProof } from "@/core/consumption/domain/types";
+import { solesToMpen } from "@/core/purchase/domain/schemas";
 import { requireCafeRole } from "@/server/auth/membership/require-cafe-role";
 import {
     AppErrors,
@@ -19,12 +20,6 @@ export type PurchaseProofIssued = {
     expiresAt: string;
     deepLink: string;
 };
-
-function solesToCentimos(priceSoles: string): number {
-    const amount = Number(priceSoles);
-    if (!Number.isFinite(amount) || amount <= 0) return 0;
-    return Math.round(amount * 100);
-}
 
 export async function createPurchaseProofService(
     baristaUserId: string,
@@ -49,12 +44,20 @@ export async function createPurchaseProofService(
     if (!product || product.cafeId !== cafeId) {
         return err(AppErrors.notFound({ targets: ["productId"] }));
     }
-    const amountCentimos = solesToCentimos(product.priceSoles);
+    let amountMpen: bigint;
+    try {
+        amountMpen = solesToMpen(Number(product.priceSoles));
+    } catch {
+        amountMpen = 0n;
+    }
+    const amountCentimos = Number(amountMpen / 10_000n);
     if (
         product.type !== "emission" ||
         product.approvalStatus !== "approved" ||
         !product.active ||
-        amountCentimos <= 0
+        product.chainProductId === null ||
+        amountCentimos <= 0 ||
+        amountMpen < 8_000_000n
     ) {
         return err(
             AppErrors.unprocessableEntity({

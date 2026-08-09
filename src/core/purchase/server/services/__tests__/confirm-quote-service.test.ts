@@ -70,7 +70,10 @@ function deps(overrides: Record<string, unknown> = {}) {
             .mockResolvedValueOnce("0xcafe-signature"),
         findQuote: vi.fn().mockResolvedValue(quote),
         findExistingBridge: vi.fn(),
-        ensureCurrentCafeAuthorization: vi.fn().mockResolvedValue(true),
+        requireCafeRole: vi
+            .fn()
+            .mockResolvedValue({ ok: true, data: { role: "barista" } }),
+        isAuthorizedCafeOperator: vi.fn().mockResolvedValue(true),
         ensureWallet: vi.fn().mockResolvedValue(consumerWallet),
         findUserWallet: vi.fn().mockResolvedValue(issuingOperatorWallet),
         bridgeQuoteToOrder: vi.fn().mockResolvedValue({
@@ -202,14 +205,18 @@ describe("confirmQuoteService", () => {
                 ok: false,
                 error: testCase.expectedError,
             });
-            expect(d.ensureCurrentCafeAuthorization).not.toHaveBeenCalled();
+            expect(d.requireCafeRole).not.toHaveBeenCalled();
+            expect(d.isAuthorizedCafeOperator).not.toHaveBeenCalled();
             expect(d.bridgeQuoteToOrder).not.toHaveBeenCalled();
         }
     });
 
-    it("rejects when the issuing operator is no longer authorized", async () => {
+    it("rejects when the issuing operator is no longer a cafe member", async () => {
         const d = deps({
-            ensureCurrentCafeAuthorization: vi.fn().mockResolvedValue(false),
+            requireCafeRole: vi.fn().mockResolvedValue({
+                ok: false,
+                error: AppErrors.forbidden(),
+            }),
         });
 
         const result = await confirmQuoteService("consumer-1", quote.id, d);
@@ -218,8 +225,66 @@ describe("confirmQuoteService", () => {
             ok: false,
             error: AppErrors.unprocessableEntity({ targets: ["operator"] }),
         });
-        expect(d.ensureWallet).not.toHaveBeenCalled();
+        expect(d.findUserWallet).not.toHaveBeenCalled();
         expect(d.bridgeQuoteToOrder).not.toHaveBeenCalled();
+    });
+
+    it("rejects when the issuing operator is no longer authorized", async () => {
+        const d = deps({
+            isAuthorizedCafeOperator: vi.fn().mockResolvedValue(false),
+        });
+
+        const result = await confirmQuoteService("consumer-1", quote.id, d);
+
+        expect(result).toEqual({
+            ok: false,
+            error: AppErrors.unprocessableEntity({ targets: ["operator"] }),
+        });
+        expect(d.ensureWallet).toHaveBeenCalledWith("consumer-1");
+        expect(d.bridgeQuoteToOrder).not.toHaveBeenCalled();
+    });
+
+    it("uses one operator wallet lookup for authorization and signing", async () => {
+        const d = deps();
+
+        const result = await confirmQuoteService("consumer-1", quote.id, d);
+
+        expect(result.ok).toBe(true);
+        expect(d.findUserWallet).toHaveBeenCalledTimes(1);
+        expect(d.isAuthorizedCafeOperator).toHaveBeenCalledWith({
+            chainCafeId: quote.chainCafeId,
+            walletAddress: issuingOperatorWallet.walletAddress,
+        });
+    });
+
+    it("starts both signatures against the same proof before either resolves", async () => {
+        const releases: Array<() => void> = [];
+        const started: number[] = [];
+        const d = deps({
+            signProof: vi.fn((walletIndex: number) => {
+                started.push(walletIndex);
+                return new Promise<`0x${string}`>((resolve) => {
+                    releases.push(() =>
+                        resolve(
+                            walletIndex === consumerWallet.walletIndex
+                                ? "0xconsumer-signature"
+                                : "0xcafe-signature",
+                        ),
+                    );
+                });
+            }),
+        });
+
+        const pending = confirmQuoteService("consumer-1", quote.id, d);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(started).toEqual([
+            consumerWallet.walletIndex,
+            issuingOperatorWallet.walletIndex,
+        ]);
+        expect(releases).toHaveLength(2);
+        for (const release of releases) release();
+        await expect(pending).resolves.toMatchObject({ ok: true });
     });
 
     it("rejects when the issuing operator wallet mapping is missing", async () => {

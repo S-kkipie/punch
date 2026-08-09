@@ -1,16 +1,12 @@
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
     type ConsumptionProof,
     serializeProof,
 } from "@/core/chain/server/proof/proof";
-import { maskYapeRef } from "@/core/consumption/domain/quotes";
-import type { PurchaseQuoteView } from "@/core/consumption/domain/types";
-import type {
-    PurchaseOrderView,
-    QuoteBridgeResult,
-} from "@/core/purchase/domain/types";
+import { toPurchaseQuoteView } from "@/core/consumption/server/services/purchase-quote-view";
+import type { QuoteBridgeResult } from "@/core/purchase/domain/types";
 import { type DbClient, db } from "@/server/drizzle/db";
 import { cafe, cafeProduct } from "@/server/drizzle/schemas/cafe-schema";
 import { consumptionProof } from "@/server/drizzle/schemas/consumption-schema";
@@ -18,44 +14,12 @@ import {
     purchaseOrder,
     relayerJob,
 } from "@/server/drizzle/schemas/purchase-schema";
+import { toPurchaseView } from "../services/purchase-view";
 
 export type QuoteForBridge = typeof consumptionProof.$inferSelect & {
     chainCafeId: number | null;
     chainProductId: number | null;
 };
-
-function toOrderView(
-    row: typeof purchaseOrder.$inferSelect,
-): PurchaseOrderView {
-    return {
-        id: row.id,
-        cafeId: row.cafeId,
-        productId: row.productId,
-        amountSoles: Number(row.amount) / 1_000_000,
-        status: row.status,
-        failureReason: row.failureReason,
-        txHash: row.txHash,
-        expiry: row.expiry.toISOString(),
-        createdAt: row.createdAt.toISOString(),
-    };
-}
-
-function toQuoteView(
-    row: typeof consumptionProof.$inferSelect,
-): PurchaseQuoteView {
-    return {
-        id: row.id,
-        cafeId: row.cafeId,
-        productId: row.productId,
-        amountCentimos: row.amountCentimos,
-        expiresAt: row.expiresAt.toISOString(),
-        status: row.status,
-        maskedYapeRef: maskYapeRef(row.yapeRef),
-        purchaseOrderId: row.purchaseOrderId,
-        failureReason: row.failureReason,
-        createdAt: row.createdAt.toISOString(),
-    };
-}
 
 async function loadExistingBridge(
     client: DbClient,
@@ -70,8 +34,8 @@ async function loadExistingBridge(
         .where(eq(purchaseOrder.id, quote.purchaseOrderId));
     if (!order) throw new Error("quote bridge order not found");
     return {
-        order: toOrderView(order),
-        quote: toQuoteView(quote),
+        order: toPurchaseView(order),
+        quote: toPurchaseQuoteView(quote),
         outcome: "existing",
     };
 }
@@ -133,11 +97,23 @@ export async function bridgeQuoteToOrder(input: {
 
             if (!quote) throw new Error("quote not found");
             if (quote.purchaseOrderId) {
+                if (
+                    quote.consumerUserId &&
+                    quote.consumerUserId !== input.consumerUserId
+                ) {
+                    throw new Error("quote already bound to another consumer");
+                }
                 return loadExistingBridge(tx, quote);
             }
+
+            const dbNowResult = await tx.execute(sql`select now() as now`);
+            const dbNowValue = (dbNowResult.rows[0] as { now: Date | string })
+                .now;
+            const dbNow =
+                dbNowValue instanceof Date ? dbNowValue : new Date(dbNowValue);
             if (
                 quote.status !== "issued" ||
-                quote.expiresAt.getTime() <= input.now.getTime()
+                quote.expiresAt.getTime() <= dbNow.getTime()
             ) {
                 throw new Error("quote is no longer issuable");
             }
@@ -191,8 +167,8 @@ export async function bridgeQuoteToOrder(input: {
             }
 
             return {
-                order: toOrderView(order),
-                quote: toQuoteView(updatedQuote),
+                order: toPurchaseView(order),
+                quote: toPurchaseQuoteView(updatedQuote),
                 outcome: "created",
             };
         });
@@ -200,6 +176,7 @@ export async function bridgeQuoteToOrder(input: {
         if ((cause as { code?: string })?.code !== "23505") throw cause;
         const quote = await findQuoteForBridge(input.quoteId);
         if (!quote?.purchaseOrderId) throw cause;
+        if (quote.consumerUserId !== input.consumerUserId) throw cause;
         return getExistingBridge(quote);
     }
 }

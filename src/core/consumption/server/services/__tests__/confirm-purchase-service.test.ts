@@ -4,8 +4,8 @@ vi.mock("@/core/purchase/server/services/confirm-quote-service", () => ({
     confirmQuoteService: vi.fn(),
 }));
 
-import { err, ok } from "@/server/common/responses";
 import { confirmQuoteService } from "@/core/purchase/server/services/confirm-quote-service";
+import { err, ok } from "@/server/common/responses";
 import { confirmPurchaseService } from "../confirm-purchase-service";
 
 const bridgeResult = {

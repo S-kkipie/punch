@@ -108,4 +108,43 @@ describe("getPurchaseQuoteService", () => {
         expect(expireQuote).toHaveBeenCalledWith("quote-1");
         expect(result).toMatchObject({ ok: true, data: { status: "expired" } });
     });
+
+    it("re-reads the quote when expiring loses a confirmation race", async () => {
+        const submittedRow = {
+            id: "quote-1",
+            cafeId: "cafe-1",
+            productId: "product-1",
+            amountCentimos: 800,
+            expiresAt: new Date(Date.now() - 1),
+            status: "submitted",
+            yapeRef: "YAPE-1234",
+            issuedByUserId: "barista-1",
+            consumerUserId: "consumer-1",
+            purchaseOrderId: "order-1",
+            receiptHash: null,
+            nonce: null,
+            cafeSignature: null,
+            consumerSignature: null,
+            failureReason: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+        };
+        vi.mocked(findProofById)
+            .mockResolvedValueOnce({
+                ...submittedRow,
+                status: "issued",
+                consumerUserId: null,
+                purchaseOrderId: null,
+            } as never)
+            .mockResolvedValueOnce(submittedRow as never);
+        vi.mocked(expireQuote).mockResolvedValue(null);
+
+        const result = await getPurchaseQuoteService("consumer-1", "quote-1");
+
+        expect(findProofById).toHaveBeenCalledTimes(2);
+        expect(result).toMatchObject({
+            ok: true,
+            data: { status: "submitted", purchaseOrderId: "order-1" },
+        });
+    });
 });

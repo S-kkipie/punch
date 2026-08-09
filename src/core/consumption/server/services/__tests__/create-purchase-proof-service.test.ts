@@ -52,6 +52,7 @@ const productRow = {
     approvalStatus: "approved" as const,
     active: true,
     priceSoles: "8.00",
+    chainProductId: 10,
 };
 const input = { productId: productRow.id, yapeRef: "YAPE-1234" };
 
@@ -112,6 +113,43 @@ describe("createPurchaseProofService", () => {
         });
         await createPurchaseProofService("barista-1", "cafe-1", input);
         expect(order).toEqual(["wallet", "chain"]);
+    });
+
+    it("rejects a product without a chain product mapping at issuance", async () => {
+        setup();
+        vi.mocked(findProductById).mockResolvedValue({
+            ...productRow,
+            chainProductId: null,
+        } as never);
+
+        const result = await createPurchaseProofService(
+            "barista-1",
+            "cafe-1",
+            input,
+        );
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.error.status).toBe(422);
+        expect(createQuote).not.toHaveBeenCalled();
+    });
+
+    it("rejects a product below the minimum ticket at issuance", async () => {
+        setup();
+        vi.mocked(findProductById).mockResolvedValue({
+            ...productRow,
+            priceSoles: "7.99",
+            chainProductId: 10,
+        } as never);
+
+        const result = await createPurchaseProofService(
+            "barista-1",
+            "cafe-1",
+            input,
+        );
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.error.status).toBe(422);
+        expect(createQuote).not.toHaveBeenCalled();
     });
 
     it("persists a chain-authorized quote without proof secrets", async () => {
