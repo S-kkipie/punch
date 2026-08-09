@@ -1,4 +1,7 @@
 import "server-only";
+
+import { eq } from "drizzle-orm";
+import { findUserWallet } from "@/core/chain/server/wallet/repository";
 import type {
     DecideRedemptionRequest,
     RedemptionRequest,
@@ -10,28 +13,67 @@ import {
     err,
     ok,
 } from "@/server/common/responses";
-import type { ChainSubmission } from "../chain-port";
-import { PostgresMockConsumerChain } from "../postgres-mock-chain";
+import { db } from "@/server/drizzle/db";
+import { cafe, cafeProduct } from "@/server/drizzle/schemas/cafe-schema";
 import {
+    approveRedemptionAndEnqueueJob,
     decideRedemptionRequest,
     findRedemptionRequestById,
     RedemptionRequestRepositoryError,
 } from "../repository/redemption-requests";
 import { toRedemptionRequest } from "../repository/utils";
 
+type DecidePunchDeps = {
+    requireCafeRole: typeof requireCafeRole;
+    findRequest: typeof findRedemptionRequestById;
+    decideRequest: typeof decideRedemptionRequest;
+    approveAndEnqueue: typeof approveRedemptionAndEnqueueJob;
+    findUserWallet: typeof findUserWallet;
+    findCafeChainMapping: (
+        cafeId: string,
+    ) => Promise<{ chainCafeId: number | null }>;
+    findProductChainMapping: (
+        productId: string,
+    ) => Promise<{ chainProductId: number | null }>;
+};
+
+const defaultDeps: DecidePunchDeps = {
+    requireCafeRole,
+    findRequest: findRedemptionRequestById,
+    decideRequest: decideRedemptionRequest,
+    approveAndEnqueue: approveRedemptionAndEnqueueJob,
+    findUserWallet,
+    findCafeChainMapping: async (cafeId) => {
+        const [row] = await db
+            .select({ chainCafeId: cafe.chainCafeId })
+            .from(cafe)
+            .where(eq(cafe.id, cafeId));
+        return { chainCafeId: row?.chainCafeId ?? null };
+    },
+    findProductChainMapping: async (productId) => {
+        const [row] = await db
+            .select({ chainProductId: cafeProduct.chainProductId })
+            .from(cafeProduct)
+            .where(eq(cafeProduct.id, productId));
+        return { chainProductId: row?.chainProductId ?? null };
+    },
+};
+
 export async function decidePunchRedemptionService(
     deciderUserId: string,
     cafeId: string,
     requestId: string,
     input: DecideRedemptionRequest,
-): AsyncAppResult<ChainSubmission | RedemptionRequest> {
-    const membershipResult = await requireCafeRole(deciderUserId, cafeId, [
+    deps: Partial<DecidePunchDeps> = {},
+): AsyncAppResult<RedemptionRequest> {
+    const d = { ...defaultDeps, ...deps };
+    const membershipResult = await d.requireCafeRole(deciderUserId, cafeId, [
         "owner",
         "barista",
     ]);
     if (!membershipResult.ok) return err(membershipResult.error);
 
-    const existing = await findRedemptionRequestById(requestId);
+    const existing = await d.findRequest(requestId);
     if (
         !existing ||
         existing.cafeId !== cafeId ||
@@ -50,36 +92,43 @@ export async function decidePunchRedemptionService(
         return err(AppErrors.conflict({ targets: ["requestId"] }));
     }
 
-    const chain = new PostgresMockConsumerChain();
-    if (existing.status === "approved" && input.decision === "approved") {
-        try {
-            return ok(
-                await chain.submitPunchRedemption({
-                    redemptionRequestId: existing.id,
-                    idempotencyKey: `punch_redemption:${existing.id}`,
-                }),
-            );
-        } catch (cause) {
-            return err(AppErrors.unexpected(cause));
-        }
-    }
-
     try {
-        const request = await decideRedemptionRequest(
-            requestId,
-            deciderUserId,
-            input.decision,
-            input.rejectionReason ?? null,
-        );
-        if (request.status === "rejected") {
+        if (input.decision === "rejected") {
+            const request = await d.decideRequest(
+                requestId,
+                deciderUserId,
+                "rejected",
+                input.rejectionReason ?? null,
+            );
             return ok(toRedemptionRequest(request));
         }
-        return ok(
-            await chain.submitPunchRedemption({
-                redemptionRequestId: request.id,
-                idempotencyKey: `punch_redemption:${request.id}`,
-            }),
+
+        const wallet = await d.findUserWallet(existing.consumerUserId);
+        if (!wallet?.walletAddress) {
+            return err(AppErrors.unprocessableEntity({ targets: ["wallet"] }));
+        }
+        if (!existing.productId) {
+            return err(
+                AppErrors.unprocessableEntity({ targets: ["chainMapping"] }),
+            );
+        }
+        const cafeMapping = await d.findCafeChainMapping(existing.cafeId);
+        const productMapping = await d.findProductChainMapping(
+            existing.productId,
         );
+        const chainCafeId = cafeMapping.chainCafeId;
+        const chainProductId = productMapping.chainProductId;
+        if (chainCafeId === null || chainProductId === null) {
+            return err(
+                AppErrors.unprocessableEntity({ targets: ["chainMapping"] }),
+            );
+        }
+        const request = await d.approveAndEnqueue(requestId, deciderUserId, {
+            userWallet: wallet.walletAddress,
+            chainCafeId,
+            chainProductId,
+        });
+        return ok(toRedemptionRequest(request));
     } catch (cause) {
         if (cause instanceof RedemptionRequestRepositoryError) {
             if (cause.code === "REQUEST_NOT_FOUND") {

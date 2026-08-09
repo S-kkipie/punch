@@ -7,10 +7,14 @@ import {
     type RedemptionRequestRow,
     redemptionRequest,
 } from "@/server/drizzle/schemas/consumption-schema";
+import { relayerJob } from "@/server/drizzle/schemas/purchase-schema";
 
 export class RedemptionRequestRepositoryError extends Error {
     constructor(
-        public code: "REQUEST_NOT_FOUND" | "REQUEST_NOT_PENDING",
+        public code:
+            | "REQUEST_NOT_FOUND"
+            | "REQUEST_NOT_PENDING"
+            | "INVALID_TRANSITION",
         message: string,
     ) {
         super(message);
@@ -29,6 +33,65 @@ export async function createRedemptionRequest(
     if (!row)
         throw new Error("createRedemptionRequest: insert returned no row");
     return row;
+}
+
+export async function approveRedemptionAndEnqueueJob(
+    requestId: string,
+    deciderUserId: string,
+    payload: {
+        userWallet: string;
+        chainCafeId: number;
+        chainProductId: number;
+    },
+): Promise<RedemptionRequestRow> {
+    return db.transaction(async (tx) => {
+        const [existing] = await tx
+            .select()
+            .from(redemptionRequest)
+            .where(eq(redemptionRequest.id, requestId))
+            .for("update");
+        if (!existing) {
+            throw new RedemptionRequestRepositoryError(
+                "REQUEST_NOT_FOUND",
+                `Redemption request ${requestId} not found`,
+            );
+        }
+        if (existing.status === "approved" || existing.status === "confirmed") {
+            return existing;
+        }
+        if (existing.status !== "pending") {
+            throw new RedemptionRequestRepositoryError(
+                "INVALID_TRANSITION",
+                `Redemption request ${requestId} cannot be approved`,
+            );
+        }
+
+        const [updated] = await tx
+            .update(redemptionRequest)
+            .set({ status: "approved", decidedByUserId: deciderUserId })
+            .where(
+                and(
+                    eq(redemptionRequest.id, requestId),
+                    eq(redemptionRequest.status, "pending"),
+                ),
+            )
+            .returning();
+        if (!updated) {
+            throw new RedemptionRequestRepositoryError(
+                "INVALID_TRANSITION",
+                `Redemption request ${requestId} cannot be approved`,
+            );
+        }
+        await tx
+            .insert(relayerJob)
+            .values({
+                kind: "punch_redemption",
+                redemptionRequestId: requestId,
+                payload,
+            })
+            .onConflictDoNothing({ target: relayerJob.redemptionRequestId });
+        return updated;
+    });
 }
 
 export async function findRedemptionRequestById(
