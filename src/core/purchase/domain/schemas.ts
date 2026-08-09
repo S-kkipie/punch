@@ -26,6 +26,8 @@ export const createPurchaseSchema = z.object({
     yapeRef: z.string().min(4).max(120),
 });
 
+export const quoteBridgeOutcomeSchema = z.enum(["created", "existing"]);
+
 export const purchaseOrderSchema = z.object({
     id: z.string(),
     cafeId: z.string(),

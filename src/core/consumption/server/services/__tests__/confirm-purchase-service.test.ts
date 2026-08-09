@@ -1,85 +1,77 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../repository/proofs", () => ({
-    findProofById: vi.fn(),
-    bindProofSignatures: vi.fn(),
-}));
-vi.mock("@/core/chain/server/wallet/assign-wallet", () => ({
-    assignWallet: vi.fn(),
-}));
-vi.mock("@/core/chain/server/wallet/derive", () => ({
-    deriveUserAccount: vi.fn((index: number) => ({
-        address:
-            index === 1
-                ? "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
-                : "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
-        signTypedData: vi.fn().mockResolvedValue(`0xsig-${index}`),
-    })),
-}));
-vi.mock("../../postgres-mock-chain", () => ({
-    PostgresMockConsumerChain: vi.fn().mockImplementation(() => ({
-        submitConsumption: vi.fn().mockResolvedValue({
-            transactionId: "tx-1",
-            status: "pending",
-        }),
-    })),
+vi.mock("@/core/purchase/server/services/confirm-quote-service", () => ({
+    confirmQuoteService: vi.fn(),
 }));
 
-import { assignWallet } from "@/core/chain/server/wallet/assign-wallet";
-import { bindProofSignatures, findProofById } from "../../repository/proofs";
+import { err, ok } from "@/server/common/responses";
+import { confirmQuoteService } from "@/core/purchase/server/services/confirm-quote-service";
 import { confirmPurchaseService } from "../confirm-purchase-service";
 
-const issuedProof = {
-    id: "proof-1",
-    status: "issued",
-    issuedByUserId: "cafe-user-1",
-    cafeId: "cafe-1",
-    productId: "product-1",
-    amountCentimos: 1200,
-    receiptHash: `0x${"11".repeat(32)}`,
-    nonce: `0x${"22".repeat(32)}`,
-    expiresAt: new Date(Date.now() + 60_000),
+const bridgeResult = {
+    order: {
+        id: "order-1",
+        cafeId: "cafe-1",
+        productId: "product-1",
+        amountSoles: 12,
+        status: "queued" as const,
+        failureReason: null,
+        txHash: null,
+        expiry: "2026-08-09T12:09:00.000Z",
+        createdAt: "2026-08-09T12:00:00.000Z",
+    },
+    quote: {
+        id: "quote-1",
+        cafeId: "cafe-1",
+        productId: "product-1",
+        amountCentimos: 1200,
+        expiresAt: "2026-08-09T12:09:00.000Z",
+        status: "submitted" as const,
+        maskedYapeRef: "••••88",
+        purchaseOrderId: "order-1",
+        failureReason: null,
+        createdAt: "2026-08-09T11:59:00.000Z",
+    },
+    outcome: "created" as const,
 };
 
 describe("confirmPurchaseService", () => {
     beforeEach(() => vi.clearAllMocks());
 
-    it("rejects an expired proof before assigning wallets or signing", async () => {
-        vi.mocked(findProofById).mockResolvedValue({
-            ...issuedProof,
-            expiresAt: new Date(Date.now() - 1000),
-        } as never);
+    it("delegates purchase confirmation to the quote bridge", async () => {
+        vi.mocked(confirmQuoteService).mockResolvedValue(ok(bridgeResult));
 
         const result = await confirmPurchaseService("user-1", {
-            proofId: "proof-1",
+            proofId: "quote-1",
         });
 
-        expect(result.ok).toBe(false);
-        expect(assignWallet).not.toHaveBeenCalled();
+        expect(result).toEqual({ ok: true, data: bridgeResult });
+        expect(confirmQuoteService).toHaveBeenCalledWith("user-1", "quote-1");
     });
 
-    it("binds two signatures over the same final consumer-bound typed payload", async () => {
-        vi.mocked(findProofById).mockResolvedValue(issuedProof as never);
-        vi.mocked(assignWallet)
-            .mockResolvedValueOnce({ walletIndex: 1, address: "0xconsumer" })
-            .mockResolvedValueOnce({ walletIndex: 2, address: "0xcafe" });
-        vi.mocked(bindProofSignatures).mockResolvedValue({
-            id: "proof-1",
-        } as never);
+    it("never uses the legacy mock confirmation write path", async () => {
+        vi.mocked(confirmQuoteService).mockResolvedValue(
+            err({
+                type: "ConflictError",
+                code: "CONFLICT",
+                status: 409,
+                targets: ["status"],
+            }),
+        );
 
         const result = await confirmPurchaseService("user-1", {
-            proofId: "proof-1",
+            proofId: "quote-1",
         });
 
         expect(result).toEqual({
-            ok: true,
-            data: { transactionId: "tx-1", status: "pending" },
+            ok: false,
+            error: {
+                type: "ConflictError",
+                code: "CONFLICT",
+                status: 409,
+                targets: ["status"],
+            },
         });
-        expect(bindProofSignatures).toHaveBeenCalledWith(
-            "proof-1",
-            "user-1",
-            "0xsig-2",
-            "0xsig-1",
-        );
+        expect(confirmQuoteService).toHaveBeenCalledTimes(1);
     });
 });
