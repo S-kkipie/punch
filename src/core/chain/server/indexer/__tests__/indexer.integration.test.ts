@@ -49,9 +49,11 @@ import {
     purchaseOrder,
     relayerJob,
 } from "@/server/drizzle/schemas/purchase-schema";
+import { installIntegrationDbMutex } from "@/test/integration-db-mutex";
 
 const runIntegration = process.env.PUNCH_RUN_INTEGRATION === "1";
 const describeIntegration = describe.skipIf(!runIntegration);
+installIntegrationDbMutex();
 const ANVIL_MNEMONIC =
     "test test test test test test test test test test test junk";
 const RELAYER_MNEMONIC =

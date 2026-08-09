@@ -29,6 +29,7 @@ import {
     projectionPunchBalance,
     projectionStatus,
 } from "@/server/drizzle/schemas/chain-schema";
+import { installIntegrationDbMutex } from "@/test/integration-db-mutex";
 import { isChainProjectionStale, runReconcilerOnce } from "../reconciler";
 
 const addresses = {
@@ -325,6 +326,7 @@ describe("runReconcilerOnce", () => {
 });
 
 const runLive = process.env.PUNCH_RUN_INTEGRATION === "1";
+installIntegrationDbMutex();
 const mnemonic = "test test test test test test test test test test test junk";
 let anvil: ChildProcessWithoutNullStreams | undefined;
 let rpcUrl = "";
