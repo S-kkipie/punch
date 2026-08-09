@@ -172,7 +172,7 @@ export async function runIndexerOnce(
         .where(eq(indexerCursor.contract, "punch"));
     const cursor = cursorRows[0]?.block ?? deps.deployBlock ?? 0n;
 
-    const latest = await deps.pub.getBlockNumber();
+    const latest = await deps.pub.getBlockNumber({ cacheTime: 0 });
     if (latest <= cursor) return;
 
     const events = await fetchEvents(deps, cursor + 1n, latest);

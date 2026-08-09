@@ -100,7 +100,7 @@ async function readChainState(
     if (event?.type !== "event") {
         throw new Error("missing ConsumptionRecorded ABI event");
     }
-    const latest = await deps.pub.getBlockNumber();
+    const latest = await deps.pub.getBlockNumber({ cacheTime: 0 });
     const logs = await deps.pub.getLogs({
         address: deps.addresses.consumptionLog,
         event,

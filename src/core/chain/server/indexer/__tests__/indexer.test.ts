@@ -141,14 +141,17 @@ function fakePub(logsByAddress: Record<string, unknown[]>, latest = 50n) {
         fromBlock: bigint;
         toBlock: bigint;
     }> = [];
+    const latestArgs: Array<{ cacheTime?: number }> = [];
     let latestCalls = 0;
     return {
         calls,
+        latestArgs,
         get latestCalls() {
             return latestCalls;
         },
-        async getBlockNumber() {
+        async getBlockNumber(args?: { cacheTime?: number }) {
             latestCalls += 1;
+            latestArgs.push(args ?? {});
             return latest;
         },
         async getLogs(args: {
@@ -303,6 +306,7 @@ describe("runIndexerOnce", () => {
         await runIndexerOnce({ pub: pub as any, database, addresses });
 
         expect(pub.latestCalls).toBe(1);
+        expect(pub.latestArgs).toEqual([{ cacheTime: 0 }]);
         expect(pub.calls).toEqual([
             {
                 address: addresses.punchVault,
