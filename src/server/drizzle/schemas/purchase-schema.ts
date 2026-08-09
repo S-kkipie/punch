@@ -74,16 +74,27 @@ export const relayerJobStatus = pgEnum("relayer_job_status", [
     "failed",
 ]);
 
+export const relayerJobKind = pgEnum("relayer_job_kind", [
+    "consumption_record",
+    "campaign_create",
+    "campaign_fund_approve",
+    "campaign_fund",
+    "campaign_publish",
+    "voucher_unlock",
+    "voucher_redeem",
+]);
+
 export const relayerJob = pgTable(
     "relayer_job",
     {
         id: text("id")
             .primaryKey()
             .$defaultFn(() => crypto.randomUUID()),
-        orderId: text("order_id")
-            .notNull()
-            .unique()
-            .references(() => purchaseOrder.id, { onDelete: "restrict" }),
+        orderId: text("order_id").references(() => purchaseOrder.id, {
+            onDelete: "restrict",
+        }),
+        kind: relayerJobKind("kind").default("consumption_record").notNull(),
+        idempotencyKey: text("idempotency_key").notNull().unique(),
         // { proof: {...stringified bigints}, cafeSignature, userSignature }
         payload: jsonb("payload").notNull(),
         attempts: integer("attempts").default(0).notNull(),
@@ -97,7 +108,13 @@ export const relayerJob = pgTable(
             .$onUpdate(() => new Date())
             .notNull(),
     },
-    (t) => [index("relayer_job_status_retry_idx").on(t.status, t.nextRetryAt)],
+    (t) => [
+        index("relayer_job_status_retry_idx").on(t.status, t.nextRetryAt),
+        // Preserves the old UNIQUE(order_id) guarantee for purchase jobs only.
+        uniqueIndex("relayer_job_consumption_order_uq")
+            .on(t.orderId)
+            .where(sql`${t.kind} = 'consumption_record'`),
+    ],
 );
 
 export type PurchaseOrderRow = typeof purchaseOrder.$inferSelect;

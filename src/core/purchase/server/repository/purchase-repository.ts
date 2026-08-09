@@ -177,7 +177,12 @@ export async function updateOrderAndQueue(
                 if (!current) throw new Error("purchase order not found");
                 return { outcome: "current", order: current };
             }
-            await tx.insert(relayerJob).values({ orderId, payload });
+            await tx.insert(relayerJob).values({
+                orderId,
+                kind: "consumption_record",
+                idempotencyKey: `consumption:${orderId}`,
+                payload,
+            });
             await tx
                 .update(purchaseOrder)
                 .set({ status: "queued" })
@@ -366,6 +371,7 @@ export async function markJobSubmitted(
             .where(and(eq(relayerJob.id, id), eq(relayerJob.status, "pending")))
             .returning({ orderId: relayerJob.orderId });
         if (!job) return null;
+        if (!job.orderId) throw new Error("relayer job missing purchase order");
         const [order] = await tx
             .update(purchaseOrder)
             .set({ status: "submitted", txHash, failureReason: null })
@@ -416,6 +422,7 @@ export async function markJobConfirmed(id: string) {
             if (!current) return null;
             throw new Error("relayer confirmed order transition rejected");
         }
+        if (!job.orderId) throw new Error("relayer job missing purchase order");
 
         const [order] = await tx
             .update(purchaseOrder)
@@ -462,6 +469,7 @@ export async function markJobRetry(
             )
             .returning({ orderId: relayerJob.orderId });
         if (!job) return null;
+        if (!job.orderId) throw new Error("relayer job missing purchase order");
         const [order] = await tx
             .update(purchaseOrder)
             .set({ status: "queued" })
@@ -487,6 +495,7 @@ export async function markJobPending(id: string, nextRetryAt: Date) {
             )
             .returning({ orderId: relayerJob.orderId });
         if (!job) return null;
+        if (!job.orderId) throw new Error("relayer job missing purchase order");
         const [order] = await tx
             .update(purchaseOrder)
             .set({ status: "queued" })
@@ -520,6 +529,7 @@ export async function markJobFailed(
             )
             .returning({ orderId: relayerJob.orderId });
         if (!job) return null;
+        if (!job.orderId) throw new Error("relayer job missing purchase order");
         const [order] = await tx
             .update(purchaseOrder)
             .set({ status: "failed", failureReason })

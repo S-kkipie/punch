@@ -118,7 +118,12 @@ describeIntegration("purchase repository concurrency", () => {
         const fixture = await createFixture();
         const [job] = await db
             .insert(relayerJob)
-            .values({ orderId: fixture.orderId, payload: {} })
+            .values({
+                orderId: fixture.orderId,
+                kind: "consumption_record",
+                idempotencyKey: `consumption:${fixture.orderId}`,
+                payload: {},
+            })
             .returning();
         fixture.jobId = job.id;
 

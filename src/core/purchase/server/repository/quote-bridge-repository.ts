@@ -153,6 +153,8 @@ export async function bridgeQuoteToOrder(input: {
 
             await tx.insert(relayerJob).values({
                 orderId: order.id,
+                kind: "consumption_record",
+                idempotencyKey: `consumption:${order.id}`,
                 payload: {
                     proof: serializeProof(input.proof),
                     cafeSignature: input.cafeSignature,
