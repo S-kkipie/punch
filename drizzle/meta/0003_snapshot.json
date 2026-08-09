@@ -1,5 +1,5 @@
 {
-    "id": "87eab048-86a1-466c-abe4-321028a1e66d",
+    "id": "57585696-706a-468c-8003-de9cdb6f8533",
     "prevId": "266bbcdf-d005-4d9e-8bbb-e7c46b9f7a82",
     "version": "7",
     "dialect": "postgresql",
@@ -447,12 +447,6 @@
                     "primaryKey": false,
                     "notNull": false
                 },
-                "chain_cafe_id": {
-                    "name": "chain_cafe_id",
-                    "type": "integer",
-                    "primaryKey": false,
-                    "notNull": false
-                },
                 "onboarding_status": {
                     "name": "onboarding_status",
                     "type": "cafe_onboarding_status",
@@ -506,11 +500,6 @@
                     "name": "cafe_slug_unique",
                     "nullsNotDistinct": false,
                     "columns": ["slug"]
-                },
-                "cafe_chain_cafe_id_unique": {
-                    "name": "cafe_chain_cafe_id_unique",
-                    "nullsNotDistinct": false,
-                    "columns": ["chain_cafe_id"]
                 }
             },
             "policies": {},
@@ -651,12 +640,6 @@
                     "primaryKey": false,
                     "notNull": false
                 },
-                "chain_product_id": {
-                    "name": "chain_product_id",
-                    "type": "integer",
-                    "primaryKey": false,
-                    "notNull": false
-                },
                 "price_soles": {
                     "name": "price_soles",
                     "type": "numeric",
@@ -755,64 +738,8 @@
             },
             "isRLSEnabled": false
         },
-        "public.indexer_cursor": {
-            "name": "indexer_cursor",
-            "schema": "",
-            "columns": {
-                "contract": {
-                    "name": "contract",
-                    "type": "text",
-                    "primaryKey": true,
-                    "notNull": true
-                },
-                "last_processed_block": {
-                    "name": "last_processed_block",
-                    "type": "bigint",
-                    "primaryKey": false,
-                    "notNull": true
-                }
-            },
-            "indexes": {},
-            "foreignKeys": {},
-            "compositePrimaryKeys": {},
-            "uniqueConstraints": {},
-            "policies": {},
-            "checkConstraints": {},
-            "isRLSEnabled": false
-        },
-        "public.projection_cafe_credit": {
-            "name": "projection_cafe_credit",
-            "schema": "",
-            "columns": {
-                "chain_cafe_id": {
-                    "name": "chain_cafe_id",
-                    "type": "integer",
-                    "primaryKey": true,
-                    "notNull": true
-                },
-                "credits": {
-                    "name": "credits",
-                    "type": "bigint",
-                    "primaryKey": false,
-                    "notNull": true
-                },
-                "last_block": {
-                    "name": "last_block",
-                    "type": "bigint",
-                    "primaryKey": false,
-                    "notNull": true
-                }
-            },
-            "indexes": {},
-            "foreignKeys": {},
-            "compositePrimaryKeys": {},
-            "uniqueConstraints": {},
-            "policies": {},
-            "checkConstraints": {},
-            "isRLSEnabled": false
-        },
-        "public.projection_consumption": {
-            "name": "projection_consumption",
+        "public.consumer_transaction": {
+            "name": "consumer_transaction",
             "schema": "",
             "columns": {
                 "id": {
@@ -821,127 +748,69 @@
                     "primaryKey": true,
                     "notNull": true
                 },
-                "tx_hash": {
-                    "name": "tx_hash",
+                "operation": {
+                    "name": "operation",
+                    "type": "consumption_operation",
+                    "typeSchema": "public",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "consumer_user_id": {
+                    "name": "consumer_user_id",
                     "type": "text",
                     "primaryKey": false,
                     "notNull": true
                 },
-                "log_index": {
-                    "name": "log_index",
-                    "type": "integer",
-                    "primaryKey": false,
-                    "notNull": true
-                },
-                "chain_cafe_id": {
-                    "name": "chain_cafe_id",
-                    "type": "integer",
-                    "primaryKey": false,
-                    "notNull": true
-                },
-                "user_address": {
-                    "name": "user_address",
+                "cafe_id": {
+                    "name": "cafe_id",
                     "type": "text",
                     "primaryKey": false,
                     "notNull": true
                 },
-                "receipt_hash": {
-                    "name": "receipt_hash",
+                "proof_id": {
+                    "name": "proof_id",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "redemption_request_id": {
+                    "name": "redemption_request_id",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "chain_tx_id": {
+                    "name": "chain_tx_id",
                     "type": "text",
                     "primaryKey": false,
                     "notNull": true
                 },
-                "block": {
-                    "name": "block",
-                    "type": "bigint",
-                    "primaryKey": false,
-                    "notNull": true
-                }
-            },
-            "indexes": {
-                "projection_consumption_tx_log_uq": {
-                    "name": "projection_consumption_tx_log_uq",
-                    "columns": [
-                        {
-                            "expression": "tx_hash",
-                            "isExpression": false,
-                            "asc": true,
-                            "nulls": "last"
-                        },
-                        {
-                            "expression": "log_index",
-                            "isExpression": false,
-                            "asc": true,
-                            "nulls": "last"
-                        }
-                    ],
-                    "isUnique": true,
-                    "concurrently": false,
-                    "method": "btree",
-                    "with": {}
-                }
-            },
-            "foreignKeys": {},
-            "compositePrimaryKeys": {},
-            "uniqueConstraints": {},
-            "policies": {},
-            "checkConstraints": {},
-            "isRLSEnabled": false
-        },
-        "public.projection_punch_balance": {
-            "name": "projection_punch_balance",
-            "schema": "",
-            "columns": {
-                "user_address": {
-                    "name": "user_address",
-                    "type": "text",
-                    "primaryKey": true,
-                    "notNull": true
-                },
-                "balance": {
-                    "name": "balance",
-                    "type": "bigint",
-                    "primaryKey": false,
-                    "notNull": true
-                },
-                "last_block": {
-                    "name": "last_block",
-                    "type": "bigint",
-                    "primaryKey": false,
-                    "notNull": true
-                }
-            },
-            "indexes": {},
-            "foreignKeys": {},
-            "compositePrimaryKeys": {},
-            "uniqueConstraints": {},
-            "policies": {},
-            "checkConstraints": {},
-            "isRLSEnabled": false
-        },
-        "public.projection_status": {
-            "name": "projection_status",
-            "schema": "",
-            "columns": {
-                "projection": {
-                    "name": "projection",
-                    "type": "text",
-                    "primaryKey": true,
-                    "notNull": true
-                },
-                "paused": {
-                    "name": "paused",
-                    "type": "boolean",
+                "status": {
+                    "name": "status",
+                    "type": "consumer_transaction_status",
+                    "typeSchema": "public",
                     "primaryKey": false,
                     "notNull": true,
-                    "default": false
+                    "default": "'pending'"
                 },
-                "last_good_block": {
-                    "name": "last_good_block",
-                    "type": "bigint",
+                "rejection_reason": {
+                    "name": "rejection_reason",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "idempotency_key": {
+                    "name": "idempotency_key",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "created_at": {
+                    "name": "created_at",
+                    "type": "timestamp",
                     "primaryKey": false,
                     "notNull": true,
-                    "default": "0"
+                    "default": "now()"
                 },
                 "updated_at": {
                     "name": "updated_at",
@@ -951,8 +820,423 @@
                     "default": "now()"
                 }
             },
-            "indexes": {},
-            "foreignKeys": {},
+            "indexes": {
+                "consumer_transaction_idempotency_uq": {
+                    "name": "consumer_transaction_idempotency_uq",
+                    "columns": [
+                        {
+                            "expression": "idempotency_key",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": true,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                },
+                "consumer_transaction_consumer_id_idx": {
+                    "name": "consumer_transaction_consumer_id_idx",
+                    "columns": [
+                        {
+                            "expression": "consumer_user_id",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                },
+                "consumer_transaction_proof_id_idx": {
+                    "name": "consumer_transaction_proof_id_idx",
+                    "columns": [
+                        {
+                            "expression": "proof_id",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                }
+            },
+            "foreignKeys": {
+                "consumer_transaction_consumer_user_id_user_id_fk": {
+                    "name": "consumer_transaction_consumer_user_id_user_id_fk",
+                    "tableFrom": "consumer_transaction",
+                    "tableTo": "user",
+                    "columnsFrom": ["consumer_user_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "no action",
+                    "onUpdate": "no action"
+                },
+                "consumer_transaction_cafe_id_cafe_id_fk": {
+                    "name": "consumer_transaction_cafe_id_cafe_id_fk",
+                    "tableFrom": "consumer_transaction",
+                    "tableTo": "cafe",
+                    "columnsFrom": ["cafe_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "no action",
+                    "onUpdate": "no action"
+                },
+                "consumer_transaction_proof_id_consumption_proof_id_fk": {
+                    "name": "consumer_transaction_proof_id_consumption_proof_id_fk",
+                    "tableFrom": "consumer_transaction",
+                    "tableTo": "consumption_proof",
+                    "columnsFrom": ["proof_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "no action",
+                    "onUpdate": "no action"
+                }
+            },
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        },
+        "public.consumption_proof": {
+            "name": "consumption_proof",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "text",
+                    "primaryKey": true,
+                    "notNull": true
+                },
+                "cafe_id": {
+                    "name": "cafe_id",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "product_id": {
+                    "name": "product_id",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "issued_by_user_id": {
+                    "name": "issued_by_user_id",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "consumer_user_id": {
+                    "name": "consumer_user_id",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "amount_centimos": {
+                    "name": "amount_centimos",
+                    "type": "integer",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "receipt_hash": {
+                    "name": "receipt_hash",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "nonce": {
+                    "name": "nonce",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "cafe_signature": {
+                    "name": "cafe_signature",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "consumer_signature": {
+                    "name": "consumer_signature",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "status": {
+                    "name": "status",
+                    "type": "purchase_proof_status",
+                    "typeSchema": "public",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "'issued'"
+                },
+                "expires_at": {
+                    "name": "expires_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "created_at": {
+                    "name": "created_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                },
+                "updated_at": {
+                    "name": "updated_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                }
+            },
+            "indexes": {
+                "consumption_proof_nonce_uq": {
+                    "name": "consumption_proof_nonce_uq",
+                    "columns": [
+                        {
+                            "expression": "nonce",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": true,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                },
+                "consumption_proof_receipt_hash_uq": {
+                    "name": "consumption_proof_receipt_hash_uq",
+                    "columns": [
+                        {
+                            "expression": "receipt_hash",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": true,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                },
+                "consumption_proof_cafe_id_idx": {
+                    "name": "consumption_proof_cafe_id_idx",
+                    "columns": [
+                        {
+                            "expression": "cafe_id",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                }
+            },
+            "foreignKeys": {
+                "consumption_proof_cafe_id_cafe_id_fk": {
+                    "name": "consumption_proof_cafe_id_cafe_id_fk",
+                    "tableFrom": "consumption_proof",
+                    "tableTo": "cafe",
+                    "columnsFrom": ["cafe_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "cascade",
+                    "onUpdate": "no action"
+                },
+                "consumption_proof_product_id_cafe_product_id_fk": {
+                    "name": "consumption_proof_product_id_cafe_product_id_fk",
+                    "tableFrom": "consumption_proof",
+                    "tableTo": "cafe_product",
+                    "columnsFrom": ["product_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "cascade",
+                    "onUpdate": "no action"
+                },
+                "consumption_proof_issued_by_user_id_user_id_fk": {
+                    "name": "consumption_proof_issued_by_user_id_user_id_fk",
+                    "tableFrom": "consumption_proof",
+                    "tableTo": "user",
+                    "columnsFrom": ["issued_by_user_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "no action",
+                    "onUpdate": "no action"
+                },
+                "consumption_proof_consumer_user_id_user_id_fk": {
+                    "name": "consumption_proof_consumer_user_id_user_id_fk",
+                    "tableFrom": "consumption_proof",
+                    "tableTo": "user",
+                    "columnsFrom": ["consumer_user_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "no action",
+                    "onUpdate": "no action"
+                }
+            },
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {
+                "consumption_proof_amount_positive": {
+                    "name": "consumption_proof_amount_positive",
+                    "value": "\"consumption_proof\".\"amount_centimos\" > 0"
+                }
+            },
+            "isRLSEnabled": false
+        },
+        "public.redemption_request": {
+            "name": "redemption_request",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "text",
+                    "primaryKey": true,
+                    "notNull": true
+                },
+                "kind": {
+                    "name": "kind",
+                    "type": "redemption_request_kind",
+                    "typeSchema": "public",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "consumer_user_id": {
+                    "name": "consumer_user_id",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "cafe_id": {
+                    "name": "cafe_id",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "product_id": {
+                    "name": "product_id",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "voucher_id": {
+                    "name": "voucher_id",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "status": {
+                    "name": "status",
+                    "type": "redemption_request_status",
+                    "typeSchema": "public",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "'pending'"
+                },
+                "rejection_reason": {
+                    "name": "rejection_reason",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "decided_by_user_id": {
+                    "name": "decided_by_user_id",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "created_at": {
+                    "name": "created_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                },
+                "updated_at": {
+                    "name": "updated_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                }
+            },
+            "indexes": {
+                "redemption_request_cafe_id_idx": {
+                    "name": "redemption_request_cafe_id_idx",
+                    "columns": [
+                        {
+                            "expression": "cafe_id",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                },
+                "redemption_request_consumer_id_idx": {
+                    "name": "redemption_request_consumer_id_idx",
+                    "columns": [
+                        {
+                            "expression": "consumer_user_id",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": false,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                }
+            },
+            "foreignKeys": {
+                "redemption_request_consumer_user_id_user_id_fk": {
+                    "name": "redemption_request_consumer_user_id_user_id_fk",
+                    "tableFrom": "redemption_request",
+                    "tableTo": "user",
+                    "columnsFrom": ["consumer_user_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "no action",
+                    "onUpdate": "no action"
+                },
+                "redemption_request_cafe_id_cafe_id_fk": {
+                    "name": "redemption_request_cafe_id_cafe_id_fk",
+                    "tableFrom": "redemption_request",
+                    "tableTo": "cafe",
+                    "columnsFrom": ["cafe_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "no action",
+                    "onUpdate": "no action"
+                },
+                "redemption_request_product_id_cafe_product_id_fk": {
+                    "name": "redemption_request_product_id_cafe_product_id_fk",
+                    "tableFrom": "redemption_request",
+                    "tableTo": "cafe_product",
+                    "columnsFrom": ["product_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "no action",
+                    "onUpdate": "no action"
+                },
+                "redemption_request_decided_by_user_id_user_id_fk": {
+                    "name": "redemption_request_decided_by_user_id_user_id_fk",
+                    "tableFrom": "redemption_request",
+                    "tableTo": "user",
+                    "columnsFrom": ["decided_by_user_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "no action",
+                    "onUpdate": "no action"
+                }
+            },
             "compositePrimaryKeys": {},
             "uniqueConstraints": {},
             "policies": {},
@@ -1064,8 +1348,8 @@
             },
             "isRLSEnabled": false
         },
-        "public.purchase_order": {
-            "name": "purchase_order",
+        "public.campaign": {
+            "name": "campaign",
             "schema": "",
             "columns": {
                 "id": {
@@ -1074,73 +1358,43 @@
                     "primaryKey": true,
                     "notNull": true
                 },
+                "kind": {
+                    "name": "kind",
+                    "type": "campaign_kind",
+                    "typeSchema": "public",
+                    "primaryKey": false,
+                    "notNull": true
+                },
                 "cafe_id": {
                     "name": "cafe_id",
                     "type": "text",
                     "primaryKey": false,
                     "notNull": true
                 },
-                "user_id": {
-                    "name": "user_id",
+                "name": {
+                    "name": "name",
                     "type": "text",
                     "primaryKey": false,
                     "notNull": true
                 },
-                "product_id": {
-                    "name": "product_id",
-                    "type": "text",
-                    "primaryKey": false,
-                    "notNull": true
-                },
-                "amount": {
-                    "name": "amount",
-                    "type": "bigint",
-                    "primaryKey": false,
-                    "notNull": true
-                },
-                "yape_ref": {
-                    "name": "yape_ref",
-                    "type": "text",
-                    "primaryKey": false,
-                    "notNull": true
-                },
-                "receipt_hash": {
-                    "name": "receipt_hash",
-                    "type": "text",
-                    "primaryKey": false,
-                    "notNull": true
-                },
-                "nonce": {
-                    "name": "nonce",
-                    "type": "text",
-                    "primaryKey": false,
-                    "notNull": true
-                },
-                "expiry": {
-                    "name": "expiry",
+                "window_start": {
+                    "name": "window_start",
                     "type": "timestamp",
                     "primaryKey": false,
                     "notNull": true
                 },
-                "status": {
-                    "name": "status",
-                    "type": "purchase_order_status",
-                    "typeSchema": "public",
+                "window_end": {
+                    "name": "window_end",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "active": {
+                    "name": "active",
+                    "type": "boolean",
                     "primaryKey": false,
                     "notNull": true,
-                    "default": "'user_confirmed'"
-                },
-                "failure_reason": {
-                    "name": "failure_reason",
-                    "type": "text",
-                    "primaryKey": false,
-                    "notNull": false
-                },
-                "tx_hash": {
-                    "name": "tx_hash",
-                    "type": "text",
-                    "primaryKey": false,
-                    "notNull": false
+                    "default": true
                 },
                 "created_at": {
                     "name": "created_at",
@@ -1148,63 +1402,112 @@
                     "primaryKey": false,
                     "notNull": true,
                     "default": "now()"
+                }
+            },
+            "indexes": {},
+            "foreignKeys": {
+                "campaign_cafe_id_cafe_id_fk": {
+                    "name": "campaign_cafe_id_cafe_id_fk",
+                    "tableFrom": "campaign",
+                    "tableTo": "cafe",
+                    "columnsFrom": ["cafe_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "cascade",
+                    "onUpdate": "no action"
+                }
+            },
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        },
+        "public.coffee_crawl": {
+            "name": "coffee_crawl",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "text",
+                    "primaryKey": true,
+                    "notNull": true
                 },
-                "updated_at": {
-                    "name": "updated_at",
+                "name": {
+                    "name": "name",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "expires_at": {
+                    "name": "expires_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "active": {
+                    "name": "active",
+                    "type": "boolean",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": true
+                },
+                "created_at": {
+                    "name": "created_at",
                     "type": "timestamp",
                     "primaryKey": false,
                     "notNull": true,
                     "default": "now()"
                 }
             },
+            "indexes": {},
+            "foreignKeys": {},
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        },
+        "public.coffee_crawl_step": {
+            "name": "coffee_crawl_step",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "text",
+                    "primaryKey": true,
+                    "notNull": true
+                },
+                "crawl_id": {
+                    "name": "crawl_id",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "step_index": {
+                    "name": "step_index",
+                    "type": "integer",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "cafe_id": {
+                    "name": "cafe_id",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                }
+            },
             "indexes": {
-                "purchase_order_cafe_status_idx": {
-                    "name": "purchase_order_cafe_status_idx",
+                "coffee_crawl_step_crawl_index_uq": {
+                    "name": "coffee_crawl_step_crawl_index_uq",
                     "columns": [
                         {
-                            "expression": "cafe_id",
+                            "expression": "crawl_id",
                             "isExpression": false,
                             "asc": true,
                             "nulls": "last"
                         },
                         {
-                            "expression": "status",
-                            "isExpression": false,
-                            "asc": true,
-                            "nulls": "last"
-                        }
-                    ],
-                    "isUnique": false,
-                    "concurrently": false,
-                    "method": "btree",
-                    "with": {}
-                },
-                "purchase_order_user_idx": {
-                    "name": "purchase_order_user_idx",
-                    "columns": [
-                        {
-                            "expression": "user_id",
-                            "isExpression": false,
-                            "asc": true,
-                            "nulls": "last"
-                        }
-                    ],
-                    "isUnique": false,
-                    "concurrently": false,
-                    "method": "btree",
-                    "with": {}
-                },
-                "purchase_order_cafe_receipt_uq": {
-                    "name": "purchase_order_cafe_receipt_uq",
-                    "columns": [
-                        {
-                            "expression": "cafe_id",
-                            "isExpression": false,
-                            "asc": true,
-                            "nulls": "last"
-                        },
-                        {
-                            "expression": "receipt_hash",
+                            "expression": "step_index",
                             "isExpression": false,
                             "asc": true,
                             "nulls": "last"
@@ -1217,47 +1520,33 @@
                 }
             },
             "foreignKeys": {
-                "purchase_order_cafe_id_cafe_id_fk": {
-                    "name": "purchase_order_cafe_id_cafe_id_fk",
-                    "tableFrom": "purchase_order",
+                "coffee_crawl_step_crawl_id_coffee_crawl_id_fk": {
+                    "name": "coffee_crawl_step_crawl_id_coffee_crawl_id_fk",
+                    "tableFrom": "coffee_crawl_step",
+                    "tableTo": "coffee_crawl",
+                    "columnsFrom": ["crawl_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "cascade",
+                    "onUpdate": "no action"
+                },
+                "coffee_crawl_step_cafe_id_cafe_id_fk": {
+                    "name": "coffee_crawl_step_cafe_id_cafe_id_fk",
+                    "tableFrom": "coffee_crawl_step",
                     "tableTo": "cafe",
                     "columnsFrom": ["cafe_id"],
                     "columnsTo": ["id"],
-                    "onDelete": "restrict",
-                    "onUpdate": "no action"
-                },
-                "purchase_order_user_id_user_id_fk": {
-                    "name": "purchase_order_user_id_user_id_fk",
-                    "tableFrom": "purchase_order",
-                    "tableTo": "user",
-                    "columnsFrom": ["user_id"],
-                    "columnsTo": ["id"],
-                    "onDelete": "restrict",
-                    "onUpdate": "no action"
-                },
-                "purchase_order_product_id_cafe_product_id_fk": {
-                    "name": "purchase_order_product_id_cafe_product_id_fk",
-                    "tableFrom": "purchase_order",
-                    "tableTo": "cafe_product",
-                    "columnsFrom": ["product_id"],
-                    "columnsTo": ["id"],
-                    "onDelete": "restrict",
+                    "onDelete": "no action",
                     "onUpdate": "no action"
                 }
             },
             "compositePrimaryKeys": {},
             "uniqueConstraints": {},
             "policies": {},
-            "checkConstraints": {
-                "purchase_order_amount_positive": {
-                    "name": "purchase_order_amount_positive",
-                    "value": "\"purchase_order\".\"amount\" > 0"
-                }
-            },
+            "checkConstraints": {},
             "isRLSEnabled": false
         },
-        "public.relayer_job": {
-            "name": "relayer_job",
+        "public.consumer_crawl_progress": {
+            "name": "consumer_crawl_progress",
             "schema": "",
             "columns": {
                 "id": {
@@ -1266,51 +1555,32 @@
                     "primaryKey": true,
                     "notNull": true
                 },
-                "order_id": {
-                    "name": "order_id",
+                "crawl_id": {
+                    "name": "crawl_id",
                     "type": "text",
                     "primaryKey": false,
                     "notNull": true
                 },
-                "payload": {
-                    "name": "payload",
-                    "type": "jsonb",
+                "consumer_user_id": {
+                    "name": "consumer_user_id",
+                    "type": "text",
                     "primaryKey": false,
                     "notNull": true
                 },
-                "attempts": {
-                    "name": "attempts",
-                    "type": "integer",
+                "completed_cafe_ids": {
+                    "name": "completed_cafe_ids",
+                    "type": "text[]",
                     "primaryKey": false,
                     "notNull": true,
-                    "default": 0
-                },
-                "next_retry_at": {
-                    "name": "next_retry_at",
-                    "type": "timestamp",
-                    "primaryKey": false,
-                    "notNull": true,
-                    "default": "now()"
+                    "default": "'{}'"
                 },
                 "status": {
                     "name": "status",
-                    "type": "relayer_job_status",
+                    "type": "crawl_progress_status",
                     "typeSchema": "public",
                     "primaryKey": false,
                     "notNull": true,
-                    "default": "'pending'"
-                },
-                "tx_hash": {
-                    "name": "tx_hash",
-                    "type": "text",
-                    "primaryKey": false,
-                    "notNull": false
-                },
-                "last_error": {
-                    "name": "last_error",
-                    "type": "text",
-                    "primaryKey": false,
-                    "notNull": false
+                    "default": "'in_progress'"
                 },
                 "created_at": {
                     "name": "created_at",
@@ -1328,47 +1598,246 @@
                 }
             },
             "indexes": {
-                "relayer_job_status_retry_idx": {
-                    "name": "relayer_job_status_retry_idx",
+                "consumer_crawl_progress_uq": {
+                    "name": "consumer_crawl_progress_uq",
                     "columns": [
                         {
-                            "expression": "status",
+                            "expression": "crawl_id",
                             "isExpression": false,
                             "asc": true,
                             "nulls": "last"
                         },
                         {
-                            "expression": "next_retry_at",
+                            "expression": "consumer_user_id",
                             "isExpression": false,
                             "asc": true,
                             "nulls": "last"
                         }
                     ],
-                    "isUnique": false,
+                    "isUnique": true,
                     "concurrently": false,
                     "method": "btree",
                     "with": {}
                 }
             },
             "foreignKeys": {
-                "relayer_job_order_id_purchase_order_id_fk": {
-                    "name": "relayer_job_order_id_purchase_order_id_fk",
-                    "tableFrom": "relayer_job",
-                    "tableTo": "purchase_order",
-                    "columnsFrom": ["order_id"],
+                "consumer_crawl_progress_crawl_id_coffee_crawl_id_fk": {
+                    "name": "consumer_crawl_progress_crawl_id_coffee_crawl_id_fk",
+                    "tableFrom": "consumer_crawl_progress",
+                    "tableTo": "coffee_crawl",
+                    "columnsFrom": ["crawl_id"],
                     "columnsTo": ["id"],
-                    "onDelete": "restrict",
+                    "onDelete": "cascade",
+                    "onUpdate": "no action"
+                },
+                "consumer_crawl_progress_consumer_user_id_user_id_fk": {
+                    "name": "consumer_crawl_progress_consumer_user_id_user_id_fk",
+                    "tableFrom": "consumer_crawl_progress",
+                    "tableTo": "user",
+                    "columnsFrom": ["consumer_user_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "no action",
                     "onUpdate": "no action"
                 }
             },
             "compositePrimaryKeys": {},
-            "uniqueConstraints": {
-                "relayer_job_order_id_unique": {
-                    "name": "relayer_job_order_id_unique",
-                    "nullsNotDistinct": false,
-                    "columns": ["order_id"]
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {
+                "consumer_crawl_progress_balance_nonneg": {
+                    "name": "consumer_crawl_progress_balance_nonneg",
+                    "value": "array_length(\"consumer_crawl_progress\".\"completed_cafe_ids\", 1) is null or array_length(\"consumer_crawl_progress\".\"completed_cafe_ids\", 1) >= 0"
                 }
             },
+            "isRLSEnabled": false
+        },
+        "public.consumer_voucher": {
+            "name": "consumer_voucher",
+            "schema": "",
+            "columns": {
+                "id": {
+                    "name": "id",
+                    "type": "text",
+                    "primaryKey": true,
+                    "notNull": true
+                },
+                "source": {
+                    "name": "source",
+                    "type": "voucher_source",
+                    "typeSchema": "public",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "campaign_id": {
+                    "name": "campaign_id",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "crawl_id": {
+                    "name": "crawl_id",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "consumer_user_id": {
+                    "name": "consumer_user_id",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "cafe_id": {
+                    "name": "cafe_id",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "status": {
+                    "name": "status",
+                    "type": "voucher_status",
+                    "typeSchema": "public",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "'available'"
+                },
+                "expires_at": {
+                    "name": "expires_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true
+                },
+                "redeemed_at": {
+                    "name": "redeemed_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "created_at": {
+                    "name": "created_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                }
+            },
+            "indexes": {
+                "consumer_voucher_campaign_unlock_uq": {
+                    "name": "consumer_voucher_campaign_unlock_uq",
+                    "columns": [
+                        {
+                            "expression": "campaign_id",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        },
+                        {
+                            "expression": "consumer_user_id",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": true,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                },
+                "consumer_voucher_crawl_unlock_uq": {
+                    "name": "consumer_voucher_crawl_unlock_uq",
+                    "columns": [
+                        {
+                            "expression": "crawl_id",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        },
+                        {
+                            "expression": "consumer_user_id",
+                            "isExpression": false,
+                            "asc": true,
+                            "nulls": "last"
+                        }
+                    ],
+                    "isUnique": true,
+                    "concurrently": false,
+                    "method": "btree",
+                    "with": {}
+                }
+            },
+            "foreignKeys": {
+                "consumer_voucher_campaign_id_campaign_id_fk": {
+                    "name": "consumer_voucher_campaign_id_campaign_id_fk",
+                    "tableFrom": "consumer_voucher",
+                    "tableTo": "campaign",
+                    "columnsFrom": ["campaign_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "no action",
+                    "onUpdate": "no action"
+                },
+                "consumer_voucher_consumer_user_id_user_id_fk": {
+                    "name": "consumer_voucher_consumer_user_id_user_id_fk",
+                    "tableFrom": "consumer_voucher",
+                    "tableTo": "user",
+                    "columnsFrom": ["consumer_user_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "no action",
+                    "onUpdate": "no action"
+                },
+                "consumer_voucher_cafe_id_cafe_id_fk": {
+                    "name": "consumer_voucher_cafe_id_cafe_id_fk",
+                    "tableFrom": "consumer_voucher",
+                    "tableTo": "cafe",
+                    "columnsFrom": ["cafe_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "no action",
+                    "onUpdate": "no action"
+                }
+            },
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
+            "policies": {},
+            "checkConstraints": {},
+            "isRLSEnabled": false
+        },
+        "public.punch_balance_projection": {
+            "name": "punch_balance_projection",
+            "schema": "",
+            "columns": {
+                "user_id": {
+                    "name": "user_id",
+                    "type": "text",
+                    "primaryKey": true,
+                    "notNull": true
+                },
+                "balance": {
+                    "name": "balance",
+                    "type": "integer",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": 0
+                },
+                "updated_at": {
+                    "name": "updated_at",
+                    "type": "timestamp",
+                    "primaryKey": false,
+                    "notNull": true,
+                    "default": "now()"
+                }
+            },
+            "indexes": {},
+            "foreignKeys": {
+                "punch_balance_projection_user_id_user_id_fk": {
+                    "name": "punch_balance_projection_user_id_user_id_fk",
+                    "tableFrom": "punch_balance_projection",
+                    "tableTo": "user",
+                    "columnsFrom": ["user_id"],
+                    "columnsTo": ["id"],
+                    "onDelete": "cascade",
+                    "onUpdate": "no action"
+                }
+            },
+            "compositePrimaryKeys": {},
+            "uniqueConstraints": {},
             "policies": {},
             "checkConstraints": {},
             "isRLSEnabled": false
@@ -1395,28 +1864,55 @@
             "schema": "public",
             "values": ["pending", "approved", "rejected"]
         },
+        "public.consumer_transaction_status": {
+            "name": "consumer_transaction_status",
+            "schema": "public",
+            "values": ["pending", "confirmed", "rejected", "failed"]
+        },
+        "public.consumption_operation": {
+            "name": "consumption_operation",
+            "schema": "public",
+            "values": ["emission", "punch_redemption", "voucher_redemption"]
+        },
+        "public.purchase_proof_status": {
+            "name": "purchase_proof_status",
+            "schema": "public",
+            "values": ["issued", "confirmed"]
+        },
+        "public.redemption_request_kind": {
+            "name": "redemption_request_kind",
+            "schema": "public",
+            "values": ["punch_reward", "voucher"]
+        },
+        "public.redemption_request_status": {
+            "name": "redemption_request_status",
+            "schema": "public",
+            "values": ["pending", "approved", "rejected"]
+        },
         "public.project_status": {
             "name": "project_status",
             "schema": "public",
             "values": ["active", "archived"]
         },
-        "public.purchase_order_status": {
-            "name": "purchase_order_status",
+        "public.campaign_kind": {
+            "name": "campaign_kind",
             "schema": "public",
-            "values": [
-                "user_confirmed",
-                "cafe_confirmed",
-                "queued",
-                "submitted",
-                "confirmed",
-                "failed",
-                "expired"
-            ]
+            "values": ["verified_acquisition"]
         },
-        "public.relayer_job_status": {
-            "name": "relayer_job_status",
+        "public.crawl_progress_status": {
+            "name": "crawl_progress_status",
             "schema": "public",
-            "values": ["pending", "submitted", "confirmed", "failed"]
+            "values": ["in_progress", "completed", "expired"]
+        },
+        "public.voucher_source": {
+            "name": "voucher_source",
+            "schema": "public",
+            "values": ["campaign", "crawl"]
+        },
+        "public.voucher_status": {
+            "name": "voucher_status",
+            "schema": "public",
+            "values": ["available", "redeemed", "expired"]
         }
     },
     "schemas": {},

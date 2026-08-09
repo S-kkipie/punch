@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Fraunces, IBM_Plex_Sans, JetBrains_Mono } from "next/font/google";
 import type { PropsWithChildren } from "react";
 import { Providers } from "@/frontend/providers/providers";
+import { PwaRegister } from "./pwa-register";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -27,12 +28,14 @@ export const metadata: Metadata = {
     title: "PUNCH — una red de cafeterías independientes",
     description:
         "PUNCH conecta cafeterías independientes para compartir demanda, atraer visitas y generar retornos medibles sin perder su identidad.",
+    manifest: "/manifest.webmanifest",
 };
 
 export const viewport: Viewport = {
     width: "device-width",
     initialScale: 1,
     viewportFit: "cover",
+    themeColor: "#2b2520",
 };
 
 export default function RootLayout({ children }: PropsWithChildren) {
@@ -43,6 +46,7 @@ export default function RootLayout({ children }: PropsWithChildren) {
             suppressHydrationWarning
         >
             <body className="min-h-svh antialiased">
+                <PwaRegister />
                 <Providers>{children}</Providers>
             </body>
         </html>

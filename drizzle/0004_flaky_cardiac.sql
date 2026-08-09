@@ -1,0 +1,2 @@
+ALTER TABLE "consumer_crawl_progress" DROP CONSTRAINT "consumer_crawl_progress_balance_nonneg";--> statement-breakpoint
+ALTER TABLE "punch_balance_projection" ADD CONSTRAINT "punch_balance_projection_balance_nonneg" CHECK ("punch_balance_projection"."balance" >= 0);

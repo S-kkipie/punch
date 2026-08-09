@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ClientConfig } from "@/config/client-config";
 import { authClient } from "@/frontend/auth/auth";
@@ -13,7 +12,6 @@ const DEMO_LOGINS = [
 ] as const;
 
 export function DemoLogin() {
-    const router = useRouter();
     const [pending, setPending] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
@@ -34,8 +32,7 @@ export function DemoLogin() {
             setPending(null);
             return;
         }
-        router.push("/");
-        router.refresh();
+        window.location.assign("/home");
     }
 
     return (

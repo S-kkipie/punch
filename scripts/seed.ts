@@ -1,4 +1,11 @@
 import { eq } from "drizzle-orm";
+import {
+    DEMO_APPLICANT_EMAIL,
+    DEMO_CRAWL_NAME,
+    demoCampaignValues,
+    demoCrawlSteps,
+    demoCrawlValues,
+} from "@/core/punch/domain/demo-state";
 import { auth } from "@/server/auth/auth";
 import { db } from "@/server/drizzle/db";
 import { user } from "@/server/drizzle/schemas/auth-schema";
@@ -7,6 +14,20 @@ import {
     cafeMember,
     cafeProduct,
 } from "@/server/drizzle/schemas/cafe-schema";
+import {
+    consumerTransaction,
+    consumptionProof,
+    redemptionRequest,
+} from "@/server/drizzle/schemas/consumption-schema";
+import {
+    campaign,
+    coffeeCrawl,
+    coffeeCrawlStep,
+    consumerCrawlProgress,
+    consumerVoucher,
+    punchBalanceProjection,
+} from "@/server/drizzle/schemas/punch-schema";
+import { isDemoSeedEnabled } from "./seed-mode";
 
 export const DEMO_ACCOUNTS = [
     { email: "demo-ops@punch.pe", name: "Operaciones PUNCH", isOps: true },
@@ -15,6 +36,7 @@ export const DEMO_ACCOUNTS = [
     { email: "nube@punch.pe", name: "Nube Tostada", isOps: false },
     { email: "esquinasur@punch.pe", name: "Esquina Sur", isOps: false },
     { email: "demo-consumer@punch.pe", name: "Consumidor Demo", isOps: false },
+    { email: "quinto@punch.pe", name: "Solicitante Quinto Café", isOps: false },
 ] as const;
 
 const SEED_CAFES = [
@@ -95,7 +117,7 @@ const SEED_CAFES = [
     {
         slug: "quinto-cafe-demo",
         name: "Quinto Café (en revisión)",
-        ownerEmail: "demo-consumer@punch.pe",
+        ownerEmail: "quinto@punch.pe",
         district: "Lince",
         address: "Av. Arequipa 2020, Lince",
         description: "Café de demo para la cola de ops.",
@@ -104,7 +126,147 @@ const SEED_CAFES = [
     },
 ] as const;
 
+async function seedDemoState() {
+    const [consumer] = await db
+        .select({ id: user.id })
+        .from(user)
+        .where(eq(user.email, "demo-consumer@punch.pe"));
+    if (!consumer) throw new Error("seedDemoState: demo consumer not found");
+
+    const findCafe = async (slug: string) => {
+        const [row] = await db
+            .select({ id: cafe.id })
+            .from(cafe)
+            .where(eq(cafe.slug, slug));
+        return row;
+    };
+    const targetCafe = await findCafe("esquina-sur");
+    const crawlCafeA = await findCafe("brujula-cafe");
+    const crawlCafeB = await findCafe("patio-9");
+    const applicantCafe = await findCafe("quinto-cafe-demo");
+    const [applicant] = await db
+        .select({ id: user.id })
+        .from(user)
+        .where(eq(user.email, DEMO_APPLICANT_EMAIL));
+    if (
+        !targetCafe ||
+        !crawlCafeA ||
+        !crawlCafeB ||
+        !applicantCafe ||
+        !applicant
+    ) {
+        throw new Error(
+            "seedDemoState: required cafés and applicant not found",
+        );
+    }
+
+    await db.delete(cafeMember).where(eq(cafeMember.userId, consumer.id));
+    await db.delete(cafeMember).where(eq(cafeMember.cafeId, applicantCafe.id));
+    await db
+        .insert(cafeMember)
+        .values({
+            userId: applicant.id,
+            cafeId: applicantCafe.id,
+            role: "owner",
+        })
+        .onConflictDoNothing();
+
+    await db
+        .insert(punchBalanceProjection)
+        .values({ userId: consumer.id, balance: 11 })
+        .onConflictDoUpdate({
+            target: punchBalanceProjection.userId,
+            set: { balance: 11 },
+        });
+
+    const [existingCampaign] = await db
+        .select({ id: campaign.id })
+        .from(campaign)
+        .where(eq(campaign.cafeId, targetCafe.id));
+    const campaignValues = demoCampaignValues(Date.now(), targetCafe.id);
+    if (existingCampaign) {
+        await db
+            .update(campaign)
+            .set(campaignValues)
+            .where(eq(campaign.id, existingCampaign.id));
+    } else {
+        await db.insert(campaign).values(campaignValues);
+    }
+
+    const [namedCrawl] = await db
+        .select({ id: coffeeCrawl.id })
+        .from(coffeeCrawl)
+        .where(eq(coffeeCrawl.name, DEMO_CRAWL_NAME));
+    let crawlId = namedCrawl?.id;
+    const crawlValues = demoCrawlValues(Date.now());
+    if (!crawlId) {
+        const [inserted] = await db
+            .insert(coffeeCrawl)
+            .values(crawlValues)
+            .returning({ id: coffeeCrawl.id });
+        if (!inserted) throw new Error("seedDemoState: could not insert crawl");
+        crawlId = inserted.id;
+    } else {
+        await db
+            .update(coffeeCrawl)
+            .set(crawlValues)
+            .where(eq(coffeeCrawl.id, crawlId));
+        await db
+            .delete(coffeeCrawlStep)
+            .where(eq(coffeeCrawlStep.crawlId, crawlId));
+    }
+    await db
+        .insert(coffeeCrawlStep)
+        .values(
+            demoCrawlSteps(crawlId, [
+                crawlCafeA.id,
+                crawlCafeB.id,
+                targetCafe.id,
+            ]),
+        );
+
+    await db
+        .insert(consumerCrawlProgress)
+        .values({
+            crawlId,
+            consumerUserId: consumer.id,
+            completedCafeIds: [crawlCafeA.id, crawlCafeB.id],
+            status: "in_progress",
+        })
+        .onConflictDoUpdate({
+            target: [
+                consumerCrawlProgress.crawlId,
+                consumerCrawlProgress.consumerUserId,
+            ],
+            set: {
+                completedCafeIds: [crawlCafeA.id, crawlCafeB.id],
+                status: "in_progress",
+            },
+        });
+
+    await db
+        .delete(consumerTransaction)
+        .where(eq(consumerTransaction.consumerUserId, consumer.id));
+    await db
+        .delete(redemptionRequest)
+        .where(eq(redemptionRequest.consumerUserId, consumer.id));
+    await db
+        .delete(consumerVoucher)
+        .where(eq(consumerVoucher.consumerUserId, consumer.id));
+    await db
+        .delete(consumptionProof)
+        .where(eq(consumptionProof.consumerUserId, consumer.id));
+    console.log(
+        "+ seeded deterministic demo state (11/12 PUNCH, crawl 2/3, campaign ready)",
+    );
+}
+
 async function main() {
+    if (!isDemoSeedEnabled()) {
+        console.log("Seed skipped — demo mode is not enabled.");
+        return;
+    }
+
     const password = process.env.NEXT_PUBLIC_DEMO_PASSWORD;
     if (!password) {
         throw new Error(
@@ -196,6 +358,10 @@ async function main() {
             })),
         );
         console.log(`+ seeded ${seedCafe.slug}`);
+    }
+
+    if (isDemoSeedEnabled()) {
+        await seedDemoState();
     }
 
     const rows = await db
