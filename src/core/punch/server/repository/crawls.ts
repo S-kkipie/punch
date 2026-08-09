@@ -111,5 +111,15 @@ export async function unlockCrawlVoucher(
             target: [consumerVoucher.crawlId, consumerVoucher.consumerUserId],
         })
         .returning();
-    return row ?? null;
+    if (row) return row;
+    const [existing] = await client
+        .select()
+        .from(consumerVoucher)
+        .where(
+            and(
+                eq(consumerVoucher.crawlId, input.crawlId),
+                eq(consumerVoucher.consumerUserId, input.consumerUserId),
+            ),
+        );
+    return existing ?? null;
 }

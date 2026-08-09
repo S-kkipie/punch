@@ -1,5 +1,7 @@
 import "server-only";
 
+import { getLogger } from "@logtape/logtape";
+import { createChainPublicClient } from "@/core/chain/chain";
 import type { ConsumptionProof } from "@/core/chain/server/proof/proof";
 import { serializeProof, signProofAs } from "@/core/chain/server/proof/proof";
 import { findUserWallet } from "@/core/chain/server/wallet/repository";
@@ -15,6 +17,7 @@ import { purchaseRepository } from "../repository/purchase-repository";
 import { toPurchaseView } from "./purchase-view";
 
 type ConfirmDeps = {
+    getChainTimestamp: () => Promise<bigint>;
     findOrder: typeof purchaseRepository.findOrder;
     findUserWallet: typeof findUserWallet;
     requireOwner: typeof requireCafeRole;
@@ -22,7 +25,22 @@ type ConfirmDeps = {
     updateOrderAndQueue: typeof purchaseRepository.updateOrderAndQueue;
 };
 
+async function getCurrentChainTimestamp() {
+    const client = createChainPublicClient();
+    try {
+        return (await client.getBlock({ blockTag: "pending" })).timestamp;
+    } catch {
+        // On a provider without pending-block support the latest block can be
+        // stale on an idle chain, shrinking the proof-expiry margin.
+        getLogger(["purchase", "chain"]).warn(
+            "pending block unavailable; proof expiry derived from latest block",
+        );
+        return (await client.getBlock()).timestamp;
+    }
+}
+
 const defaultDeps: ConfirmDeps = {
+    getChainTimestamp: getCurrentChainTimestamp,
     findOrder: purchaseRepository.findOrder,
     findUserWallet,
     requireOwner: requireCafeRole,
@@ -81,7 +99,7 @@ export async function confirmPurchaseService(
             amount: order.amount,
             receiptHash: order.receiptHash as `0x${string}`,
             nonce: BigInt(order.nonce),
-            expiry: BigInt(Math.floor(order.expiry.getTime() / 1000)),
+            expiry: (await d.getChainTimestamp()) + 600n,
         };
         const [userSignature, cafeSignature] = await Promise.all([
             d.signProof(buyerWallet.walletIndex, proof),

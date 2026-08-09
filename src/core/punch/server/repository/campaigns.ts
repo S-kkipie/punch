@@ -123,5 +123,15 @@ export async function unlockCampaignVoucher(
             ],
         })
         .returning();
-    return row ?? null;
+    if (row) return row;
+    const [existing] = await client
+        .select()
+        .from(consumerVoucher)
+        .where(
+            and(
+                eq(consumerVoucher.campaignId, input.campaignId),
+                eq(consumerVoucher.consumerUserId, input.consumerUserId),
+            ),
+        );
+    return existing ?? null;
 }

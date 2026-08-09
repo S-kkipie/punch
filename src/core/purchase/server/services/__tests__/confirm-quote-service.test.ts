@@ -7,6 +7,7 @@ import { confirmQuoteService } from "../confirm-quote-service";
 const now = new Date("2026-08-09T12:00:00.000Z");
 const quoteExpiresAt = new Date("2026-08-09T12:09:00.000Z");
 const quoteCreatedAt = new Date("2026-08-09T11:55:00.000Z");
+const chainTimestamp = 1_787_773_200n;
 const consumerWallet = {
     walletIndex: 7,
     address: "0x1000000000000000000000000000000000000007" as const,
@@ -63,6 +64,7 @@ const bridgedQuote = {
 function deps(overrides: Record<string, unknown> = {}) {
     return {
         now: vi.fn(() => now),
+        getChainTimestamp: vi.fn().mockResolvedValue(chainTimestamp),
         generateOrderId: vi.fn(() => "order-1"),
         randomNonce: vi.fn(() => 123456789n),
         signProof: vi
@@ -107,7 +109,7 @@ describe("confirmQuoteService", () => {
             amount: 12_000_000n,
             receiptHash: buildReceiptHash("order-1", quote.yapeRef),
             nonce: 123456789n,
-            expiry: BigInt(Math.floor(quoteExpiresAt.getTime() / 1000)),
+            expiry: chainTimestamp + 600n,
         };
         expect(d.signProof).toHaveBeenNthCalledWith(
             1,
@@ -126,9 +128,7 @@ describe("confirmQuoteService", () => {
             amount: BigInt(quote.amountCentimos) * 10_000n,
             receiptHash: buildReceiptHash("order-1", quote.yapeRef),
         });
-        expect(expectedProof.expiry).toBeLessThanOrEqual(
-            BigInt(Math.floor(quote.expiresAt.getTime() / 1000)),
-        );
+        expect(expectedProof.expiry).toBe(chainTimestamp + 600n);
         expect(d.bridgeQuoteToOrder).toHaveBeenCalledWith({
             quoteId: quote.id,
             consumerUserId: "consumer-1",

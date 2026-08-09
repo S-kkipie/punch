@@ -1,6 +1,6 @@
 {
-    "id": "428e4b54-d231-4cef-9f2b-54db0116ea9b",
-    "prevId": "aad45034-2848-4e57-a1f4-fc12b27bffa8",
+    "id": "6cc73209-5f55-4d44-af55-c9948f66099c",
+    "prevId": "a2cef5b6-c063-47e3-85eb-f18025e8b0b4",
     "version": "7",
     "dialect": "postgresql",
     "tables": {
@@ -1044,6 +1044,12 @@
                     "primaryKey": false,
                     "notNull": false
                 },
+                "chain_block_number": {
+                    "name": "chain_block_number",
+                    "type": "bigint",
+                    "primaryKey": false,
+                    "notNull": false
+                },
                 "log_index": {
                     "name": "log_index",
                     "type": "integer",
@@ -1837,6 +1843,18 @@
                     "type": "text",
                     "primaryKey": false,
                     "notNull": true
+                },
+                "created_voucher_id": {
+                    "name": "created_voucher_id",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
+                },
+                "progress_id": {
+                    "name": "progress_id",
+                    "type": "text",
+                    "primaryKey": false,
+                    "notNull": false
                 },
                 "transaction_hash": {
                     "name": "transaction_hash",

@@ -163,7 +163,10 @@ function databaseState(overrides?: {
                 if (table === projectionCafeCredit) state.credits = [];
                 if (table === projectionConsumption) state.consumption = [];
             };
-            return action();
+            return { where: action };
+        },
+        update() {
+            return { set: () => ({ where: async () => undefined }) };
         },
         transaction,
     };

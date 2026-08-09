@@ -105,7 +105,7 @@ const SEED_CAFES = [
         description: "Esquina de barrio, café honesto.",
         status: "approved" as const,
         products: [
-            { name: "Café pasado", type: "emission", priceSoles: "7.00" },
+            { name: "Café pasado", type: "emission", priceSoles: "8.50" },
             {
                 name: "Cortado",
                 type: "reward",
@@ -371,6 +371,19 @@ async function main() {
         if (!r.walletAddress) {
             throw new Error(
                 `seed verification failed: ${r.email} has no wallet`,
+            );
+        }
+    }
+    // Emission below the S/8 minimum ticket cannot issue purchase quotes, so a
+    // seeded café would silently lose its demo purchase path.
+    const emissionProducts = await db
+        .select({ name: cafeProduct.name, priceSoles: cafeProduct.priceSoles })
+        .from(cafeProduct)
+        .where(eq(cafeProduct.type, "emission"));
+    for (const p of emissionProducts) {
+        if (Number(p.priceSoles) < 8) {
+            throw new Error(
+                `seed verification failed: emission product ${p.name} priced below S/8 minimum ticket`,
             );
         }
     }
