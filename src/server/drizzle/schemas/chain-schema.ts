@@ -40,6 +40,10 @@ export const projectionCampaign = pgTable("projection_campaign", {
     unlockedCount: integer("unlocked_count").default(0).notNull(),
     redeemedCount: integer("redeemed_count").default(0).notNull(),
     lastBlock: bigint("last_block", { mode: "bigint" }).notNull(),
+    lastTransactionIndex: integer("last_transaction_index")
+        .default(0)
+        .notNull(),
+    lastLogIndex: integer("last_log_index").default(0).notNull(),
 });
 
 export type ProjectionCampaignRow = typeof projectionCampaign.$inferSelect;

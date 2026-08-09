@@ -44,6 +44,36 @@ function block(event: IndexerEvent): bigint {
     return event.blockNumber;
 }
 
+function transactionIndex(event: IndexerEvent): number {
+    if (
+        !Number.isInteger(event.transactionIndex) ||
+        event.transactionIndex < 0 ||
+        event.transactionIndex > Number(MAX_SQL_INT)
+    ) {
+        throw new Error("transaction index overflows SQL integer");
+    }
+    return event.transactionIndex;
+}
+
+function logIndex(event: IndexerEvent): number {
+    if (
+        !Number.isInteger(event.logIndex) ||
+        event.logIndex < 0 ||
+        event.logIndex > Number(MAX_SQL_INT)
+    ) {
+        throw new Error("log index overflows SQL integer");
+    }
+    return event.logIndex;
+}
+
+function eventIsAfter(event: IndexerEvent) {
+    return sql`(${projectionCampaign.lastBlock} < ${block(event)} OR (${projectionCampaign.lastBlock} = ${block(event)} AND (${projectionCampaign.lastTransactionIndex} < ${transactionIndex(event)} OR (${projectionCampaign.lastTransactionIndex} = ${transactionIndex(event)} AND ${projectionCampaign.lastLogIndex} < ${logIndex(event)}))))`;
+}
+
+function eventIsAtOrAfter(event: IndexerEvent) {
+    return sql`(${projectionCampaign.lastBlock} < ${block(event)} OR (${projectionCampaign.lastBlock} = ${block(event)} AND (${projectionCampaign.lastTransactionIndex} < ${transactionIndex(event)} OR (${projectionCampaign.lastTransactionIndex} = ${transactionIndex(event)} AND ${projectionCampaign.lastLogIndex} <= ${logIndex(event)}))))`;
+}
+
 function address(value: unknown): string {
     if (typeof value !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(value)) {
         throw new Error("invalid event address");
@@ -69,6 +99,8 @@ async function applyCreated(tx: IndexerTransaction, event: IndexerEvent) {
             unlockedCount: 0,
             redeemedCount: 0,
             lastBlock: block(event),
+            lastTransactionIndex: transactionIndex(event),
+            lastLogIndex: logIndex(event),
         })
         .onConflictDoUpdate({
             target: projectionCampaign.chainCampaignId,
@@ -84,18 +116,28 @@ async function applyFunded(tx: IndexerTransaction, event: IndexerEvent) {
         "chain campaign id",
     );
     const amount = chainBigint(event.args.amount, "campaign funding amount");
-    await tx
+    const updated = await tx
         .update(projectionCampaign)
         .set({
             budget: sql`${projectionCampaign.budget} + ${amount}`,
             lastBlock: block(event),
+            lastTransactionIndex: transactionIndex(event),
+            lastLogIndex: logIndex(event),
         })
         .where(
             and(
                 eq(projectionCampaign.chainCampaignId, chainCampaignId),
-                sql`${projectionCampaign.lastBlock} < ${block(event)}`,
+                eventIsAfter(event),
             ),
-        );
+        )
+        .returning({ chainCampaignId: projectionCampaign.chainCampaignId });
+    if (updated.length > 0) return;
+    const existing = await tx
+        .select({ chainCampaignId: projectionCampaign.chainCampaignId })
+        .from(projectionCampaign)
+        .where(eq(projectionCampaign.chainCampaignId, chainCampaignId));
+    if (existing.length === 0)
+        throw new Error(`campaign ${chainCampaignId} does not exist`);
 }
 
 async function applyPublished(tx: IndexerTransaction, event: IndexerEvent) {
@@ -115,12 +157,14 @@ async function applyPublished(tx: IndexerTransaction, event: IndexerEvent) {
             voucherPayout,
             maxVouchers,
             expiry: expiry(event.args.expiry),
-            lastBlock: sql`GREATEST(${projectionCampaign.lastBlock}, ${block(event)})`,
+            lastBlock: block(event),
+            lastTransactionIndex: transactionIndex(event),
+            lastLogIndex: logIndex(event),
         })
         .where(
             and(
                 eq(projectionCampaign.chainCampaignId, chainCampaignId),
-                sql`${projectionCampaign.lastBlock} <= ${block(event)}`,
+                eventIsAtOrAfter(event),
             ),
         );
 }
@@ -169,11 +213,13 @@ async function applyUnlocked(tx: IndexerTransaction, event: IndexerEvent) {
         .set({
             unlockedCount: sql`${projectionCampaign.unlockedCount} + 1`,
             lastBlock: block(event),
+            lastTransactionIndex: transactionIndex(event),
+            lastLogIndex: logIndex(event),
         })
         .where(
             and(
                 eq(projectionCampaign.chainCampaignId, chainCampaignId),
-                sql`${projectionCampaign.lastBlock} < ${block(event)}`,
+                eventIsAfter(event),
             ),
         )
         .returning({ chainCampaignId: projectionCampaign.chainCampaignId });
@@ -248,11 +294,13 @@ async function applyRedeemed(tx: IndexerTransaction, event: IndexerEvent) {
             redeemedCount: sql`${projectionCampaign.redeemedCount} + 1`,
             budget: sql`${projectionCampaign.budget} - ${projectionCampaign.voucherPayout}`,
             lastBlock: block(event),
+            lastTransactionIndex: transactionIndex(event),
+            lastLogIndex: logIndex(event),
         })
         .where(
             and(
                 eq(projectionCampaign.chainCampaignId, chainCampaignId),
-                sql`${projectionCampaign.lastBlock} < ${block(event)}`,
+                eventIsAfter(event),
             ),
         )
         .returning({ chainCampaignId: projectionCampaign.chainCampaignId });
