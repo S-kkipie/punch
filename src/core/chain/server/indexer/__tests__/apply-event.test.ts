@@ -39,6 +39,7 @@ type FakeState = {
         userAddress: string;
         receiptHash: string;
     };
+    writes: Array<{ table: unknown; values: Record<string, unknown> }>;
 };
 
 const base = {
@@ -64,6 +65,7 @@ function fakeTx(seed: Partial<FakeState> = {}) {
         consumptions: new Map(),
         orders: [],
         lastConsumption: null,
+        writes: [],
         ...seed,
     };
     return {
@@ -71,6 +73,7 @@ function fakeTx(seed: Partial<FakeState> = {}) {
         insert(table: unknown) {
             return {
                 values(values: any) {
+                    state.writes.push({ table, values });
                     return {
                         onConflictDoUpdate() {
                             if (table === projectionPunchBalance) {
@@ -128,6 +131,7 @@ function fakeTx(seed: Partial<FakeState> = {}) {
         update(table: unknown) {
             return {
                 set(values: any) {
+                    state.writes.push({ table, values });
                     return {
                         where() {
                             if (table === purchaseOrder) {
@@ -289,6 +293,24 @@ describe("applyEvent", () => {
             status: "confirmed",
             txHash: consumption.transactionHash,
         });
+        expect(
+            tx.state.writes.some(
+                (write: { values: Record<string, unknown> }) =>
+                    write.values.status === "confirmed",
+            ),
+        ).toBe(true);
+        expect(
+            tx.state.writes.some(
+                (write: { values: Record<string, unknown> }) =>
+                    write.values.operation === "emission" &&
+                    write.values.status === "confirmed" &&
+                    write.values.chainTxId === consumption.transactionHash &&
+                    write.values.purchaseOrderId === "order-1" &&
+                    write.values.transactionHash ===
+                        consumption.transactionHash &&
+                    write.values.logIndex === consumption.logIndex,
+            ),
+        ).toBe(true);
     });
 
     it("rejects credit consumption before activation", async () => {
