@@ -142,21 +142,20 @@ describe("fundCampaignService", () => {
         );
 
         expect(result.ok).toBe(true);
-        expect(enqueueJob).toHaveBeenCalledOnce();
-        const [tx, job] = enqueueJob.mock.calls[0];
-        expect(tx).toEqual({});
-        expect(job).toMatchObject({
-            kind: "campaign_fund_approve",
-            idempotencyKey: expect.stringMatching(
-                /^campaign_fund_approve:campaign-1:/,
-            ),
-            payload: {
-                campaignId: "campaign-1",
-                chainCampaignId: 7,
-                amount: "500000000",
-                walletIndex: 12,
-                fundingId: expect.any(String),
+        if (!result.ok) throw new Error("Expected funding to succeed");
+        expect(enqueueJob).toHaveBeenCalledExactlyOnceWith(
+            {},
+            {
+                kind: "campaign_fund_approve",
+                idempotencyKey: `campaign_fund_approve:campaign-1:${result.data.fundingId}`,
+                payload: {
+                    campaignId: "campaign-1",
+                    chainCampaignId: 7,
+                    amount: "500000000",
+                    walletIndex: 12,
+                    fundingId: result.data.fundingId,
+                },
             },
-        });
+        );
     });
 });
