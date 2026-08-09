@@ -101,8 +101,11 @@ function databaseState() {
 }
 
 function chain(consumptionCount: number) {
+    const latestArgs: Array<{ cacheTime?: number }> = [];
     return {
-        async getBlockNumber() {
+        latestArgs,
+        async getBlockNumber(args?: { cacheTime?: number }) {
+            latestArgs.push(args ?? {});
             return 12n;
         },
         async getLogs() {
@@ -125,6 +128,7 @@ describe("runReconcilerOnce", () => {
             addresses,
         });
         expect(result).toEqual({ diverged: false, repaired: false });
+        expect(pub.latestArgs).toEqual([{ cacheTime: 0 }]);
         expect(await isChainProjectionStale(db)).toBe(false);
 
         const balance = state.balances[0];
