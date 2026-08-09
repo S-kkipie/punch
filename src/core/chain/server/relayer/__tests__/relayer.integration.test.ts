@@ -19,6 +19,13 @@ import {
     proofTypedData,
     serializeProof,
 } from "@/core/chain/server/proof/proof";
+import {
+    markJobConfirmed as markGenericJobConfirmed,
+    markJobFailed as markGenericJobFailed,
+    markJobPending as markGenericJobPending,
+    markJobRetry as markGenericJobRetry,
+    markJobSubmitted as markGenericJobSubmitted,
+} from "@/core/chain/server/relayer/job-repository";
 import { parseRevert } from "@/core/chain/server/relayer/parse-revert";
 import { runRelayerOnce } from "@/core/chain/server/relayer/relayer";
 import { deriveAccount } from "@/core/chain/server/wallet/derive";
@@ -26,11 +33,7 @@ import {
     claimSubmittedJobs,
     findJobsToRun,
     findOrder,
-    markJobConfirmed,
     markJobFailed,
-    markJobPending,
-    markJobRetry,
-    markJobSubmitted,
     updateOrderAndQueue,
 } from "@/core/purchase/server/repository/purchase-repository";
 import { db } from "@/server/drizzle/db";
@@ -299,11 +302,12 @@ function relayerDeps(setup: LiveSetup) {
     return {
         findJobsToRun,
         claimSubmittedJobs,
-        markJobSubmitted,
-        markJobConfirmed,
-        markJobRetry,
-        markJobFailed,
-        markJobPending,
+        markJobSubmitted: markGenericJobSubmitted,
+        markJobConfirmed: markGenericJobConfirmed,
+        markJobRetry: markGenericJobRetry,
+        markJobFailed: markGenericJobFailed,
+        markJobPending: markGenericJobPending,
+        useHandlerSideEffects: true,
         wallet: setup.wallet,
         pub: setup.pub,
         addresses: setup.addresses,
