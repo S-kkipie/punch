@@ -1,7 +1,7 @@
 # Pago de plan y packs del café — diseño
 
 Fecha: 2026-08-09
-Estado: aprobado en brainstorming, pendiente de plan de implementación
+Estado: implementado en `punch-cafe-plan-payment`
 Spec maestra: `docs/superpowers/specs/2026-08-07-punch-master-spec.md` §07, §09, §16, §17, §23, §24
 Rama base: `main` local @ `c9b3923`
 
@@ -142,7 +142,6 @@ Tabla `plan_order`, en `src/server/drizzle/schemas/plan-schema.ts`:
 | `tx_hash` | text nullable | |
 | `last_error` | text nullable | |
 | `failure_reason` | text nullable | código legible para la UI |
-| `claimed_until` | timestamp nullable | lease del runner |
 | `created_at`, `updated_at` | timestamp | |
 
 Índices:
@@ -161,19 +160,22 @@ Orden y trabajo viven en la misma tabla, a diferencia de purchase que separa `pu
 ## 8. Máquina de estados
 
 ```
-pending ──(receipt ok)──> confirmed
+pending
    │
    ├──(error transitorio, attempts < 5)──> pending con backoff
    ├──(error permanente)────────────────> failed
-   └──(tx enviada)─────────────────────> submitted
-                                            │
-                                            ├──(receipt ok)──> confirmed
-                                            ├──(receipt revert)──> failed
-                                            └──(lease vencido sin receipt)──> pending
+   └──(intención registrada antes de enviar)──> submitted
+                                                   │
+                                                   ├──(receipt ok)──> confirmed
+                                                   ├──(receipt revert)──> failed
+                                                   ├──(timeout con tx_hash)──> submitted con lease extendido
+                                                   └──(resultado de envío incierto o hash ausente)
+                                                       ──> failed(needs_reconciliation)
 ```
 
-`confirmed` y `failed` son terminales. `transitions.ts` implementa esto como función pura y es la
-única fuente de verdad sobre qué transición es legal.
+`confirmed` y `failed` son terminales. Una orden que alcanzó `submitted` nunca vuelve a `pending`:
+`subscribe` y `buyPack` no son idempotentes, por lo que reenviar podría cobrar dos veces.
+`transitions.ts` implementa esta regla como función pura.
 
 ## 9. Flujo
 
@@ -192,7 +194,9 @@ Café pulsa "Activar plan" o "Comprar pack"
    ├─ gas: si el balance ETH del firmante está bajo el mínimo → top-up (funding.ts)
    ├─ mPEN: si balanceOf(firmante) < price → faucet(price)
    ├─ allowance(firmante, planManager) < price → approve(planManager, price)
-   ├─ simulateContract, luego writeContract subscribe/buyPack → submitted + tx_hash
+   ├─ simulateContract
+   ├─ registra submitted con tx_hash nulo y lease largo antes de enviar
+   ├─ writeContract subscribe/buyPack y registra tx_hash
    └─ tick siguiente: receipt + log PlanActivated/PackPurchased → confirmed
 → el indexer existente ve el evento → projection_cafe_credit += 100
 ```
@@ -203,9 +207,14 @@ siguiente tick del indexer.
 
 ### Idempotencia
 
-Cada intento relee el estado de la cadena antes de actuar: balance de mPEN, allowance, y `planActive`
-cuando corresponde. No hay columna de paso. Un reintento tras una caída no vuelve a fondear ni a
-aprobar de más, porque las precondiciones ya se cumplen y esos pasos se saltan.
+Cada intento previo al envío relee balance de mPEN y allowance. Un reintento no vuelve a fondear ni
+a aprobar de más, porque las precondiciones ya se cumplen y esos pasos se saltan.
+
+La llamada de pago no se reintenta: `subscribe` y `buyPack` carecen de request ID o guarda de replay.
+El runner registra la intención como `submitted` antes de enviar. Si el envío puede haber ocurrido
+pero no se puede guardar el hash, la orden termina en `needs_reconciliation`; si hay hash y el receipt
+tarda, permanece `submitted`. En ambos casos nunca vuelve a `pending`. Una reconciliación pendiente
+bloquea pagos nuevos del café hasta resolución humana.
 
 ### Fondeo
 
@@ -248,13 +257,15 @@ Clasificación en el mismo espíritu que `parse-revert.ts`:
 | `faucet_cap_exceeded` | `FaucetCapExceeded` |
 | `funding_unavailable` | entorno no local sin fondeo configurado |
 | `reverted` | el receipt de una tx ya enviada volvió con estado revertido |
+| `needs_reconciliation` | el pago puede haberse enviado, pero no existe resultado seguro para automatizar |
 
-**Transitorios** — backoff exponencial, tope de 5 intentos, luego `failed` con motivo
-`max_attempts` y el último error en `last_error`: RPC caído, conflicto de nonce, timeout esperando
-receipt.
+**Transitorios previos al envío** — backoff exponencial, tope de 5 intentos, luego `failed` con
+motivo `max_attempts` y el último error en `last_error`: RPC caído durante fondeo, aprobación o
+simulación.
 
-**Colgados** — orden `submitted` cuyo lease venció sin receipt: vuelve a `pending`, igual que
-`recoverStuckJobs`.
+**Enviados sin receipt** — una orden `submitted` con `tx_hash` permanece `submitted` y extiende su
+lease. Una orden `submitted` sin hash, o un fallo después de intentar el envío, termina en
+`needs_reconciliation`; nunca vuelve a `pending`.
 
 El `simulateContract` previo convierte casi cualquier revert en fallo limpio antes de gastar gas.
 
@@ -311,8 +322,10 @@ anvil fresco en 31337 → `pnpm chain:deploy` → `pnpm chain:bootstrap-local`.
 
 - Recorrido completo: café sin plan → activar plan → evento `PlanActivated` → proyección en 100
   créditos → comprar pack → 200 créditos → una compra Yape emite 1 PUNCH → 199 créditos.
-- Saldos tras activar el plan: vault +30e6, fondo común +5e6, tesorería +14e6.
-- Tras comprar el pack: vault +30e6, fondo común +5e6, tesorería +5e6.
+- Tras activar el plan: reserva no asignada de PlanManager +30e6, fondo común +5e6 y remanente
+  algebraico de tesorería +14e6. El vault no recibe reserva hasta consumir créditos.
+- Tras comprar el pack: reserva no asignada de PlanManager +30e6, fondo común +5e6 y remanente
+  algebraico de tesorería +5e6. El vault no recibe reserva hasta consumir créditos.
 
 **Manual**: recorrido del panel con Playwright.
 
