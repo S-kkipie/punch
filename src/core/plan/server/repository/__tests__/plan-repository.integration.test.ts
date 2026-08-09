@@ -6,14 +6,11 @@ import { cafe } from "@/server/drizzle/schemas/cafe-schema";
 import { planOrder } from "@/server/drizzle/schemas/plan-schema";
 import { installIntegrationDbMutex } from "@/test/integration-db-mutex";
 import {
-    claimSubmittedOrders,
     findInFlightByCafe,
     findOrdersToRun,
     insertOrderIfIdle,
     markOrderConfirmed,
     markOrderFailed,
-    markOrderPending,
-    markOrderSubmitted,
 } from "../plan-repository";
 
 const runIntegration = process.env.PUNCH_RUN_INTEGRATION === "1";
@@ -102,21 +99,6 @@ describeIntegration("plan repository", () => {
         expect(firstClaim.map((row) => row.id)).toContain(order.row.id);
         const secondClaim = await findOrdersToRun(10);
         expect(secondClaim.map((row) => row.id)).not.toContain(order.row.id);
-    });
-
-    it("moves a submitted order back to pending on recovery", async () => {
-        const base = await fixture();
-        const order = await insertOrderIfIdle(newOrder(base));
-        await findOrdersToRun(10);
-        await markOrderSubmitted(
-            order.row.id,
-            "0xabc",
-            new Date(Date.now() - 1),
-        );
-        const claimed = await claimSubmittedOrders(10);
-        expect(claimed.map((row) => row.id)).toContain(order.row.id);
-        const recovered = await markOrderPending(order.row.id, new Date());
-        expect(recovered?.status).toBe("pending");
     });
 
     it("records a permanent failure with its reason", async () => {

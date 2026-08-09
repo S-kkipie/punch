@@ -18,11 +18,11 @@ import type { PlanOrderKind } from "@/core/plan/domain/types";
 import type { PlanOrderRow } from "@/server/drizzle/schemas/plan-schema";
 import {
     claimSubmittedOrders,
+    extendSubmittedLease,
     findOrdersToRun,
     markOrderConfirmed,
     markOrderExecuting,
     markOrderFailed,
-    markOrderPending,
     markOrderRetry,
     markOrderSubmitted,
 } from "../repository/plan-repository";
@@ -34,12 +34,12 @@ const RECEIPT_WAIT_MS = 15_000;
 export type PlanRunnerDeps = {
     findOrdersToRun: typeof findOrdersToRun;
     claimSubmittedOrders: typeof claimSubmittedOrders;
+    extendSubmittedLease: typeof extendSubmittedLease;
     markOrderExecuting: typeof markOrderExecuting;
     markOrderSubmitted: typeof markOrderSubmitted;
     markOrderConfirmed: typeof markOrderConfirmed;
     markOrderRetry: typeof markOrderRetry;
     markOrderFailed: typeof markOrderFailed;
-    markOrderPending: typeof markOrderPending;
     deriveAccount: (walletIndex: number) => HDAccount;
     ensureGas: (signer: Address) => Promise<void>;
     ensureMpen: (input: { account: HDAccount; price: bigint }) => Promise<void>;
@@ -62,12 +62,12 @@ export type PlanRunnerDeps = {
 const defaults: PlanRunnerDeps = {
     findOrdersToRun,
     claimSubmittedOrders,
+    extendSubmittedLease,
     markOrderExecuting,
     markOrderSubmitted,
     markOrderConfirmed,
     markOrderRetry,
     markOrderFailed,
-    markOrderPending,
     deriveAccount: deriveUserAccount,
     ensureGas: (signer) => ensureGas(signer),
     ensureMpen: (input) => ensureMpen(input),
@@ -212,8 +212,12 @@ async function runSubmitted(
         }
         await d.markOrderFailed(order.id, "transaction reverted", "reverted");
     } catch {
-        // No receipt yet: hand it back to the next tick instead of guessing.
-        await d.markOrderPending(order.id, d.now());
+        // No receipt yet. Keep it in the submitted lane — an order that was
+        // already sent must never return to pending, or the next tick pays again.
+        await d.extendSubmittedLease(
+            order.id,
+            new Date(d.now().getTime() + 2_000),
+        );
     }
 }
 

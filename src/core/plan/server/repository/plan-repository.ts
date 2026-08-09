@@ -214,19 +214,15 @@ export async function markOrderFailed(
     return row ?? null;
 }
 
-export async function markOrderPending(
+/** Keeps a sent order in the submitted lane while its receipt is still pending. */
+export async function extendSubmittedLease(
     id: string,
     nextRetryAt: Date,
 ): Promise<PlanOrderRow | null> {
     const [row] = await db
         .update(planOrder)
-        .set({ status: "pending", nextRetryAt })
-        .where(
-            and(
-                eq(planOrder.id, id),
-                inArray(planOrder.status, [...IN_FLIGHT]),
-            ),
-        )
+        .set({ nextRetryAt })
+        .where(and(eq(planOrder.id, id), eq(planOrder.status, "submitted")))
         .returning();
     return row ?? null;
 }
@@ -243,5 +239,5 @@ export const planRepository = {
     markOrderConfirmed,
     markOrderRetry,
     markOrderFailed,
-    markOrderPending,
+    extendSubmittedLease,
 };

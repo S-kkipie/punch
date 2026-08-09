@@ -25,11 +25,11 @@ function deps(overrides = {}) {
         findOrdersToRun: vi.fn().mockResolvedValue([order]),
         claimSubmittedOrders: vi.fn().mockResolvedValue([]),
         markOrderExecuting: vi.fn().mockResolvedValue(order),
+        extendSubmittedLease: vi.fn().mockResolvedValue(order),
         markOrderSubmitted: vi.fn().mockResolvedValue(order),
         markOrderConfirmed: vi.fn().mockResolvedValue(order),
         markOrderRetry: vi.fn().mockResolvedValue(order),
         markOrderFailed: vi.fn().mockResolvedValue(order),
-        markOrderPending: vi.fn().mockResolvedValue(order),
         deriveAccount: vi
             .fn()
             .mockReturnValue({ address: order.signerAddress } as never),
@@ -253,7 +253,31 @@ describe("runPlanRunnerOnce", () => {
         );
     });
 
-    it("returns a submitted order to pending when the receipt is not there yet", async () => {
+    it("keeps a submitted order in the submitted lane while receipt is pending", async () => {
+        const submitted = {
+            ...order,
+            status: "submitted" as const,
+            txHash: "0xdead",
+        };
+        const markOrderPending = vi.fn();
+        const d = deps({
+            findOrdersToRun: vi.fn().mockResolvedValue([]),
+            claimSubmittedOrders: vi.fn().mockResolvedValue([submitted]),
+            waitForReceipt: vi
+                .fn()
+                .mockRejectedValue(new Error("receipt not found")),
+            markOrderPending,
+        });
+        await runPlanRunnerOnce(d);
+        expect(d.extendSubmittedLease).toHaveBeenCalledWith(
+            "o1",
+            expect.any(Date),
+        );
+        expect(markOrderPending).not.toHaveBeenCalled();
+        expect(d.send).not.toHaveBeenCalled();
+    });
+
+    it("waits again after a receipt timeout without sending again", async () => {
         const submitted = {
             ...order,
             status: "submitted" as const,
@@ -267,6 +291,9 @@ describe("runPlanRunnerOnce", () => {
                 .mockRejectedValue(new Error("receipt not found")),
         });
         await runPlanRunnerOnce(d);
-        expect(d.markOrderPending).toHaveBeenCalledWith("o1", expect.any(Date));
+        await runPlanRunnerOnce(d);
+        expect(d.waitForReceipt).toHaveBeenCalledTimes(2);
+        expect(d.extendSubmittedLease).toHaveBeenCalledTimes(2);
+        expect(d.send).not.toHaveBeenCalled();
     });
 });
