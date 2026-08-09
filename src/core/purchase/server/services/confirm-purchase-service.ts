@@ -24,9 +24,17 @@ type ConfirmDeps = {
     updateOrderAndQueue: typeof purchaseRepository.updateOrderAndQueue;
 };
 
+async function getCurrentChainTimestamp() {
+    const client = createChainPublicClient();
+    try {
+        return (await client.getBlock({ blockTag: "pending" })).timestamp;
+    } catch {
+        return (await client.getBlock()).timestamp;
+    }
+}
+
 const defaultDeps: ConfirmDeps = {
-    getChainTimestamp: async () =>
-        (await createChainPublicClient().getBlock()).timestamp,
+    getChainTimestamp: getCurrentChainTimestamp,
     findOrder: purchaseRepository.findOrder,
     findUserWallet,
     requireOwner: requireCafeRole,

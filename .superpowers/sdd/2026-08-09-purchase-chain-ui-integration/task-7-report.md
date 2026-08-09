@@ -65,3 +65,44 @@ Reviewer-fix commit: `e1960ee fix(chain): preserve voucher provenance during reb
 - `pnpm exec biome check --write` on all five changed code/test files — PASS.
 - `pnpm typecheck` — PASS.
 - Anvil stopped after verification. Addresses file and unrelated untracked files were not committed.
+
+## Pending-block timestamp follow-up
+
+- Changed `src/core/purchase/server/services/confirm-quote-service.ts` and `src/core/purchase/server/services/confirm-purchase-service.ts` so their default `getChainTimestamp` reads `getBlock({ blockTag: "pending" })` first and falls back to `getBlock()` when pending is unavailable, still adding `600n` for proof expiry.
+- Updated `src/core/chain/server/__tests__/purchase-journey.live.test.ts` to warp Anvil by three days without `evm_mine`, which exposes the stale-`latest` timestamp failure on idle chains, and added an actionable note that the seeded `before === 11` assertion depends on the external `pnpm chain:seed-history` step.
+- Clean RED sequence used fresh `punch_task7_pending`, `pnpm db:migrate`, `pnpm db:seed`, fresh Anvil, `pnpm chain:deploy`, `pnpm chain:bootstrap-local`, `pnpm chain:seed-history`, then `PUNCH_RUN_INTEGRATION=1 PUNCH_RUN_LIVE_CHAIN=1 pnpm exec vitest run src/core/chain/server/__tests__/purchase-journey.live.test.ts` with the pre-fix latest-block implementation restored temporarily. Result: the live test failed after relaying because the new order and linked proof landed in `failed` with `failure_reason = expired`.
+- RED output:
+
+```text
+ RUN  v3.2.7 /home/skkippie/work/AI-DO/punch
+
+ ❯ src/core/chain/server/__tests__/purchase-journey.live.test.ts (1 test | 1 failed) 362ms
+   × live purchase journey and projection recovery > confirms once on chain, applies effects once, and rebuilds after drift 197ms
+     → expected 'failed' to be 'confirmed' // Object.is equality
+
+ FAIL  src/core/chain/server/__tests__/purchase-journey.live.test.ts > live purchase journey and projection recovery > confirms once on chain, applies effects once, and rebuilds after drift
+ AssertionError: expected 'failed' to be 'confirmed' // Object.is equality
+
+ Expected: "confirmed"
+ Received: "failed"
+
+ Test Files  1 failed (1)
+ Tests  1 failed (1)
+```
+
+- Re-ran the full clean sequence after restoring the pending-block fix. GREEN output:
+
+```text
+ RUN  v3.2.7 /home/skkippie/work/AI-DO/punch
+
+ ✓ src/core/chain/server/__tests__/purchase-journey.live.test.ts (1 test) 599ms
+   ✓ live purchase journey and projection recovery > confirms once on chain, applies effects once, and rebuilds after drift 452ms
+
+ Test Files  1 passed (1)
+ Tests  1 passed (1)
+```
+
+- `pnpm exec vitest run src/core/purchase src/core/consumption` — PASS: 26 files passed, 2 skipped, 181 tests passed, 10 skipped.
+- `pnpm exec biome check --write src/core/purchase/server/services/confirm-quote-service.ts src/core/purchase/server/services/confirm-purchase-service.ts src/core/chain/server/__tests__/purchase-journey.live.test.ts` — PASS.
+- `pnpm typecheck` — PASS.
+- Anvil will be stopped again after this follow-up.

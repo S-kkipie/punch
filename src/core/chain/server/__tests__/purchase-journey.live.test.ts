@@ -88,7 +88,6 @@ describeLive("live purchase journey and projection recovery", () => {
             method: "evm_increaseTime",
             params: [3 * 24 * 60 * 60],
         } as never);
-        await chain.request({ method: "evm_mine", params: [] } as never);
 
         const logs: string[] = [];
         const logSpies = ["log", "warn", "error"].map((method) =>
@@ -101,6 +100,7 @@ describeLive("live purchase journey and projection recovery", () => {
                 .select({ balance: punchBalanceProjection.balance })
                 .from(punchBalanceProjection)
                 .where(eq(punchBalanceProjection.userId, consumerId));
+            // Depends on the external `pnpm chain:seed-history` step; if this fails, rerun that setup.
             expect(before.reduce((sum, row) => sum + row.balance, 0)).toBe(11);
 
             await db

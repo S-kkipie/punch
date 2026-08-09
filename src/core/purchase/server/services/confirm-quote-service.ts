@@ -40,10 +40,18 @@ type ConfirmQuoteDeps = {
     bridgeQuoteToOrder: typeof bridgeQuoteToOrder;
 };
 
+async function getCurrentChainTimestamp() {
+    const client = createChainPublicClient();
+    try {
+        return (await client.getBlock({ blockTag: "pending" })).timestamp;
+    } catch {
+        return (await client.getBlock()).timestamp;
+    }
+}
+
 const defaultDeps: ConfirmQuoteDeps = {
     now: () => new Date(),
-    getChainTimestamp: async () =>
-        (await createChainPublicClient().getBlock()).timestamp,
+    getChainTimestamp: getCurrentChainTimestamp,
     generateOrderId: () => crypto.randomUUID(),
     randomNonce,
     signProof: signProofAs,
