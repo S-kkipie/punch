@@ -85,6 +85,19 @@ export async function claimSubmittedJobs(
     return claimJobsByStatus("submitted", limit, leaseMs);
 }
 
+export async function markJobSigned(
+    id: string,
+    txHash: string,
+    signedTx: string,
+): Promise<RelayerJobRow | null> {
+    const [job] = await db
+        .update(relayerJob)
+        .set({ txHash, signedTx, lastError: null })
+        .where(and(eq(relayerJob.id, id), eq(relayerJob.status, "pending")))
+        .returning();
+    return job ?? null;
+}
+
 export async function markJobSubmitted(
     id: string,
     txHash: string,

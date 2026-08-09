@@ -3,6 +3,7 @@ import "server-only";
 import {
     type Address,
     type Hex,
+    keccak256,
     type PublicClient,
     type TransactionReceipt,
     TransactionReceiptNotFoundError,
@@ -21,6 +22,7 @@ import {
     markJobFailed,
     markJobPending,
     markJobRetry,
+    markJobSigned,
     markJobSubmitted,
     RELAYER_CLAIM_LEASE_MS,
 } from "@/core/chain/server/relayer/job-repository";
@@ -38,7 +40,7 @@ import {
     type RevertCode,
 } from "./parse-revert";
 
-const PERMANENT_CODES = new Set<RevertCode | "nonce_conflict">([
+const PERMANENT_CODES = new Set<RevertCode | "nonce_conflict" | "superseded">([
     "receipt_used",
     "daily_limit",
     "no_credits",
@@ -47,6 +49,7 @@ const PERMANENT_CODES = new Set<RevertCode | "nonce_conflict">([
     "product_not_eligible",
     "invalid_signature",
     "nonce_conflict",
+    "superseded",
 ]);
 
 type Job = Awaited<ReturnType<typeof findJobsToRun>>[number];
@@ -60,6 +63,11 @@ export type RelayerDeps = {
         txHash: Hex,
         nextRetryAt: Date,
         sideEffect?: JobSideEffect,
+    ) => Promise<unknown>;
+    markJobSigned?: (
+        id: string,
+        txHash: Hex,
+        signedTx: Hex,
     ) => Promise<unknown>;
     markJobConfirmed: (
         id: string,
@@ -111,6 +119,7 @@ function defaultDeps(): RelayerDeps {
         findJobsToRun,
         claimSubmittedJobs,
         markJobSubmitted,
+        markJobSigned,
         markJobConfirmed,
         markJobRetry,
         markJobFailed,
@@ -223,24 +232,30 @@ async function handleFailure(
 ) {
     const handler = handlerFor(job.kind ?? "consumption_record");
     const parsed = parseRevert(error);
+    const nonceTooLow =
+        error instanceof Error && /nonce too low/i.test(error.message);
     const invalidPayload =
         error instanceof Error && error.message === "invalid payload";
     const invalidSignature =
         error instanceof Error && error.message === "invalid signature";
-    const code: RevertCode = invalidPayload
-        ? "unknown"
-        : invalidSignature
-          ? "invalid_signature"
-          : parsed.code;
+    const code: RevertCode | "superseded" = nonceTooLow
+        ? "superseded"
+        : invalidPayload
+          ? "unknown"
+          : invalidSignature
+            ? "invalid_signature"
+            : parsed.code;
     const failure: JobFailure = {
         code,
-        message: invalidPayload
-            ? "invalid payload"
-            : invalidSignature
-              ? "invalid signature"
-              : sanitizedFailure(parsed),
+        message: nonceTooLow
+            ? "superseded"
+            : invalidPayload
+              ? "invalid payload"
+              : invalidSignature
+                ? "invalid signature"
+                : sanitizedFailure(parsed),
     };
-    if (handler.idempotentCodes?.has(code)) {
+    if (code !== "superseded" && handler.idempotentCodes?.has(code)) {
         if (
             code !== "nonce_used" ||
             (submission && (await hasRecordedProof(context(deps), submission)))
@@ -308,19 +323,50 @@ async function submitJob(deps: RelayerDeps, job: Job) {
         return;
     }
     let submission: ReturnType<typeof parseSubmission> | undefined;
-    let call: Awaited<ReturnType<typeof handler.call>>;
     let hash: Hex;
+    let send: () => Promise<Hex>;
     try {
         if (job.kind === "consumption_record" || job.kind === undefined)
             submission = parseSubmission(job);
-        call = await handler.call(job, ctx);
         const signer = resolveSigner(handler.signer(job));
         const wallet = deps.walletForSigner?.(signer) ?? deps.wallet;
-        hash = (await wallet.writeContract({
-            ...call,
-            args: call.args,
-            account: signer,
-        } as never)) as Hex;
+        if (handler.idempotentOnChain === false && job.signedTx) {
+            hash = (job.txHash as Hex) ?? keccak256(job.signedTx as Hex);
+            send = () =>
+                wallet.sendRawTransaction({
+                    serializedTransaction: job.signedTx as Hex,
+                });
+        } else if (handler.idempotentOnChain === false) {
+            const call = await handler.call(job, ctx);
+            const request = await wallet.prepareTransactionRequest({
+                ...call,
+                args: call.args,
+                account: signer,
+            } as never);
+            const signedTx = await wallet.signTransaction(request as never);
+            hash = keccak256(signedTx as Hex);
+            if (!deps.markJobSigned)
+                throw new Error("missing markJobSigned dependency");
+            await deps.markJobSigned(job.id, hash, signedTx as Hex);
+            send = () =>
+                wallet.sendRawTransaction({
+                    serializedTransaction: signedTx as Hex,
+                });
+        } else {
+            const call = await handler.call(job, ctx);
+            hash = (await wallet.writeContract({
+                ...call,
+                args: call.args,
+                account: signer,
+            } as never)) as Hex;
+            send = async () => hash;
+        }
+    } catch (error) {
+        await handleFailure(deps, job, error, submission);
+        return;
+    }
+    try {
+        await send();
     } catch (error) {
         await handleFailure(deps, job, error, submission);
         return;
@@ -382,9 +428,10 @@ export async function recoverStuckJobs(
             );
             continue;
         }
-        let submission: ReturnType<typeof parseSubmission>;
+        let submission: ReturnType<typeof parseSubmission> | undefined;
         try {
-            submission = parseSubmission(job);
+            if (job.kind === "consumption_record" || job.kind === undefined)
+                submission = parseSubmission(job);
         } catch (error) {
             await handleFailure(deps, job, error);
             continue;
@@ -417,11 +464,13 @@ export async function recoverStuckJobs(
             await handleFailure(
                 deps,
                 job,
-                await replaySubmissionError(
-                    context(deps),
-                    submission,
-                    receipt.blockNumber,
-                ),
+                submission
+                    ? await replaySubmissionError(
+                          context(deps),
+                          submission,
+                          receipt.blockNumber,
+                      )
+                    : new Error("transaction reverted"),
                 submission,
             );
         } catch (error) {

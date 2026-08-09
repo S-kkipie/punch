@@ -20,7 +20,7 @@ export type JobCall = {
 };
 
 export type JobFailure = {
-    code: RevertCode | "nonce_conflict";
+    code: RevertCode | "nonce_conflict" | "superseded";
     message: string;
 };
 
@@ -37,6 +37,8 @@ export type JobHandler = {
     preflight?(job: RelayerJobRow, ctx: JobContext): Promise<JobFailure | null>;
     /** Reverts meaning the chain already holds the desired state. */
     idempotentCodes?: ReadonlySet<RevertCode>;
+    /** Non-idempotent calls are signed once and rebroadcast from persisted bytes. */
+    idempotentOnChain?: boolean;
     onSubmitted?(job: RelayerJobRow, txHash: Hex): JobSideEffect | undefined;
     onConfirmed?(
         job: RelayerJobRow,

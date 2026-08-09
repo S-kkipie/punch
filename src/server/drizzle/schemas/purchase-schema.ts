@@ -101,6 +101,7 @@ export const relayerJob = pgTable(
         nextRetryAt: timestamp("next_retry_at").defaultNow().notNull(),
         status: relayerJobStatus("status").default("pending").notNull(),
         txHash: text("tx_hash"),
+        signedTx: text("signed_tx"),
         lastError: text("last_error"),
         createdAt: timestamp("created_at").defaultNow().notNull(),
         updatedAt: timestamp("updated_at")
