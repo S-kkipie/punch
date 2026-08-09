@@ -1,6 +1,14 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import net from "node:net";
-import { createPublicClient, http, parseEther } from "viem";
+import {
+    createPublicClient,
+    encodeAbiParameters,
+    encodeEventTopics,
+    getAbiItem,
+    type Hex,
+    http,
+    parseEther,
+} from "viem";
 import { foundry } from "viem/chains";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { deployAll, seedCafe, waitForWrite } from "@/../scripts/dev-chain";
@@ -33,11 +41,70 @@ const addresses = {
     mockPEN: "0x1000000000000000000000000000000000000007",
 } as const;
 
-function databaseState() {
+function topicData(
+    abi: readonly unknown[],
+    eventName: string,
+    args: Record<string, unknown>,
+) {
+    const item = getAbiItem({ abi, name: eventName });
+    if (item?.type !== "event") throw new Error(`missing ${eventName}`);
+    const topics = encodeEventTopics({
+        abi: [item],
+        eventName: item.name,
+        args,
+    });
+    const dataInputs = item.inputs.filter((input) => !input.indexed);
+    const dataValues = dataInputs.map((input) => {
+        if (!input.name) throw new Error(`unnamed input on ${eventName}`);
+        return args[input.name];
+    });
+    const data =
+        dataInputs.length === 0
+            ? ("0x" as Hex)
+            : encodeAbiParameters(dataInputs, dataValues);
+    return { topics, data };
+}
+
+function rawLog(args: {
+    address: `0x${string}`;
+    abi: readonly unknown[];
+    eventName: string;
+    eventArgs: Record<string, unknown>;
+    blockNumber: bigint;
+    transactionIndex: number;
+    logIndex: number;
+    transactionHash: `0x${string}`;
+    topics?: readonly Hex[];
+    data?: Hex;
+}) {
+    const encoded = topicData(args.abi, args.eventName, args.eventArgs);
+    return {
+        address: args.address,
+        blockHash:
+            "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        blockNumber: args.blockNumber,
+        data: args.data ?? encoded.data,
+        logIndex: args.logIndex,
+        removed: false,
+        topics: (args.topics ?? encoded.topics) as readonly Hex[],
+        transactionHash: args.transactionHash,
+        transactionIndex: args.transactionIndex,
+    } as const;
+}
+
+function databaseState(overrides?: {
+    credits?: Array<{
+        chainCafeId: number;
+        credits: bigint;
+        lastBlock: bigint;
+    }>;
+}) {
     const state = {
         cursor: 12n,
         balances: [{ userAddress: "0x1", balance: 2n, lastBlock: 12n }],
-        credits: [{ chainCafeId: 1, credits: 99n, lastBlock: 12n }],
+        credits: overrides?.credits ?? [
+            { chainCafeId: 1, credits: 99n, lastBlock: 12n },
+        ],
         consumption: [{ id: "one" }],
         paused: false,
         lastGoodBlock: 12n,
@@ -100,20 +167,59 @@ function databaseState() {
     return { state, db: db as never };
 }
 
-function chain(consumptionCount: number) {
+function chain(args: {
+    consumptionCount: number;
+    chainCredits?: Record<number, bigint>;
+}) {
     const latestArgs: Array<{ cacheTime?: number }> = [];
+    const chainCredits = args.chainCredits ?? { 1: 99n };
+    const planLogs = Object.keys(chainCredits).map((key, index) =>
+        rawLog({
+            address: addresses.planManager,
+            abi: abis.planManager,
+            eventName: "PlanActivated",
+            eventArgs: { cafeId: BigInt(key) },
+            blockNumber: 9n + BigInt(index),
+            transactionIndex: index,
+            logIndex: index,
+            transactionHash: `0x${`${index + 1}`.padStart(64, "0")}` as Hex,
+        }),
+    );
+    const consumptionLogs = Array.from(
+        { length: args.consumptionCount },
+        (_, index) =>
+            rawLog({
+                address: addresses.consumptionLog,
+                abi: abis.consumptionLog,
+                eventName: "ConsumptionRecorded",
+                eventArgs: {
+                    cafeId: 1n,
+                    user: "0x1111111111111111111111111111111111111111",
+                    receiptHash: `0x${(index + 20).toString(16).padStart(64, "0")}`,
+                },
+                blockNumber: 10n + BigInt(index),
+                transactionIndex: index,
+                logIndex: index,
+                transactionHash:
+                    `0x${`${index + 20}`.padStart(64, "0")}` as Hex,
+            }),
+    );
     return {
         latestArgs,
         async getBlockNumber(args?: { cacheTime?: number }) {
             latestArgs.push(args ?? {});
             return 12n;
         },
-        async getLogs() {
-            return Array.from({ length: consumptionCount }, () => ({}));
+        async getLogs(request: { address: string }) {
+            if (request.address === addresses.planManager) return planLogs;
+            if (request.address === addresses.consumptionLog)
+                return consumptionLogs;
+            return [];
         },
-        async readContract(request: { functionName: string }) {
+        async readContract(request: { functionName: string; args?: bigint[] }) {
             if (request.functionName === "totalLivePunch") return 2n;
-            return 99n;
+            const cafeId = Number(request.args?.[0] ?? 1n);
+            return chainCredits[cafeId] ?? 0n;
         },
     };
 }
@@ -121,7 +227,7 @@ function chain(consumptionCount: number) {
 describe("runReconcilerOnce", () => {
     it("reports clean projections and repairs corruption while staying stale during reindex", async () => {
         const { state, db } = databaseState();
-        const pub = chain(1);
+        const pub = chain({ consumptionCount: 1 });
         const result = await runReconcilerOnce({
             pub: pub as never,
             database: db,
@@ -157,7 +263,7 @@ describe("runReconcilerOnce", () => {
 
     it("detects consumption events that were missed by the indexer", async () => {
         const { state, db } = databaseState();
-        const pub = chain(3);
+        const pub = chain({ consumptionCount: 3 });
         const result = await runReconcilerOnce({
             pub: pub as never,
             database: db,
@@ -180,10 +286,35 @@ describe("runReconcilerOnce", () => {
         expect(state.consumption).toHaveLength(3);
     });
 
+    it("detects chain-only cafe credits that are missing from projection", async () => {
+        const { state, db } = databaseState({ credits: [] });
+        const pub = chain({ consumptionCount: 1, chainCredits: { 2: 100n } });
+
+        const result = await runReconcilerOnce({
+            pub: pub as never,
+            database: db,
+            addresses,
+            runIndexer: async () => {
+                state.balances = [
+                    { userAddress: "0x1", balance: 2n, lastBlock: 12n },
+                ];
+                state.credits = [
+                    { chainCafeId: 2, credits: 100n, lastBlock: 12n },
+                ];
+                state.consumption = [{ id: "one" }];
+            },
+        });
+
+        expect(result).toEqual({ diverged: true, repaired: true });
+        expect(state.credits).toEqual([
+            { chainCafeId: 2, credits: 100n, lastBlock: 12n },
+        ]);
+    });
+
     it("keeps projections stale when repair remains divergent", async () => {
         const { db } = databaseState();
         const result = await runReconcilerOnce({
-            pub: chain(2) as never,
+            pub: chain({ consumptionCount: 2 }) as never,
             database: db,
             addresses,
             runIndexer: async () => undefined,
@@ -382,6 +513,40 @@ liveDescribe("reconciler live integration", () => {
         });
         expect(missed).toEqual({ diverged: true, repaired: true });
         expect(await db.select().from(projectionConsumption)).toHaveLength(3);
+        expect(await isChainProjectionStale()).toBe(false);
+    });
+
+    it("repairs chain-only cafe credits added after the indexer cursor", async () => {
+        await purchase(1n);
+        await runIndexerOnce({ pub, database: db, addresses: liveAddresses });
+        const secondCafe = await seedCafe({
+            rpcUrl,
+            addresses: liveAddresses,
+            ownerWalletIndex: 8,
+            eligibleProductIds: [700002n],
+        });
+
+        const result = await runReconcilerOnce({
+            pub,
+            database: db,
+            addresses: liveAddresses,
+        });
+
+        expect(result).toEqual({ diverged: true, repaired: true });
+        const credits = await db.select().from(projectionCafeCredit);
+        expect(credits).toHaveLength(2);
+        expect(credits).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    chainCafeId: Number(cafeId),
+                    credits: 99n,
+                }),
+                expect.objectContaining({
+                    chainCafeId: Number(secondCafe.chainCafeId),
+                    credits: 100n,
+                }),
+            ]),
+        );
         expect(await isChainProjectionStale()).toBe(false);
     });
 });

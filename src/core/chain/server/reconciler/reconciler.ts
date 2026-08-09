@@ -1,11 +1,14 @@
 import "server-only";
 
 import { eq } from "drizzle-orm";
-import { getAbiItem, type PublicClient } from "viem";
+import type { PublicClient } from "viem";
 import { abis } from "@/core/chain/abis";
 import { getAddresses } from "@/core/chain/addresses";
 import { createChainPublicClient } from "@/core/chain/chain";
-import { runIndexerOnce } from "@/core/chain/server/indexer/indexer";
+import {
+    fetchEvents,
+    runIndexerOnce,
+} from "@/core/chain/server/indexer/indexer";
 import { db } from "@/server/drizzle/db";
 import {
     indexerCursor,
@@ -67,10 +70,7 @@ async function readProjectionState(
     };
 }
 
-async function readChainState(
-    deps: ReconcilerDeps,
-    projection: ProjectionState,
-): Promise<{
+async function readChainState(deps: ReconcilerDeps): Promise<{
     punchBalance: bigint;
     credits: Map<number, bigint>;
     consumptionCount: number;
@@ -81,8 +81,35 @@ async function readChainState(
         functionName: "totalLivePunch",
     })) as bigint;
 
+    const latest = await deps.pub.getBlockNumber({ cacheTime: 0 });
+    const events = await fetchEvents(
+        {
+            pub: deps.pub,
+            database: deps.database,
+            addresses: deps.addresses,
+        },
+        0n,
+        latest,
+    );
+
+    const cafeIds = new Set<number>();
+    let consumptionCount = 0;
+    for (const event of events) {
+        if (event.eventName === "ConsumptionRecorded") {
+            consumptionCount += 1;
+            continue;
+        }
+        if (
+            (event.eventName === "PlanActivated" ||
+                event.eventName === "PackPurchased") &&
+            typeof event.args.cafeId !== "undefined"
+        ) {
+            cafeIds.add(Number(event.args.cafeId));
+        }
+    }
+
     const creditEntries = await Promise.all(
-        projection.credits.map(async ({ chainCafeId }) => {
+        [...cafeIds].map(async (chainCafeId) => {
             const credits = (await deps.pub.readContract({
                 address: deps.addresses.planManager,
                 abi: abis.planManager,
@@ -93,25 +120,10 @@ async function readChainState(
         }),
     );
 
-    const event = getAbiItem({
-        abi: abis.consumptionLog,
-        name: "ConsumptionRecorded",
-    });
-    if (event?.type !== "event") {
-        throw new Error("missing ConsumptionRecorded ABI event");
-    }
-    const latest = await deps.pub.getBlockNumber({ cacheTime: 0 });
-    const logs = await deps.pub.getLogs({
-        address: deps.addresses.consumptionLog,
-        event,
-        fromBlock: 0n,
-        toBlock: latest,
-    });
-
     return {
         punchBalance,
         credits: new Map(creditEntries),
-        consumptionCount: logs.length,
+        consumptionCount,
     };
 }
 
@@ -121,8 +133,15 @@ function matches(
 ): boolean {
     if (projection.punchBalance !== chain.punchBalance) return false;
     if (projection.consumptionCount !== chain.consumptionCount) return false;
-    for (const row of projection.credits) {
-        if (chain.credits.get(row.chainCafeId) !== row.credits) return false;
+    if (projection.credits.length !== chain.credits.size) return false;
+    const projectionCredits = new Map(
+        projection.credits.map(
+            (row) => [row.chainCafeId, row.credits] as const,
+        ),
+    );
+    if (projectionCredits.size !== chain.credits.size) return false;
+    for (const [chainCafeId, credits] of chain.credits) {
+        if (projectionCredits.get(chainCafeId) !== credits) return false;
     }
     return true;
 }
@@ -175,7 +194,7 @@ export async function runReconcilerOnce(
     deps: ReconcilerDeps = defaultDeps(),
 ): Promise<{ diverged: boolean; repaired: boolean }> {
     const projection = await readProjectionState(deps.database);
-    const chain = await readChainState(deps, projection);
+    const chain = await readChainState(deps);
     if (matches(projection, chain)) {
         await setPaused(deps.database, false, projection.cursor);
         return { diverged: false, repaired: false };
@@ -191,7 +210,7 @@ export async function runReconcilerOnce(
             force: true,
         });
         const repairedProjection = await readProjectionState(deps.database);
-        const repairedChain = await readChainState(deps, repairedProjection);
+        const repairedChain = await readChainState(deps);
         if (!matches(repairedProjection, repairedChain)) {
             console.error("chain projection reconciliation remains divergent");
             return { diverged: true, repaired: false };
