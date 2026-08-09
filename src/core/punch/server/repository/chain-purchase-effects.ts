@@ -1,8 +1,9 @@
 import "server-only";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { DbClient } from "@/server/drizzle/db";
 import { chainPurchaseEffect } from "@/server/drizzle/schemas/punch-schema";
+import { purchaseOrder } from "@/server/drizzle/schemas/purchase-schema";
 import {
     findActiveCampaignForCafe,
     hasPriorPaidPurchase,
@@ -122,6 +123,25 @@ export async function applyChainPurchaseEffects(
             progress.completedCafeIds.includes(input.cafeId),
     );
     if (alreadyCompletedStep && !nextStep) {
+        // Replaying the order that originally completed this step finds no
+        // surviving claim (the rebuild cleared it); a later repeat purchase at
+        // the same café finds the replayed claim and must not record a second
+        // effect with false provenance.
+        const [claimed] = await tx
+            .select({ id: chainPurchaseEffect.id })
+            .from(chainPurchaseEffect)
+            .innerJoin(
+                purchaseOrder,
+                eq(purchaseOrder.id, chainPurchaseEffect.purchaseOrderId),
+            )
+            .where(
+                and(
+                    eq(chainPurchaseEffect.kind, "crawl_step"),
+                    eq(chainPurchaseEffect.targetId, alreadyCompletedStep.id),
+                    eq(purchaseOrder.userId, input.consumerUserId),
+                ),
+            );
+        if (claimed) return;
         const effect = await recordEffect(
             tx,
             input,

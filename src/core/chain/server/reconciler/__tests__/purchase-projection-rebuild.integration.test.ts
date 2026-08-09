@@ -153,6 +153,58 @@ async function seedMinimalCase(options?: {
 }
 
 describeIntegration("clearChainDerivedPurchaseProjections", () => {
+    it("records no crawl effect for a repeat purchase after the crawl is complete", async () => {
+        const ids = await seedMinimalCase({ crawl: true });
+        const suffix = crypto.randomUUID();
+        const revisitOrderId = `rebuild-revisit-${suffix}`;
+        await db.insert(purchaseOrder).values({
+            id: revisitOrderId,
+            cafeId: ids.cafeId,
+            userId: ids.userId,
+            productId: ids.productId,
+            amount: 8_000_000n,
+            yapeRef: "revisit-ref",
+            receiptHash: `0x${"cd".repeat(32)}`,
+            nonce: suffix,
+            expiry: new Date(Date.now() + 60_000),
+            status: "submitted",
+        });
+        await db.insert(consumptionProof).values({
+            id: `rebuild-revisit-proof-${suffix}`,
+            cafeId: ids.cafeId,
+            productId: ids.productId,
+            issuedByUserId: ids.userId,
+            consumerUserId: ids.userId,
+            amountCentimos: 800,
+            purchaseOrderId: revisitOrderId,
+            yapeRef: "revisit-ref",
+            receiptHash: `0x${"cd".repeat(32)}`,
+            nonce: suffix,
+            status: "submitted",
+            expiresAt: new Date(Date.now() + 60_000),
+        });
+        await db.transaction(async (tx) => {
+            await applyConfirmedConsumptionProjection(tx, {
+                orderId: revisitOrderId,
+                txHash: `0x${suffix.replaceAll("-", "").padStart(64, "0")}` as `0x${string}`,
+                logIndex: 0,
+                blockNumber: 13n,
+            });
+        });
+        const revisitEffects = await db
+            .select()
+            .from(chainPurchaseEffect)
+            .where(eq(chainPurchaseEffect.purchaseOrderId, revisitOrderId));
+        expect(
+            revisitEffects.filter((effect) => effect.kind === "crawl_step"),
+        ).toEqual([]);
+        const vouchers = await db
+            .select()
+            .from(consumerVoucher)
+            .where(eq(consumerVoucher.crawlId, ids.crawlId));
+        expect(vouchers).toHaveLength(1);
+    });
+
     it("self-heals legacy effect provenance and converges on the next rebuild", async () => {
         const ids = await seedMinimalCase({ crawl: true });
         const replayTxHash =
