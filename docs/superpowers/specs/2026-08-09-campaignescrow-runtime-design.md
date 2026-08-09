@@ -154,13 +154,15 @@ Kinds y llave firmante:
 |---|---|---|
 | `consumption_record` | relayer | `consumption:${orderId}` |
 | `campaign_create` | ops | `campaign_create:${campaignId}` |
-| `campaign_fund_approve` | dueño del café | `campaign_fund_approve:${campaignId}:${seq}` |
-| `campaign_fund` | dueño del café | `campaign_fund:${campaignId}:${seq}` |
+| `campaign_fund_approve` | dueño del café | `campaign_fund_approve:${campaignId}:${fundingId}` |
+| `campaign_fund` | dueño del café | `campaign_fund:${campaignId}:${fundingId}` |
 | `campaign_publish` | ops | `campaign_publish:${campaignId}` |
 | `voucher_unlock` | `campaignOperator` | `voucher_unlock:${chainCampaignId}:${userAddress}` |
 | `voucher_redeem` | `campaignOperator` | `voucher_redeem:${redemptionRequestId}` |
 
-`seq` distingue fondeos sucesivos de una misma campaña draft.
+`fundingId` es un UUID que el service genera por acción de fondeo; distingue
+fondeos sucesivos de una misma campaña draft y encadena el `approve` con su
+`fundCampaign`.
 
 ### Otros
 
