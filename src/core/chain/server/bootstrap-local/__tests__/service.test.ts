@@ -124,6 +124,34 @@ describe("bootstrapApprovedSeedCafes", () => {
         expect(repository.persistCafeMappings).not.toHaveBeenCalled();
     });
 
+    it("backfills missing product mappings for an already-mapped cafe after live verification", async () => {
+        const { repository, chain, cafes } = fixture();
+        cafes.forEach((cafe, i) => {
+            cafe.chainCafeId = i + 1;
+            cafe.products[0].chainProductId = 1;
+        });
+        cafes[0].products[0].chainProductId = null;
+        vi.mocked(chain.countCafes).mockResolvedValue(4n);
+        vi.mocked(chain.inspectCafe).mockImplementation(async (id) => ({
+            chainCafeId: id,
+            ownerAddress: address(String(id)),
+            active: true,
+            eligibleProductIds: [1n],
+            planActive: true,
+            credits: 100n,
+        }));
+
+        await bootstrapApprovedSeedCafes({ repository, chain });
+
+        expect(chain.seedCafe).not.toHaveBeenCalled();
+        expect(repository.persistCafeMappings).toHaveBeenCalledTimes(1);
+        expect(repository.persistCafeMappings).toHaveBeenCalledWith({
+            cafeId: "cafe-1",
+            chainCafeId: 1,
+            products: [{ productId: "emission-1", chainProductId: 1 }],
+        });
+    });
+
     it("recovers a null DB mapping from an owner match on chain", async () => {
         const { repository, chain, cafes } = fixture();
         vi.mocked(chain.countCafes).mockResolvedValue(4n);

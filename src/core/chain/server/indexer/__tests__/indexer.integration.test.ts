@@ -13,7 +13,6 @@ import { foundry } from "viem/chains";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { deployAll, seedCafe, waitForWrite } from "@/../scripts/dev-chain";
 import { abis } from "@/core/chain/abis";
-import localAddresses from "@/core/chain/addresses.local.json";
 import { createChainWalletClient } from "@/core/chain/chain";
 import { applyEvent } from "@/core/chain/server/indexer/apply-event";
 import { runIndexerOnce } from "@/core/chain/server/indexer/indexer";
@@ -103,10 +102,6 @@ type LiveSetup = {
 const fixtures: Fixture[] = [];
 let anvil: ChildProcessWithoutNullStreams | null = null;
 let rpcUrl = "";
-let originalAddresses = "";
-let originalChainRpcUrl: string | undefined;
-let originalChainEnv: string | undefined;
-let originalRelayerWalletIndex: string | undefined;
 
 async function getFreePort(): Promise<number> {
     return new Promise((resolve, reject) => {
@@ -169,26 +164,6 @@ async function stopAnvil() {
     if (process.exitCode !== null) return;
     process.kill("SIGTERM");
     await new Promise((resolve) => setTimeout(resolve, 250));
-}
-
-function installLocalChainState(
-    addresses: Awaited<ReturnType<typeof deployAll>>,
-) {
-    originalAddresses = JSON.stringify(localAddresses);
-    originalChainRpcUrl = process.env.CHAIN_RPC_URL;
-    originalChainEnv = process.env.CHAIN_ENV;
-    originalRelayerWalletIndex = process.env.RELAYER_WALLET_INDEX;
-    Object.assign(localAddresses, addresses);
-    process.env.CHAIN_RPC_URL = rpcUrl;
-    process.env.CHAIN_ENV = "local";
-    process.env.RELAYER_WALLET_INDEX = String(RELAYER_WALLET_INDEX);
-}
-
-function restoreLocalChainState() {
-    Object.assign(localAddresses, JSON.parse(originalAddresses || "{}"));
-    process.env.CHAIN_RPC_URL = originalChainRpcUrl;
-    process.env.CHAIN_ENV = originalChainEnv;
-    process.env.RELAYER_WALLET_INDEX = originalRelayerWalletIndex;
 }
 
 async function cleanup() {
@@ -289,7 +264,6 @@ async function createFixtureRecords(args: {
 
 async function setupLive(args: { nonce?: bigint; buyPack?: boolean } = {}) {
     const addresses = await deployAll(rpcUrl);
-    installLocalChainState(addresses);
     const pub = createPublicClient({ chain: foundry, transport: http(rpcUrl) });
     const relayerAccount = deriveAccount(
         RELAYER_MNEMONIC,
@@ -441,7 +415,6 @@ describeIntegration("indexer live integration", () => {
 
     afterEach(async () => {
         await cleanup();
-        restoreLocalChainState();
         await stopAnvil();
     });
 

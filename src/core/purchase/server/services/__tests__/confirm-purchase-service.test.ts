@@ -26,9 +26,17 @@ function deps(overrides: Record<string, unknown> = {}) {
     return {
         findOrder: vi.fn().mockResolvedValue(order),
         findCafeOwner: vi.fn().mockResolvedValue({ userId: "owner-1" }),
-        findUserWallet: vi.fn().mockResolvedValue({
-            walletIndex: 5,
-            walletAddress: "0xAb000000000000000000000000000000000000cd",
+        findUserWallet: vi.fn().mockImplementation(async (userId: string) => {
+            if (userId === "buyer-1") {
+                return {
+                    walletIndex: 5,
+                    walletAddress: "0xAb000000000000000000000000000000000000cd",
+                };
+            }
+            return {
+                walletIndex: 9,
+                walletAddress: "0xDe000000000000000000000000000000000000ad",
+            };
         }),
         requireOwner: vi
             .fn()
@@ -68,10 +76,37 @@ describe("confirmPurchaseService", () => {
 
         expect(result.ok).toBe(true);
         expect(d.signProof).toHaveBeenCalledTimes(2);
+        expect(d.signProof).toHaveBeenNthCalledWith(
+            1,
+            5,
+            expect.objectContaining({ cafeId: 1n, productId: 1n }),
+        );
+        expect(d.signProof).toHaveBeenNthCalledWith(
+            2,
+            9,
+            expect.objectContaining({ cafeId: 1n, productId: 1n }),
+        );
         expect(d.updateOrderAndQueue).toHaveBeenCalledTimes(1);
         expect(d.updateOrderAndQueue).toHaveBeenCalledWith(
             "order-1",
             expect.objectContaining({ proof: expect.any(Object) }),
+        );
+    });
+
+    it("uses the confirming owner wallet when multiple owners exist", async () => {
+        const d = deps({
+            findCafeOwner: vi.fn().mockResolvedValue({ userId: "owner-2" }),
+        });
+
+        const result = await confirmPurchaseService("owner-1", "order-1", d);
+
+        expect(result.ok).toBe(true);
+        expect(d.findUserWallet).toHaveBeenCalledWith("owner-1");
+        expect(d.findUserWallet).not.toHaveBeenCalledWith("owner-2");
+        expect(d.signProof).toHaveBeenNthCalledWith(
+            2,
+            9,
+            expect.objectContaining({ cafeId: 1n, productId: 1n }),
         );
     });
 

@@ -117,6 +117,23 @@ export async function bootstrapApprovedSeedCafes(input: {
                 ownerAddress,
                 eligibleProductIds,
             });
+            const recoveredProductIds = live.eligibleProductIds.map((id) =>
+                Number(id),
+            );
+            const needsBackfill = products.some(
+                (product, index) =>
+                    product.chainProductId !== recoveredProductIds[index],
+            );
+            if (needsBackfill) {
+                await input.repository.persistCafeMappings({
+                    cafeId: cafe.id,
+                    chainCafeId: Number(chainCafeId),
+                    products: products.map((product, index) => ({
+                        productId: product.id,
+                        chainProductId: recoveredProductIds[index] ?? index + 1,
+                    })),
+                });
+            }
             continue;
         }
 
