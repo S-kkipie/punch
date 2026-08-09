@@ -36,6 +36,7 @@ import {
 import { db } from "@/server/drizzle/db";
 import { user } from "@/server/drizzle/schemas/auth-schema";
 import { cafe, cafeProduct } from "@/server/drizzle/schemas/cafe-schema";
+import { consumptionProof } from "@/server/drizzle/schemas/consumption-schema";
 import {
     purchaseOrder,
     relayerJob,
@@ -239,6 +240,11 @@ async function cleanup() {
     const userIds = new Set(fixtures.map((fixture) => fixture.userId));
     fixtures.splice(0);
 
+    for (const userId of userIds) {
+        await db
+            .delete(consumptionProof)
+            .where(eq(consumptionProof.issuedByUserId, userId));
+    }
     for (const orderId of orderIds) {
         await db.delete(relayerJob).where(eq(relayerJob.orderId, orderId));
         await db.delete(purchaseOrder).where(eq(purchaseOrder.id, orderId));
@@ -810,6 +816,99 @@ describeIntegration("relayer live integration", () => {
         expect(diagnostic.balance).toBe(0n);
         expect(diagnostic.credits).toBe(99n);
         expect(diagnostic.parsedRevert?.code).toBe("nonce_used");
+    });
+
+    it("fails the linked quote atomically with the order and leaves an unlinked quote untouched", async () => {
+        const setup = await setupQueuedOrder({
+            nonce: 6n,
+            receiptTag: "quote-failure",
+        });
+        const expiry = new Date(Date.now() + 60_000);
+        await db.insert(consumptionProof).values([
+            {
+                id: `linked-proof-${setup.fixture.orderId}`,
+                cafeId: setup.fixture.cafeId,
+                productId: setup.fixture.productId,
+                issuedByUserId: setup.fixture.userId,
+                consumerUserId: setup.fixture.userId,
+                amountCentimos: 800,
+                purchaseOrderId: setup.fixture.orderId,
+                yapeRef: "linked-safe-ref",
+                receiptHash: setup.proof.receiptHash,
+                nonce: setup.proof.nonce.toString(),
+                status: "submitted",
+                expiresAt: expiry,
+            },
+            {
+                id: `unlinked-proof-${setup.fixture.orderId}`,
+                cafeId: setup.fixture.cafeId,
+                productId: setup.fixture.productId,
+                issuedByUserId: setup.fixture.userId,
+                consumerUserId: setup.fixture.userId,
+                amountCentimos: 800,
+                purchaseOrderId: null,
+                yapeRef: "unlinked-safe-ref",
+                receiptHash: buildReceiptHash(
+                    `unlinked-${setup.fixture.orderId}`,
+                    "unlinked",
+                ),
+                nonce: `${setup.proof.nonce + 1n}`,
+                status: "issued",
+                expiresAt: expiry,
+            },
+        ]);
+        const [job] = await db
+            .select({ id: relayerJob.id })
+            .from(relayerJob)
+            .where(eq(relayerJob.orderId, setup.fixture.orderId));
+        if (!job) throw new Error("missing relayer job");
+
+        await markJobFailed(
+            job.id,
+            "safe permanent failure",
+            "safe permanent failure",
+        );
+
+        const [order] = await db
+            .select({
+                status: purchaseOrder.status,
+                failureReason: purchaseOrder.failureReason,
+            })
+            .from(purchaseOrder)
+            .where(eq(purchaseOrder.id, setup.fixture.orderId));
+        const [linked] = await db
+            .select({
+                status: consumptionProof.status,
+                failureReason: consumptionProof.failureReason,
+            })
+            .from(consumptionProof)
+            .where(
+                eq(
+                    consumptionProof.id,
+                    `linked-proof-${setup.fixture.orderId}`,
+                ),
+            );
+        const [unlinked] = await db
+            .select({
+                status: consumptionProof.status,
+                failureReason: consumptionProof.failureReason,
+            })
+            .from(consumptionProof)
+            .where(
+                eq(
+                    consumptionProof.id,
+                    `unlinked-proof-${setup.fixture.orderId}`,
+                ),
+            );
+        expect(order).toEqual({
+            status: "failed",
+            failureReason: "safe permanent failure",
+        });
+        expect(linked).toEqual({
+            status: "failed",
+            failureReason: "safe permanent failure",
+        });
+        expect(unlinked).toEqual({ status: "issued", failureReason: null });
     });
 
     it("leases one pending job to a single claimant", async () => {

@@ -9,6 +9,7 @@ import {
     cafeMember,
     cafeProduct,
 } from "@/server/drizzle/schemas/cafe-schema";
+import { consumptionProof } from "@/server/drizzle/schemas/consumption-schema";
 import {
     type PurchaseOrderRow,
     purchaseOrder,
@@ -530,6 +531,15 @@ export async function markJobFailed(
             )
             .returning({ id: purchaseOrder.id });
         if (!order) throw new Error("relayer failed order transition rejected");
+        await tx
+            .update(consumptionProof)
+            .set({ status: "failed", failureReason })
+            .where(
+                and(
+                    eq(consumptionProof.purchaseOrderId, job.orderId),
+                    eq(consumptionProof.status, "submitted"),
+                ),
+            );
         return job;
     });
 }
