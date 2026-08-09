@@ -8,7 +8,6 @@ import {
     TransactionReceiptNotFoundError,
     type WalletClient,
 } from "viem";
-import { env } from "@/config/env";
 import { type AddressMap, getAddresses } from "@/core/chain/addresses";
 import {
     createChainPublicClient,
@@ -25,7 +24,7 @@ import {
     markJobSubmitted,
     RELAYER_CLAIM_LEASE_MS,
 } from "@/core/chain/server/relayer/job-repository";
-import { deriveUserAccount } from "@/core/chain/server/wallet/derive";
+import { resolveSigner } from "@/core/chain/server/relayer/signers";
 import {
     hasRecordedProof,
     parseSubmission,
@@ -97,10 +96,13 @@ export type RelayerDeps = {
     submitter: Address;
     now: () => Date;
     useHandlerSideEffects?: boolean;
+    walletForSigner?: (
+        signer: ReturnType<typeof resolveSigner>,
+    ) => RelayerWallet;
 };
 
 function defaultDeps(): RelayerDeps {
-    const submitterAccount = deriveUserAccount(env.RELAYER_WALLET_INDEX);
+    const submitterAccount = resolveSigner({ kind: "relayer" });
     const wallet = createChainWalletClient(
         undefined,
         submitterAccount,
@@ -119,6 +121,8 @@ function defaultDeps(): RelayerDeps {
         submitter: submitterAccount.address,
         now: () => new Date(),
         useHandlerSideEffects: true,
+        walletForSigner: (account) =>
+            createChainWalletClient(undefined, account) as RelayerWallet,
     };
 }
 
@@ -236,23 +240,24 @@ async function handleFailure(
               ? "invalid signature"
               : sanitizedFailure(parsed),
     };
-    if (code === "nonce_used") {
-        if (submission && (await hasRecordedProof(context(deps), submission))) {
+    if (handler.idempotentCodes?.has(code)) {
+        if (
+            code !== "nonce_used" ||
+            (submission && (await hasRecordedProof(context(deps), submission)))
+        ) {
             await confirm(deps, job);
             return;
         }
+        const conflict: JobFailure = {
+            code: "nonce_conflict",
+            message: "nonce_conflict",
+        };
         await markFailed(
             deps,
             job.id,
-            "nonce_conflict",
-            "nonce_conflict",
-            effect(
-                deps,
-                handler.onFailed?.(job, {
-                    code: "unknown",
-                    message: "nonce_conflict",
-                }),
-            ),
+            conflict.message,
+            conflict.code,
+            effect(deps, handler.onFailed?.(job, conflict)),
         );
         return;
     }
@@ -309,9 +314,12 @@ async function submitJob(deps: RelayerDeps, job: Job) {
         if (job.kind === "consumption_record" || job.kind === undefined)
             submission = parseSubmission(job);
         call = await handler.call(job, ctx);
-        hash = (await deps.wallet.writeContract({
+        const signer = resolveSigner(handler.signer(job));
+        const wallet = deps.walletForSigner?.(signer) ?? deps.wallet;
+        hash = (await wallet.writeContract({
             ...call,
             args: call.args,
+            account: signer,
         } as never)) as Hex;
     } catch (error) {
         await handleFailure(deps, job, error, submission);

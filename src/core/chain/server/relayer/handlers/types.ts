@@ -19,7 +19,10 @@ export type JobCall = {
     args: readonly unknown[];
 };
 
-export type JobFailure = { code: RevertCode; message: string };
+export type JobFailure = {
+    code: RevertCode | "nonce_conflict";
+    message: string;
+};
 
 export type JobContext = {
     addresses: AddressMap;
