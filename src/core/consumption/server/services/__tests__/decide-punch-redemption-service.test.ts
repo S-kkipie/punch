@@ -87,10 +87,11 @@ describe("decidePunchRedemptionService", () => {
         if (result.ok) expect(result.data.status).toBe("approved");
     });
 
-    it("rejecting never enqueues", async () => {
+    it("rejecting never enqueues and forwards the rejection reason", async () => {
         vi.mocked(decideRedemptionRequest).mockResolvedValue({
             ...request,
             status: "rejected",
+            rejectionReason: "Sin stock",
         } as never);
         const result = await decidePunchRedemptionService(
             "u",
@@ -103,7 +104,76 @@ describe("decidePunchRedemptionService", () => {
             deps,
         );
         expect(result.ok).toBe(true);
-        expect(decideRedemptionRequest).toHaveBeenCalled();
+        expect(decideRedemptionRequest).toHaveBeenCalledWith(
+            "r",
+            "u",
+            "rejected",
+            "Sin stock",
+        );
+        expect(approveRedemptionAndEnqueueJob).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        null,
+        { ...request, cafeId: "other" },
+        { ...request, kind: "voucher" },
+    ])("returns not found for missing, foreign, or wrong-kind requests", async (existing) => {
+        vi.mocked(findRedemptionRequestById).mockResolvedValue(
+            existing as never,
+        );
+
+        const result = await decidePunchRedemptionService(
+            "u",
+            "c",
+            "r",
+            { decision: "approved" },
+            deps,
+        );
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.error.code).toBe("NOT_FOUND");
+        expect(decideRedemptionRequest).not.toHaveBeenCalled();
+        expect(approveRedemptionAndEnqueueJob).not.toHaveBeenCalled();
+    });
+
+    it("returns conflict for an already rejected request with a different decision", async () => {
+        vi.mocked(findRedemptionRequestById).mockResolvedValue({
+            ...request,
+            status: "rejected",
+            rejectionReason: "Sin stock",
+        } as never);
+
+        const result = await decidePunchRedemptionService(
+            "u",
+            "c",
+            "r",
+            { decision: "approved" },
+            deps,
+        );
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.error.code).toBe("CONFLICT");
+        expect(decideRedemptionRequest).not.toHaveBeenCalled();
+        expect(approveRedemptionAndEnqueueJob).not.toHaveBeenCalled();
+    });
+
+    it("makes the same rejection idempotent", async () => {
+        vi.mocked(findRedemptionRequestById).mockResolvedValue({
+            ...request,
+            status: "rejected",
+            rejectionReason: "Sin stock",
+        } as never);
+
+        const result = await decidePunchRedemptionService(
+            "u",
+            "c",
+            "r",
+            { decision: "rejected", rejectionReason: "Sin stock" },
+            deps,
+        );
+
+        expect(result.ok).toBe(true);
+        expect(decideRedemptionRequest).not.toHaveBeenCalled();
         expect(approveRedemptionAndEnqueueJob).not.toHaveBeenCalled();
     });
 
