@@ -24,6 +24,7 @@ const generatedMigration = normalizeSql(
         "0006_dusty_dormammu.sql",
         "0007_clean_shinobi_shaw.sql",
         "0008_soft_pyro.sql",
+        "0010_lucky_dexter_bennett.sql",
     ]
         .map((file) =>
             readFileSync(
@@ -143,6 +144,26 @@ describe("consumer domain Drizzle schemas", () => {
         );
     });
 
+    it("declares purchase quote lifecycle and safe linkage", () => {
+        expect(consumptionProof.yapeRef).toBeDefined();
+        expect(consumptionProof.purchaseOrderId).toBeDefined();
+        expect(consumptionProof.failureReason).toBeDefined();
+        expect(
+            getTableConfig(consumptionProof).indexes.map(
+                (index) => index.config.name,
+            ),
+        ).toContain("consumption_proof_purchase_order_uq");
+        expect(generatedMigration).toContain(
+            "ALTER TABLE consumption_proof ALTER COLUMN receipt_hash DROP NOT NULL",
+        );
+        expect(generatedMigration).toContain(
+            "CREATE UNIQUE INDEX consumption_proof_purchase_order_uq",
+        );
+        expect(generatedMigration).toContain(
+            "ALTER TYPE public.purchase_proof_status ADD VALUE 'expired'",
+        );
+    });
+
     it("declares voucher provenance, proof binding, campaign, and crawl constraints", () => {
         expect(
             getTableConfig(consumerVoucher).checks.map((check) => check.name),
@@ -156,7 +177,7 @@ describe("consumer domain Drizzle schemas", () => {
             getTableConfig(consumptionProof).checks.map((check) => check.name),
         ).toEqual([
             "consumption_proof_amount_positive",
-            "consumption_proof_confirmed_binding",
+            "consumption_proof_submitted_binding",
         ]);
         expect(
             getTableConfig(campaign).checks.map((check) => check.name),

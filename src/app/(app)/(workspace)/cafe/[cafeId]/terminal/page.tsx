@@ -46,9 +46,7 @@ export default function CafeTerminalPage() {
 
     const generate = () => {
         if (!productId) return;
-        const bytes = crypto.getRandomValues(new Uint8Array(32));
-        const receiptHash = `0x${Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
-        createProof.mutate({ productId, receiptHash });
+        createProof.mutate({ productId, yapeRef: "UI_PENDING" });
     };
 
     return (

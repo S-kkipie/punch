@@ -12,10 +12,14 @@ import {
 import { user } from "./auth-schema";
 import { cafe, cafeProduct } from "./cafe-schema";
 import { consumerVoucher } from "./punch-schema";
+import { purchaseOrder } from "./purchase-schema";
 
 export const purchaseProofStatus = pgEnum("purchase_proof_status", [
     "issued",
+    "submitted",
     "confirmed",
+    "failed",
+    "expired",
 ]);
 
 export const consumptionProof = pgTable(
@@ -35,10 +39,16 @@ export const consumptionProof = pgTable(
             .references(() => user.id),
         consumerUserId: text("consumer_user_id").references(() => user.id),
         amountCentimos: integer("amount_centimos").notNull(),
-        receiptHash: text("receipt_hash").notNull(),
-        nonce: text("nonce").notNull(),
-        cafeSignature: text("cafe_signature").notNull(),
+        purchaseOrderId: text("purchase_order_id").references(
+            () => purchaseOrder.id,
+            { onDelete: "restrict" },
+        ),
+        yapeRef: text("yape_ref").notNull(),
+        receiptHash: text("receipt_hash"),
+        nonce: text("nonce"),
+        cafeSignature: text("cafe_signature"),
         consumerSignature: text("consumer_signature"),
+        failureReason: text("failure_reason"),
         status: purchaseProofStatus("status").default("issued").notNull(),
         expiresAt: timestamp("expires_at").notNull(),
         createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -50,14 +60,17 @@ export const consumptionProof = pgTable(
     (table) => [
         uniqueIndex("consumption_proof_nonce_uq").on(table.nonce),
         uniqueIndex("consumption_proof_receipt_hash_uq").on(table.receiptHash),
+        uniqueIndex("consumption_proof_purchase_order_uq")
+            .on(table.purchaseOrderId)
+            .where(sql`${table.purchaseOrderId} IS NOT NULL`),
         index("consumption_proof_cafe_id_idx").on(table.cafeId),
         check(
             "consumption_proof_amount_positive",
             sql`${table.amountCentimos} > 0`,
         ),
         check(
-            "consumption_proof_confirmed_binding",
-            sql`${table.status} <> 'confirmed' OR (${table.consumerUserId} IS NOT NULL AND ${table.cafeSignature} IS NOT NULL AND ${table.consumerSignature} IS NOT NULL)`,
+            "consumption_proof_submitted_binding",
+            sql`${table.status} NOT IN ('submitted', 'confirmed') OR (${table.consumerUserId} IS NOT NULL AND ${table.purchaseOrderId} IS NOT NULL)`,
         ),
     ],
 );

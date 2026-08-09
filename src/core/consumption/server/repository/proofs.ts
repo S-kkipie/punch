@@ -7,7 +7,7 @@ import {
     type NewConsumptionProofRow,
 } from "@/server/drizzle/schemas/consumption-schema";
 
-export async function createProof(
+export async function createQuote(
     input: Omit<NewConsumptionProofRow, "id" | "createdAt" | "updatedAt">,
     client: DbClient = db,
 ): Promise<ConsumptionProofRow> {
@@ -15,9 +15,11 @@ export async function createProof(
         .insert(consumptionProof)
         .values(input)
         .returning();
-    if (!row) throw new Error("createProof: insert returned no row");
+    if (!row) throw new Error("createQuote: insert returned no row");
     return row;
 }
+
+export const createProof = createQuote;
 
 export async function findProofById(
     id: string,
@@ -27,6 +29,24 @@ export async function findProofById(
         .select()
         .from(consumptionProof)
         .where(eq(consumptionProof.id, id));
+    return row ?? null;
+}
+
+export async function expireQuote(
+    id: string,
+    client: DbClient = db,
+): Promise<ConsumptionProofRow | null> {
+    const [row] = await client
+        .update(consumptionProof)
+        .set({ status: "expired" })
+        .where(
+            and(
+                eq(consumptionProof.id, id),
+                eq(consumptionProof.status, "issued"),
+                sql`${consumptionProof.expiresAt} <= now()`,
+            ),
+        )
+        .returning();
     return row ?? null;
 }
 

@@ -146,6 +146,7 @@ describe("proof repository safety", () => {
                     issuedByUserId: "barista-1",
                     consumerUserId: null,
                     amountCentimos: 100,
+                    yapeRef: "YAPE-1234",
                     receiptHash: "receipt-1",
                     nonce: "nonce-1",
                     cafeSignature: "cafe-sig",

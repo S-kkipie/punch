@@ -1,31 +1,24 @@
 import { Elysia, t } from "elysia";
 import { authed } from "@/server/auth/middleware/authed";
 import {
-    AppErrors,
     CommonResponse,
     errorResponseSchema,
     errorToResponse,
 } from "@/server/common/responses";
-import { findProofById } from "../../repository/proofs";
+import { getPurchaseQuoteService } from "../../services/get-purchase-quote-service";
 
 export const getPurchaseProofRoute = new Elysia().use(authed).get(
     "/purchase-proofs/:proofId",
-    async ({ params, status }) => {
-        const row = await findProofById(params.proofId);
-        if (!row) return status(404, errorToResponse(AppErrors.notFound()));
+    async ({ user, params, status }) => {
+        const result = await getPurchaseQuoteService(user.id, params.proofId);
+        if (!result.ok)
+            return status(
+                result.error.status as 500,
+                errorToResponse(result.error),
+            );
         return status(
             200,
-            CommonResponse.successful({
-                response: {
-                    id: row.id,
-                    cafeId: row.cafeId,
-                    productId: row.productId,
-                    amountCentimos: row.amountCentimos,
-                    expiresAt: row.expiresAt.toISOString(),
-                    status: row.status,
-                    createdAt: row.createdAt.toISOString(),
-                },
-            }),
+            CommonResponse.successful({ response: result.data }),
         );
     },
     {
@@ -42,15 +35,19 @@ export const getPurchaseProofRoute = new Elysia().use(authed).get(
                     amountCentimos: t.Number(),
                     expiresAt: t.String(),
                     status: t.String(),
+                    maskedYapeRef: t.String(),
+                    purchaseOrderId: t.Union([t.String(), t.Null()]),
+                    failureReason: t.Union([t.String(), t.Null()]),
                     createdAt: t.String(),
                 }),
             }),
             401: errorResponseSchema(401),
             404: errorResponseSchema(404),
+            500: errorResponseSchema(500),
         },
         detail: {
             tags: ["Consumption"],
-            summary: "Consultar un comprobante de compra",
+            summary: "Consultar una cotización de compra",
         },
     },
 );
