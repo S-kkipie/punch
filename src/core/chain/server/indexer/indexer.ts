@@ -38,6 +38,8 @@ export type IndexerDeps = {
     addresses: ReturnType<typeof getAddresses>;
     deployBlock?: bigint;
     apply?: (tx: IndexerTransaction, event: IndexerEvent) => Promise<void>;
+    /** Permit a repair reindex while the projection remains paused. */
+    force?: boolean;
 };
 
 function source(
@@ -162,7 +164,7 @@ export async function runIndexerOnce(
         .select({ paused: projectionStatus.paused })
         .from(projectionStatus)
         .where(eq(projectionStatus.projection, "chain"));
-    if (status[0]?.paused) return;
+    if (status[0]?.paused && !deps.force) return;
 
     const cursorRows = await deps.database
         .select({ block: indexerCursor.lastProcessedBlock })
@@ -190,12 +192,14 @@ export async function runIndexerOnce(
             .insert(projectionStatus)
             .values({
                 projection: "chain",
-                paused: false,
-                lastGoodBlock: latest,
+                paused: !!deps.force,
+                lastGoodBlock: deps.force ? 0n : latest,
             })
             .onConflictDoUpdate({
                 target: projectionStatus.projection,
-                set: { lastGoodBlock: latest },
+                set: deps.force
+                    ? { paused: true }
+                    : { paused: false, lastGoodBlock: latest },
             });
     });
 }
