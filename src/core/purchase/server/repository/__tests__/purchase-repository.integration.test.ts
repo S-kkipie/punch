@@ -174,6 +174,8 @@ describeIntegration("purchase repository concurrency", () => {
         expect(confirmedJob.status).toBe("confirmed");
         expect(confirmedOrder.status).toBe("confirmed");
 
+        await expect(markJobConfirmed(job.id)).resolves.toBeNull();
+
         await markJobPending(job.id, new Date(Date.now() + 1_000));
         const [unchangedJob] = await db
             .select()
@@ -185,6 +187,40 @@ describeIntegration("purchase repository concurrency", () => {
             .where(eq(purchaseOrder.id, fixture.orderId));
         expect(unchangedJob.status).toBe("confirmed");
         expect(unchangedOrder.status).toBe("confirmed");
+    });
+
+    it("accepts indexer-first order confirmation before the relayer confirms the submitted job", async () => {
+        const fixture = await createFixture();
+        await updateOrderAndQueue(fixture.orderId, { proof: {} });
+        const [job] = await db
+            .select()
+            .from(relayerJob)
+            .where(eq(relayerJob.orderId, fixture.orderId));
+
+        await markJobSubmitted(
+            job.id,
+            `0x${"66".repeat(32)}`,
+            new Date(Date.now() + 60_000),
+        );
+        await db
+            .update(purchaseOrder)
+            .set({ status: "confirmed" })
+            .where(eq(purchaseOrder.id, fixture.orderId));
+
+        await expect(markJobConfirmed(job.id)).resolves.toMatchObject({
+            orderId: fixture.orderId,
+        });
+
+        const [confirmedJob] = await db
+            .select()
+            .from(relayerJob)
+            .where(eq(relayerJob.id, job.id));
+        const [confirmedOrder] = await db
+            .select()
+            .from(purchaseOrder)
+            .where(eq(purchaseOrder.id, fixture.orderId));
+        expect(confirmedJob.status).toBe("confirmed");
+        expect(confirmedOrder.status).toBe("confirmed");
     });
 
     it("claims submitted jobs once across recovery workers", async () => {

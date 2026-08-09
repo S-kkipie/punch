@@ -99,6 +99,7 @@ function databaseState(overrides?: {
         credits: bigint;
         lastBlock: bigint;
     }>;
+    hasProjectionStatus?: boolean;
 }) {
     const state = {
         cursor: 12n,
@@ -108,6 +109,7 @@ function databaseState(overrides?: {
         ],
         consumption: [{ id: "one" }],
         paused: false,
+        hasProjectionStatus: overrides?.hasProjectionStatus ?? true,
         lastGoodBlock: 12n,
     };
     const rowsFor = (table: unknown) => {
@@ -116,7 +118,8 @@ function databaseState(overrides?: {
         if (table === projectionPunchBalance) return state.balances;
         if (table === projectionCafeCredit) return state.credits;
         if (table === projectionConsumption) return state.consumption;
-        if (table === projectionStatus) return [{ paused: state.paused }];
+        if (table === projectionStatus)
+            return state.hasProjectionStatus ? [{ paused: state.paused }] : [];
         return [];
     };
     const transaction = async (callback: (tx: never) => Promise<void>) => {
@@ -321,6 +324,12 @@ describe("runReconcilerOnce", () => {
             runIndexer: async () => undefined,
         });
         expect(result).toEqual({ diverged: true, repaired: false });
+        expect(await isChainProjectionStale(db)).toBe(true);
+    });
+
+    it("treats a missing chain projection status row as stale", async () => {
+        const { db } = databaseState({ hasProjectionStatus: false });
+
         expect(await isChainProjectionStale(db)).toBe(true);
     });
 });

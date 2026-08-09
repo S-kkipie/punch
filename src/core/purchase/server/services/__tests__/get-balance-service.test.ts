@@ -50,6 +50,19 @@ describe("getBalanceService", () => {
         expect(d.isStale).toHaveBeenCalled();
     });
 
+    it("returns zero and stale when the user has no wallet and the chain projection status is missing", async () => {
+        const d = deps({
+            findUserWallet: vi.fn().mockResolvedValue(null),
+            isStale: vi.fn().mockResolvedValue(true),
+        });
+        const result = await getBalanceService("user-1", d);
+        expect(result).toMatchObject({
+            ok: true,
+            data: { punchBalance: 0, stale: true },
+        });
+        expect(d.findBalance).not.toHaveBeenCalled();
+    });
+
     it("returns zero when the projection row is missing", async () => {
         const result = await getBalanceService(
             "user-1",

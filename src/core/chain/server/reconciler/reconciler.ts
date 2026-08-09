@@ -232,5 +232,5 @@ export async function isChainProjectionStale(
         .select({ paused: projectionStatus.paused })
         .from(projectionStatus)
         .where(eq(projectionStatus.projection, "chain"));
-    return rows[0]?.paused ?? false;
+    return rows[0]?.paused ?? true;
 }

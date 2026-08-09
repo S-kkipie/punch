@@ -393,7 +393,29 @@ export async function markJobConfirmed(id: string) {
                 ),
             )
             .returning({ orderId: relayerJob.orderId });
-        if (!job) return null;
+
+        if (!job) {
+            const [current] = await tx
+                .select({
+                    jobStatus: relayerJob.status,
+                    orderStatus: purchaseOrder.status,
+                })
+                .from(relayerJob)
+                .innerJoin(
+                    purchaseOrder,
+                    eq(purchaseOrder.id, relayerJob.orderId),
+                )
+                .where(eq(relayerJob.id, id));
+            if (
+                current?.jobStatus === "confirmed" &&
+                current.orderStatus === "confirmed"
+            ) {
+                return null;
+            }
+            if (!current) return null;
+            throw new Error("relayer confirmed order transition rejected");
+        }
+
         const [order] = await tx
             .update(purchaseOrder)
             .set({ status: "confirmed", failureReason: null })
@@ -404,9 +426,15 @@ export async function markJobConfirmed(id: string) {
                 ),
             )
             .returning({ id: purchaseOrder.id });
-        if (!order)
-            throw new Error("relayer confirmed order transition rejected");
-        return job;
+        if (order) return job;
+
+        const [currentOrder] = await tx
+            .select({ status: purchaseOrder.status })
+            .from(purchaseOrder)
+            .where(eq(purchaseOrder.id, job.orderId));
+        if (currentOrder?.status === "confirmed") return job;
+
+        throw new Error("relayer confirmed order transition rejected");
     });
 }
 
