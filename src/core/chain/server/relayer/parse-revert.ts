@@ -10,11 +10,16 @@ export type RevertCode =
     | "ticket_too_small"
     | "product_not_eligible"
     | "invalid_signature"
+    | "not_draft"
     | "unknown";
 
 export type ParsedRevert = { code: RevertCode; message: string };
 
-const errorAbis = [...abis.consumptionLog, ...abis.planManager] as Abi;
+const errorAbis = [
+    ...abis.consumptionLog,
+    ...abis.planManager,
+    ...abis.campaignEscrow,
+] as Abi;
 const errorNames: Record<string, RevertCode> = {
     NonceUsed: "nonce_used",
     ReceiptUsed: "receipt_used",
@@ -25,6 +30,7 @@ const errorNames: Record<string, RevertCode> = {
     ProductNotEligible: "product_not_eligible",
     InvalidCafeSignature: "invalid_signature",
     InvalidUserSignature: "invalid_signature",
+    NotDraft: "not_draft",
 };
 
 function findData(error: unknown): Hex | undefined {

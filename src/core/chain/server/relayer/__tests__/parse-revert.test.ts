@@ -17,12 +17,17 @@ const cases = [
     ["ProductNotEligible", [1n, 2n], "product_not_eligible"],
     ["InvalidCafeSignature", [], "invalid_signature"],
     ["InvalidUserSignature", [], "invalid_signature"],
+    ["NotDraft", [1n], "not_draft"],
 ] as const;
 
 describe("parseRevert", () => {
     it.each(cases)("maps %s", (errorName, args, code) => {
         const abi =
-            errorName === "NoCredits" ? abis.planManager : abis.consumptionLog;
+            errorName === "NoCredits"
+                ? abis.planManager
+                : errorName === "NotDraft"
+                  ? abis.campaignEscrow
+                  : abis.consumptionLog;
         // biome-ignore lint/suspicious/noExplicitAny: viem's variadic ABI overload cannot infer dynamic test cases.
         const data = (encodeErrorResult as any)({ abi, errorName, args });
         const error = new ContractFunctionRevertedError({

@@ -48,6 +48,7 @@ const PERMANENT_CODES = new Set<RevertCode | "nonce_conflict" | "superseded">([
     "ticket_too_small",
     "product_not_eligible",
     "invalid_signature",
+    "not_draft",
     "nonce_conflict",
     "superseded",
 ]);

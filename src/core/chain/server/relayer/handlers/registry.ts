@@ -1,10 +1,16 @@
 import type { RelayerJobKind } from "@/core/chain/server/relayer/job-repository";
 import { campaignCreateHandler } from "./campaign-create";
+import {
+    campaignFundApproveHandler,
+    campaignFundHandler,
+} from "./campaign-fund";
 import { consumptionRecordHandler } from "./consumption-record";
 import type { JobHandler } from "./types";
 
 const handlers: Partial<Record<RelayerJobKind, JobHandler>> = {
     campaign_create: campaignCreateHandler,
+    campaign_fund_approve: campaignFundApproveHandler,
+    campaign_fund: campaignFundHandler,
     consumption_record: consumptionRecordHandler,
 };
 
