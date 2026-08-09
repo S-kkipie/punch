@@ -107,9 +107,7 @@ export async function getPlanStatusService(
             canPay,
             inFlightOrderId: inFlight?.id ?? null,
         });
-    } catch {
-        return err(
-            AppErrors.unexpected(new Error("plan status lookup failed")),
-        );
+    } catch (cause) {
+        return err(AppErrors.unexpected(cause));
     }
 }
