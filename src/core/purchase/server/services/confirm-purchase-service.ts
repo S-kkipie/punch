@@ -1,5 +1,6 @@
 import "server-only";
 
+import { getLogger } from "@logtape/logtape";
 import { createChainPublicClient } from "@/core/chain/chain";
 import type { ConsumptionProof } from "@/core/chain/server/proof/proof";
 import { serializeProof, signProofAs } from "@/core/chain/server/proof/proof";
@@ -29,6 +30,11 @@ async function getCurrentChainTimestamp() {
     try {
         return (await client.getBlock({ blockTag: "pending" })).timestamp;
     } catch {
+        // On a provider without pending-block support the latest block can be
+        // stale on an idle chain, shrinking the proof-expiry margin.
+        getLogger(["purchase", "chain"]).warn(
+            "pending block unavailable; proof expiry derived from latest block",
+        );
         return (await client.getBlock()).timestamp;
     }
 }
