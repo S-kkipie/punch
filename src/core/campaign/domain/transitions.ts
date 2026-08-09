@@ -1,5 +1,4 @@
-import type { ProjectionCampaignRow } from "@/server/drizzle/schemas/chain-schema";
-import type { CampaignLifecycle } from "./types";
+import type { CampaignLifecycle, ProjectionCampaignSnapshot } from "./types";
 
 export function requiredBudget(params: {
     voucherPayout: bigint;
@@ -10,14 +9,14 @@ export function requiredBudget(params: {
 
 export function lifecycleOf(
     link: { chainCampaignId: number | null },
-    projection: ProjectionCampaignRow | null,
+    projection: ProjectionCampaignSnapshot | null,
 ): CampaignLifecycle {
     if (link.chainCampaignId === null || !projection) return "creating";
     return projection.status;
 }
 
 export function canPublish(
-    projection: ProjectionCampaignRow | null,
+    projection: ProjectionCampaignSnapshot | null,
     required: bigint,
 ): boolean {
     if (!projection) return false;

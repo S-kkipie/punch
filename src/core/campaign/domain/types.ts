@@ -11,3 +11,8 @@ export type CampaignParams = {
     voucherPayout: bigint;
     maxVouchers: number;
 };
+
+export type ProjectionCampaignSnapshot = {
+    status: "draft" | "published" | "cancelled";
+    budget: bigint;
+};
