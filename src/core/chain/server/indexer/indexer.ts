@@ -1,7 +1,14 @@
 import "server-only";
 
 import { eq } from "drizzle-orm";
-import { type Address, type PublicClient, parseEventLogs } from "viem";
+import {
+    decodeEventLog,
+    encodeEventTopics,
+    getAbiItem,
+    type Hex,
+    type Log,
+    type PublicClient,
+} from "viem";
 import { abis } from "@/core/chain/abis";
 import { getAddresses } from "@/core/chain/addresses";
 import { createChainPublicClient } from "@/core/chain/chain";
@@ -10,28 +17,59 @@ import {
     indexerCursor,
     projectionStatus,
 } from "@/server/drizzle/schemas/chain-schema";
-import { applyEvent, type IndexerEvent } from "./apply-event";
+import {
+    applyEvent,
+    type IndexerEvent,
+    type IndexerTransaction,
+} from "./apply-event";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type ContractName = keyof ReturnType<typeof getAddresses>;
+
+type Source = {
+    addressKey: ContractName;
+    selectors: Map<Hex, IndexerEvent["eventName"]>;
+    events: Map<IndexerEvent["eventName"], readonly unknown[]>;
+};
+
 export type IndexerDeps = {
     pub: Pick<PublicClient, "getBlockNumber" | "getLogs">;
     database: typeof db;
     addresses: ReturnType<typeof getAddresses>;
     deployBlock?: bigint;
+    apply?: (tx: IndexerTransaction, event: IndexerEvent) => Promise<void>;
 };
 
+function source(
+    addressKey: ContractName,
+    abi: readonly unknown[],
+    eventNames: readonly IndexerEvent["eventName"][],
+): Source {
+    const selectors = new Map<Hex, IndexerEvent["eventName"]>();
+    const events = new Map<IndexerEvent["eventName"], readonly unknown[]>();
+    for (const eventName of eventNames) {
+        const item = getAbiItem({ abi, name: eventName });
+        if (item?.type !== "event") {
+            throw new Error(`missing ABI event ${eventName}`);
+        }
+        selectors.set(
+            encodeEventTopics({ abi: [item], eventName: item.name })[0] as Hex,
+            eventName,
+        );
+        events.set(eventName, [item]);
+    }
+    return { addressKey, selectors, events };
+}
+
 const sources = [
-    { addressKey: "punchVault", abi: abis.punchVault },
-    { addressKey: "consumptionLog", abi: abis.consumptionLog },
-    { addressKey: "planManager", abi: abis.planManager },
+    source("punchVault", abis.punchVault, ["PunchIssued"]),
+    source("consumptionLog", abis.consumptionLog, ["ConsumptionRecorded"]),
+    source("planManager", abis.planManager, [
+        "EmissionCreditConsumed",
+        "PlanActivated",
+        "PackPurchased",
+    ]),
 ] as const;
-const relevant = new Set([
-    "PunchIssued",
-    "ConsumptionRecorded",
-    "EmissionCreditConsumed",
-    "PlanActivated",
-    "PackPurchased",
-]);
 
 function defaultDeps(): IndexerDeps {
     return {
@@ -40,6 +78,7 @@ function defaultDeps(): IndexerDeps {
         addresses: getAddresses(),
     };
 }
+
 function sortEvents(events: IndexerEvent[]): IndexerEvent[] {
     return events.sort((a, b) =>
         a.blockNumber < b.blockNumber
@@ -51,46 +90,66 @@ function sortEvents(events: IndexerEvent[]): IndexerEvent[] {
     );
 }
 
+function orderingMetadata(log: Log) {
+    if (
+        log.blockNumber === null ||
+        log.blockNumber === undefined ||
+        log.transactionHash === null ||
+        log.transactionHash === undefined ||
+        log.transactionIndex === null ||
+        log.transactionIndex === undefined ||
+        log.logIndex === null ||
+        log.logIndex === undefined
+    ) {
+        throw new Error("chain event missing ordering metadata");
+    }
+    return {
+        blockNumber: log.blockNumber,
+        transactionHash: log.transactionHash,
+        transactionIndex: log.transactionIndex,
+        logIndex: log.logIndex,
+    };
+}
+
+function decodeKnownLog(source: Source, log: Log): IndexerEvent | null {
+    const selector = log.topics[0];
+    if (!selector) return null;
+    const eventName = source.selectors.get(selector as Hex);
+    if (!eventName) return null;
+    const eventAbi = source.events.get(eventName);
+    if (!eventAbi) throw new Error(`missing decode ABI for ${eventName}`);
+    const decoded = decodeEventLog({
+        abi: eventAbi,
+        data: log.data,
+        topics: log.topics,
+        strict: true,
+    });
+    const metadata = orderingMetadata(log);
+    return {
+        eventName,
+        args: decoded.args as Record<string, unknown>,
+        blockNumber: metadata.blockNumber,
+        transactionHash: metadata.transactionHash,
+        transactionIndex: metadata.transactionIndex,
+        logIndex: metadata.logIndex,
+    };
+}
+
 async function fetchEvents(
     deps: IndexerDeps,
     fromBlock: bigint,
     toBlock: bigint,
 ): Promise<IndexerEvent[]> {
     const all: IndexerEvent[] = [];
-    for (const source of sources) {
+    for (const item of sources) {
         const logs = await deps.pub.getLogs({
-            address: deps.addresses[source.addressKey] as Address,
+            address: deps.addresses[item.addressKey],
             fromBlock,
             toBlock,
         });
-        const parsed = parseEventLogs({
-            abi: source.abi,
-            logs,
-            strict: true,
-        }) as Array<{
-            eventName: string;
-            args: Record<string, unknown>;
-            blockNumber?: bigint;
-            transactionHash?: string;
-            logIndex: number;
-            transactionIndex?: number;
-        }>;
-        for (const event of parsed) {
-            if (!relevant.has(event.eventName)) continue;
-            if (
-                event.blockNumber === undefined ||
-                event.transactionHash === undefined ||
-                event.transactionIndex === undefined
-            )
-                throw new Error("chain event missing ordering metadata");
-            all.push({
-                eventName: event.eventName as IndexerEvent["eventName"],
-                args: event.args,
-                blockNumber: event.blockNumber,
-                transactionHash: event.transactionHash,
-                logIndex: event.logIndex,
-                transactionIndex: event.transactionIndex,
-            });
+        for (const log of logs) {
+            const event = decodeKnownLog(item, log);
+            if (event) all.push(event);
         }
     }
     return sortEvents(all);
@@ -104,16 +163,22 @@ export async function runIndexerOnce(
         .from(projectionStatus)
         .where(eq(projectionStatus.projection, "chain"));
     if (status[0]?.paused) return;
+
     const cursorRows = await deps.database
         .select({ block: indexerCursor.lastProcessedBlock })
         .from(indexerCursor)
         .where(eq(indexerCursor.contract, "punch"));
     const cursor = cursorRows[0]?.block ?? deps.deployBlock ?? 0n;
+
     const latest = await deps.pub.getBlockNumber();
     if (latest <= cursor) return;
+
     const events = await fetchEvents(deps, cursor + 1n, latest);
+    const apply = deps.apply ?? applyEvent;
     await deps.database.transaction(async (tx: Tx) => {
-        for (const event of events) await applyEvent(tx, event);
+        for (const event of events) {
+            await apply(tx, event);
+        }
         await tx
             .insert(indexerCursor)
             .values({ contract: "punch", lastProcessedBlock: latest })
@@ -135,4 +200,4 @@ export async function runIndexerOnce(
     });
 }
 
-export { fetchEvents, sortEvents };
+export { decodeKnownLog, fetchEvents, sortEvents };
