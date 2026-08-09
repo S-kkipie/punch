@@ -298,6 +298,7 @@ describe("runIndexerOnce", () => {
                 [addresses.punchVault]: [],
                 [addresses.planManager]: [],
                 [addresses.consumptionLog]: [],
+                [addresses.campaignEscrow]: [],
             },
             12n,
         );
@@ -320,6 +321,11 @@ describe("runIndexerOnce", () => {
             },
             {
                 address: addresses.planManager,
+                fromBlock: 11n,
+                toBlock: 12n,
+            },
+            {
+                address: addresses.campaignEscrow,
                 fromBlock: 11n,
                 toBlock: 12n,
             },

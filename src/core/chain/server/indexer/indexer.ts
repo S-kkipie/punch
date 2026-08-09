@@ -71,6 +71,13 @@ const sources = [
         "PlanActivated",
         "PackPurchased",
     ]),
+    source("campaignEscrow", abis.campaignEscrow, [
+        "CampaignCreated",
+        "CampaignFunded",
+        "CampaignPublished",
+        "VoucherUnlocked",
+        "VoucherRedeemed",
+    ]),
 ] as const;
 
 function defaultDeps(): IndexerDeps {

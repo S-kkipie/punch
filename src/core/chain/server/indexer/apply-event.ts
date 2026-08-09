@@ -10,6 +10,7 @@ import {
     projectionPunchBalance,
 } from "@/server/drizzle/schemas/chain-schema";
 import { purchaseOrder } from "@/server/drizzle/schemas/purchase-schema";
+import { applyCampaignEvent } from "./campaign-projection";
 import { applyConfirmedConsumptionProjection } from "./purchase-projection";
 
 export const CREDITS_PER_PURCHASE = 100n;
@@ -22,7 +23,12 @@ export type IndexerEvent = {
         | "ConsumptionRecorded"
         | "EmissionCreditConsumed"
         | "PlanActivated"
-        | "PackPurchased";
+        | "PackPurchased"
+        | "CampaignCreated"
+        | "CampaignFunded"
+        | "CampaignPublished"
+        | "VoucherUnlocked"
+        | "VoucherRedeemed";
     args: EventArgs;
     blockNumber: bigint;
     transactionHash: string;
@@ -193,6 +199,12 @@ export async function applyEvent(
         case "PlanActivated":
         case "PackPurchased":
             return addCredits(tx, event);
+        case "CampaignCreated":
+        case "CampaignFunded":
+        case "CampaignPublished":
+        case "VoucherUnlocked":
+        case "VoucherRedeemed":
+            return applyCampaignEvent(tx, event);
         default: {
             const neverEvent: never = event.eventName;
             throw new Error(`unsupported event ${neverEvent}`);
