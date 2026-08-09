@@ -79,3 +79,43 @@ Consumption behavior remains structurally unchanged apart from the simulation de
 
 - `RelayerDeps.hasRedemptionLedger` is optional at the type boundary to preserve compatibility with existing integration-test dependency fixtures; production `defaultDeps` always supplies the database-backed implementation. If a redemption caller omits the guard, the relayer throws before `writeContract` rather than sending unsafely.
 - No live chain was started, per the task instructions; live-chain verification belongs to Task 6.
+
+## Fix round 1
+
+### Changes
+
+- Made `markJobConfirmed`'s not-found fallback return `null` for every terminal `punch_redemption` job before touching `purchaseOrder`; the nullable `orderId as string` cast was removed and consumption jobs now explicitly require `orderId` before the order lookup.
+- Closed the broadcast/database crash window for redemptions. The relayer now encodes and signs the `PunchVault.redeem` transaction locally, computes `keccak256(signedTransaction)`, persists the job as `submitted` with the hash and signed payload, and only then calls `sendRawTransaction`.
+- If broadcasting fails after persistence, the signed payload remains on the job and retries rebroadcast the same serialized transaction rather than signing a fresh transaction.
+- Recovery never sends directly for either receipt-found or receipt-missing submitted redemption jobs. A missing receipt marks the job pending; the subsequent normal submission path reuses the persisted signed transaction and therefore retains the same hash. A fresh signature is never created for that job.
+
+### Covering tests and commands
+
+- `pnpm vitest run src/core/chain/server/relayer/__tests__/relayer-redemption.test.ts`: 1 file passed, 7 tests passed.
+- `pnpm vitest run src/core/chain/server/relayer/__tests__/parse-revert.test.ts src/core/chain/server/relayer/__tests__/relayer.test.ts src/core/chain/server/relayer/__tests__/relayer-redemption.test.ts`: 3 files passed, 42 tests passed.
+- `pnpm vitest run`: 90 files passed, 530 tests passed; 11 files skipped, 42 tests skipped.
+- `pnpm typecheck`: passed.
+- `pnpm biome check --write` on the three amended source/test files, followed by focused verification: passed.
+
+The full suite retained only pre-existing stderr diagnostics from reconciler tests, exact-mirror schema handling, and an invalid `<select>` child warning; no tests failed.
+
+### Revert-proof evidence
+
+Temporarily reordered `sendRawTransaction` before `markJobSubmitted` in `submitRedemptionJob`, then ran:
+
+`pnpm vitest run src/core/chain/server/relayer/__tests__/relayer-redemption.test.ts -t "persists the signed hash before broadcasting"`
+
+It failed with `AggregateError: relayer state update failed`; the broadcast stub threw before the persistence assertion could pass. The original order was restored, and the focused suite passed with 7 tests.
+
+### Missing-receipt decision
+
+I chose to persist the signed serialized transaction in `relayer_job.payload` and mark the job pending when the receipt is missing. Recovery itself does not rebroadcast, satisfying the no-send recovery invariant. On the next pending attempt, the relayer detects the persisted signed transaction, recomputes the same hash, persists the submitted state again, and rebroadcasts the identical raw transaction. Because the serialized transaction and hash are identical, this cannot create a second distinct redemption transaction; it is safe against the crash window and avoids relying on the indexer ledger arriving first.
+
+### Fix-round files
+
+- `/home/skkippie/work/AI-DO/punch/src/core/chain/server/relayer/relayer.ts`
+- `/home/skkippie/work/AI-DO/punch/src/core/chain/server/relayer/__tests__/relayer-redemption.test.ts`
+- `/home/skkippie/work/AI-DO/punch/src/core/purchase/server/repository/purchase-repository.ts`
+- `/home/skkippie/work/AI-DO/punch/.superpowers/sdd/2026-08-09-punch-redemption-onchain/task-3-report.md`
+
+`src/core/chain/addresses.local.json` remained unstaged.

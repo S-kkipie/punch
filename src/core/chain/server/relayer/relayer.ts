@@ -4,7 +4,9 @@ import { getLogger } from "@logtape/logtape";
 import { eq } from "drizzle-orm";
 import {
     type Address,
+    encodeFunctionData,
     type Hex,
+    keccak256,
     type PublicClient,
     parseEventLogs,
     TransactionReceiptNotFoundError,
@@ -74,6 +76,7 @@ export type RelayerDeps = {
         id: string,
         txHash: Hex,
         nextRetryAt: Date,
+        payload?: Record<string, unknown>,
     ) => Promise<unknown>;
     markJobConfirmed: (id: string) => Promise<unknown>;
     markJobRetry: (
@@ -93,6 +96,7 @@ export type RelayerDeps = {
     pub: {
         waitForTransactionReceipt: PublicClient["waitForTransactionReceipt"];
         getTransactionReceipt: PublicClient["getTransactionReceipt"];
+        sendRawTransaction: PublicClient["sendRawTransaction"];
         getLogs: PublicClient["getLogs"];
         simulateContract: (args: never) => Promise<unknown>;
     };
@@ -326,6 +330,31 @@ function isMissingReceiptError(error: unknown): boolean {
     );
 }
 
+function getPersistedSignedTransaction(job: Job): Hex | undefined {
+    if (!job.payload || typeof job.payload !== "object") return undefined;
+    const value = (job.payload as Record<string, unknown>).signedTransaction;
+    return typeof value === "string" && /^0x[0-9a-fA-F]+$/.test(value)
+        ? (value as Hex)
+        : undefined;
+}
+
+async function signRedemptionTransaction(
+    deps: RelayerDeps,
+    submission: RedemptionSubmission,
+): Promise<Hex> {
+    const data = encodeFunctionData({
+        abi: abis.punchVault,
+        functionName: "redeem",
+        args: [submission.user, submission.cafeId, submission.productId],
+    });
+    const request = await deps.wallet.prepareTransactionRequest({
+        account: deps.submitter,
+        to: deps.addresses.punchVault,
+        data,
+    } as never);
+    return (await deps.wallet.signTransaction(request as never)) as Hex;
+}
+
 async function submitRedemptionJob(deps: RelayerDeps, job: Job) {
     if (!job.redemptionRequestId) {
         await deps.markJobFailed(job.id, "invalid payload", "unknown");
@@ -336,15 +365,17 @@ async function submitRedemptionJob(deps: RelayerDeps, job: Job) {
         return;
     }
     let hash: Hex;
-    let submission: RedemptionSubmission | undefined;
+    let submission: RedemptionSubmission;
+    let signedTransaction = getPersistedSignedTransaction(job);
     try {
         submission = parseRedemptionSubmission(job);
-        hash = (await deps.wallet.writeContract({
-            address: deps.addresses.punchVault,
-            abi: abis.punchVault,
-            functionName: "redeem",
-            args: [submission.user, submission.cafeId, submission.productId],
-        } as never)) as Hex;
+        if (!signedTransaction) {
+            signedTransaction = await signRedemptionTransaction(
+                deps,
+                submission,
+            );
+        }
+        hash = keccak256(signedTransaction);
     } catch (error) {
         await handleFailure(deps, job, error);
         return;
@@ -353,8 +384,12 @@ async function submitRedemptionJob(deps: RelayerDeps, job: Job) {
         job.id,
         hash,
         new Date(deps.now().getTime() + RELAYER_CLAIM_LEASE_MS),
+        { ...(job.payload as Record<string, unknown>), signedTransaction },
     );
     try {
+        await deps.pub.sendRawTransaction({
+            serializedTransaction: signedTransaction,
+        });
         const receipt = await deps.pub.waitForTransactionReceipt({ hash });
         if (receipt.status === "success") await confirm(deps, job);
         else

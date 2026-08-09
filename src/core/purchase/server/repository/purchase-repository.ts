@@ -356,6 +356,7 @@ export async function markJobSubmitted(
     id: string,
     txHash: string,
     nextRetryAt: Date,
+    payload?: Record<string, unknown>,
 ) {
     return db.transaction(async (tx) => {
         const [job] = await tx
@@ -365,6 +366,7 @@ export async function markJobSubmitted(
                 txHash,
                 lastError: null,
                 nextRetryAt,
+                ...(payload ? { payload } : {}),
             })
             .where(and(eq(relayerJob.id, id), eq(relayerJob.status, "pending")))
             .returning({
@@ -417,16 +419,14 @@ export async function markJobConfirmed(id: string) {
                 })
                 .from(relayerJob)
                 .where(eq(relayerJob.id, id));
-            if (
-                currentJob?.kind === "punch_redemption" &&
-                currentJob.jobStatus === "confirmed"
-            )
-                return null;
             if (!currentJob) return null;
+            if (currentJob.kind === "punch_redemption") return null;
+            if (!currentJob.orderId)
+                throw new Error("consumption job missing orderId");
             const [currentOrder] = await tx
                 .select({ status: purchaseOrder.status })
                 .from(purchaseOrder)
-                .where(eq(purchaseOrder.id, currentJob.orderId as string));
+                .where(eq(purchaseOrder.id, currentJob.orderId));
             if (
                 currentOrder?.status === "confirmed" &&
                 currentJob.jobStatus === "confirmed"

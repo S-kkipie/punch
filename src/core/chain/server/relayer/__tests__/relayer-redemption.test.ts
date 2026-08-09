@@ -1,9 +1,14 @@
-import { ContractFunctionRevertedError, encodeErrorResult } from "viem";
+import {
+    ContractFunctionRevertedError,
+    encodeErrorResult,
+    keccak256,
+} from "viem";
 import { describe, expect, it, vi } from "vitest";
 import { abis } from "@/core/chain/abis";
 import { type RelayerDeps, recoverStuckJobs, runRelayerOnce } from "../relayer";
 
 const userWallet = `0x${"11".repeat(20)}` as `0x${string}`;
+const signedTransaction = `0x${"ab".repeat(100)}` as `0x${string}`;
 const addresses = {
     consumptionLog: `0x${"33".repeat(20)}` as `0x${string}`,
     punchVault: `0x${"44".repeat(20)}` as `0x${string}`,
@@ -37,13 +42,18 @@ function deps(job = baseJob(), receipt: "success" | "reverted" = "success") {
         markJobPending: vi.fn().mockResolvedValue(undefined),
         hasRedemptionLedger: vi.fn().mockResolvedValue(false),
         wallet: {
-            writeContract: vi.fn().mockResolvedValue(`0x${"55".repeat(32)}`),
+            writeContract: vi.fn(),
+            prepareTransactionRequest: vi.fn().mockResolvedValue({}),
+            signTransaction: vi.fn().mockResolvedValue(signedTransaction),
         },
         pub: {
             waitForTransactionReceipt: vi
                 .fn()
                 .mockResolvedValue({ status: receipt }),
             getTransactionReceipt: vi.fn(),
+            sendRawTransaction: vi
+                .fn()
+                .mockResolvedValue(keccak256(signedTransaction)),
             getLogs: vi.fn(),
             simulateContract: vi.fn(),
         },
@@ -72,14 +82,20 @@ function revert(errorName: "InsufficientPunch" | "NotRedeemer") {
 }
 
 describe("punch redemption relayer", () => {
-    it("sends PunchVault.redeem for punch_redemption jobs", async () => {
+    it("persists the signed hash before broadcasting", async () => {
         const d = deps();
+        d.pub.sendRawTransaction = vi
+            .fn()
+            .mockRejectedValue(new Error("broadcast down"));
         await runRelayerOnce(d);
-        expect(d.wallet.writeContract).toHaveBeenCalledWith({
-            address: addresses.punchVault,
-            abi: abis.punchVault,
-            functionName: "redeem",
-            args: [userWallet, 3n, 7n],
+        expect(d.markJobSubmitted).toHaveBeenCalledWith(
+            "job",
+            keccak256(signedTransaction),
+            expect.any(Date),
+            expect.objectContaining({ signedTransaction }),
+        );
+        expect(d.pub.sendRawTransaction).toHaveBeenCalledWith({
+            serializedTransaction: signedTransaction,
         });
     });
 
@@ -93,7 +109,7 @@ describe("punch redemption relayer", () => {
 
     it("permanent vault revert marks job failed with parsed reason", async () => {
         const d = deps();
-        d.wallet.writeContract = vi
+        d.wallet.prepareTransactionRequest = vi
             .fn()
             .mockRejectedValue(revert("InsufficientPunch"));
         await runRelayerOnce(d);
@@ -131,7 +147,7 @@ describe("punch redemption relayer", () => {
 
     it("not_redeemer retries instead of failing permanently", async () => {
         const d = deps();
-        d.wallet.writeContract = vi
+        d.wallet.prepareTransactionRequest = vi
             .fn()
             .mockRejectedValue(revert("NotRedeemer"));
         await runRelayerOnce(d);
@@ -146,7 +162,13 @@ describe("punch redemption relayer", () => {
         d.claimSubmittedJobs = vi.fn().mockResolvedValue([
             baseJob({
                 status: "submitted",
-                txHash: `0x${"77".repeat(32)}`,
+                txHash: keccak256(signedTransaction),
+                payload: {
+                    userWallet,
+                    chainCafeId: 3,
+                    chainProductId: 7,
+                    signedTransaction,
+                },
             }),
         ]);
         d.pub.getTransactionReceipt = vi
@@ -155,5 +177,32 @@ describe("punch redemption relayer", () => {
         await recoverStuckJobs(d);
         expect(d.markJobConfirmed).toHaveBeenCalledWith("job");
         expect(d.wallet.writeContract).not.toHaveBeenCalled();
+        expect(d.pub.sendRawTransaction).not.toHaveBeenCalled();
+    });
+
+    it("does not resend a submitted redemption when its receipt is missing", async () => {
+        const d = deps();
+        const job = baseJob({
+            status: "submitted",
+            txHash: keccak256(signedTransaction),
+            payload: {
+                userWallet,
+                chainCafeId: 3,
+                chainProductId: 7,
+                signedTransaction,
+            },
+        });
+        d.claimSubmittedJobs = vi.fn().mockResolvedValue([job]);
+        const missing = Object.assign(new Error("missing"), {
+            name: "TransactionReceiptNotFoundError",
+        });
+        d.pub.getTransactionReceipt = vi.fn().mockRejectedValue(missing);
+        await recoverStuckJobs(d);
+        expect(d.pub.getTransactionReceipt).toHaveBeenCalledWith({
+            hash: keccak256(signedTransaction),
+        });
+        expect(d.pub.sendRawTransaction).not.toHaveBeenCalled();
+        expect(d.wallet.prepareTransactionRequest).not.toHaveBeenCalled();
+        expect(d.markJobPending).toHaveBeenCalledWith("job", expect.any(Date));
     });
 });
