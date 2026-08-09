@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, inArray, lte, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lte, sql } from "drizzle-orm";
 import type {
     PlanFailureReason,
     PlanOrderKind,
@@ -155,8 +155,14 @@ export async function markOrderSubmitted(
 ): Promise<PlanOrderRow | null> {
     const [row] = await db
         .update(planOrder)
-        .set({ status: "submitted", txHash, lastError: null, nextRetryAt })
-        .where(and(eq(planOrder.id, id), eq(planOrder.status, "pending")))
+        .set({ txHash, lastError: null, nextRetryAt })
+        .where(
+            and(
+                eq(planOrder.id, id),
+                eq(planOrder.status, "submitted"),
+                isNull(planOrder.txHash),
+            ),
+        )
         .returning();
     return row ?? null;
 }

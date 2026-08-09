@@ -25,6 +25,7 @@ import {
     markOrderFailed,
     markOrderRetry,
     markOrderSubmitted,
+    PLAN_CLAIM_LEASE_MS,
 } from "../repository/plan-repository";
 import { ensureGas, ensureMpen } from "./funding";
 
@@ -161,7 +162,7 @@ async function runPending(
         await d.simulate(account, order.kind, order.chainCafeId);
         const executing = await d.markOrderExecuting(
             order.id,
-            new Date(d.now().getTime() + 2_000),
+            new Date(d.now().getTime() + PLAN_CLAIM_LEASE_MS),
         );
         if (!executing) return;
     } catch (error) {
@@ -179,7 +180,7 @@ async function runPending(
         if (!submitted) {
             await d.markOrderFailed(
                 order.id,
-                "transaction submission could not be recorded",
+                `transaction submission could not be recorded (tx ${hash})`,
                 "needs_reconciliation",
             );
         }

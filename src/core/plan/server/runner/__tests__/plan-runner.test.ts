@@ -177,7 +177,7 @@ describe("runPlanRunnerOnce", () => {
         expect(d.markOrderFailed).toHaveBeenCalledWith(
             "o1",
             expect.stringContaining(
-                "transaction submission could not be recorded",
+                "transaction submission could not be recorded (tx 0xdead)",
             ),
             "needs_reconciliation",
         );
