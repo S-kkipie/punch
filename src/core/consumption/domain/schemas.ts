@@ -26,6 +26,8 @@ export const fulfillmentRequestStatusSchema = z.enum([
     "pending",
     "approved",
     "rejected",
+    "confirmed",
+    "failed",
 ]);
 
 export const redemptionRequestKindSchema = z.enum(["punch_reward", "voucher"]);

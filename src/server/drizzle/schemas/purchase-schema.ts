@@ -74,17 +74,26 @@ export const relayerJobStatus = pgEnum("relayer_job_status", [
     "failed",
 ]);
 
+export const relayerJobKind = pgEnum("relayer_job_kind", [
+    "consumption",
+    "punch_redemption",
+]);
+
 export const relayerJob = pgTable(
     "relayer_job",
     {
         id: text("id")
             .primaryKey()
             .$defaultFn(() => crypto.randomUUID()),
+        kind: relayerJobKind("kind").default("consumption").notNull(),
         orderId: text("order_id")
-            .notNull()
             .unique()
             .references(() => purchaseOrder.id, { onDelete: "restrict" }),
-        // { proof: {...stringified bigints}, cafeSignature, userSignature }
+        // punch_redemption jobs: FK to redemption_request added in raw SQL
+        // (declaring it here would create a schema-module import cycle).
+        redemptionRequestId: text("redemption_request_id").unique(),
+        // consumption: { proof, cafeSignature, userSignature }
+        // punch_redemption: { userWallet, chainCafeId, chainProductId }
         payload: jsonb("payload").notNull(),
         attempts: integer("attempts").default(0).notNull(),
         nextRetryAt: timestamp("next_retry_at").defaultNow().notNull(),
@@ -97,7 +106,13 @@ export const relayerJob = pgTable(
             .$onUpdate(() => new Date())
             .notNull(),
     },
-    (t) => [index("relayer_job_status_retry_idx").on(t.status, t.nextRetryAt)],
+    (t) => [
+        index("relayer_job_status_retry_idx").on(t.status, t.nextRetryAt),
+        check(
+            "relayer_job_target_check",
+            sql`(${t.kind} = 'consumption' AND ${t.orderId} IS NOT NULL AND ${t.redemptionRequestId} IS NULL) OR (${t.kind} = 'punch_redemption' AND ${t.redemptionRequestId} IS NOT NULL AND ${t.orderId} IS NULL)`,
+        ),
+    ],
 );
 
 export type PurchaseOrderRow = typeof purchaseOrder.$inferSelect;

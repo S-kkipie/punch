@@ -8,6 +8,7 @@ import {
     timestamp,
     uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { cafe } from "./cafe-schema";
 
 export const projectionPunchBalance = pgTable("projection_punch_balance", {
     userAddress: text("user_address").primaryKey(),
@@ -19,6 +20,18 @@ export const projectionCafeCredit = pgTable("projection_cafe_credit", {
     chainCafeId: integer("chain_cafe_id").primaryKey(),
     credits: bigint("credits", { mode: "bigint" }).notNull(),
     lastBlock: bigint("last_block", { mode: "bigint" }).notNull(),
+});
+
+export const projectionCafePayout = pgTable("projection_cafe_payout", {
+    cafeId: text("cafe_id")
+        .primaryKey()
+        .references(() => cafe.id),
+    totalCentimos: integer("total_centimos").default(0).notNull(),
+    redemptionCount: integer("redemption_count").default(0).notNull(),
+    updatedAt: timestamp("updated_at")
+        .defaultNow()
+        .$onUpdate(() => new Date())
+        .notNull(),
 });
 
 export const projectionConsumption = pgTable(
