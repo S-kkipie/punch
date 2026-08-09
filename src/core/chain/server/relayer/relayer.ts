@@ -5,6 +5,7 @@ import {
     type Hex,
     type PublicClient,
     parseEventLogs,
+    TransactionReceiptNotFoundError,
     type WalletClient,
 } from "viem";
 import { env } from "@/config/env";
@@ -248,6 +249,14 @@ async function handleFailure(
     await deps.markJobRetry(job.id, message, attempts, nextRetryAt);
 }
 
+function isMissingReceiptError(error: unknown): boolean {
+    return (
+        error instanceof TransactionReceiptNotFoundError ||
+        (error instanceof Error &&
+            error.name === "TransactionReceiptNotFoundError")
+    );
+}
+
 async function submitJob(deps: RelayerDeps, job: Job) {
     let hash: Hex;
     let submission: Submission | undefined;
@@ -322,33 +331,52 @@ export async function recoverStuckJobs(
             await deps.markJobPending(job.id, deps.now());
             continue;
         }
+
+        let submission: Submission;
         try {
-            const receipt = await deps.pub.getTransactionReceipt({
+            submission = parseSubmission(job);
+        } catch (error) {
+            await handleFailure(deps, job, error);
+            continue;
+        }
+
+        let receipt: Awaited<
+            ReturnType<RelayerDeps["pub"]["getTransactionReceipt"]>
+        >;
+        try {
+            receipt = await deps.pub.getTransactionReceipt({
                 hash: job.txHash as Hex,
             });
-            const submission = parseSubmission(job);
-            if (receipt.status === "success") {
-                await confirm(deps, job);
-            } else {
-                try {
-                    await handleFailure(
-                        deps,
-                        job,
-                        await replaySubmissionError(
-                            deps,
-                            submission,
-                            receipt.blockNumber,
-                        ),
-                        submission,
-                    );
-                } catch (error) {
-                    await handleFailure(deps, job, error, submission);
-                }
+        } catch (error) {
+            if (isMissingReceiptError(error)) {
+                // A missing receipt is not evidence of success. Requeue safely
+                // and move the order back with the job so the two state
+                // machines agree.
+                await deps.markJobPending(job.id, deps.now());
+                continue;
             }
-        } catch {
-            // A missing receipt is not evidence of success. Requeue safely and
-            // move the order back with the job so the two state machines agree.
-            await deps.markJobPending(job.id, deps.now());
+            await handleFailure(deps, job, error, submission);
+            continue;
+        }
+
+        if (receipt.status === "success") {
+            await confirm(deps, job);
+            continue;
+        }
+
+        try {
+            await handleFailure(
+                deps,
+                job,
+                await replaySubmissionError(
+                    deps,
+                    submission,
+                    receipt.blockNumber,
+                ),
+                submission,
+            );
+        } catch (error) {
+            await handleFailure(deps, job, error, submission);
         }
     }
 }

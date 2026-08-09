@@ -298,6 +298,37 @@ describe("relayer loop", () => {
         expect(d.markJobPending).toHaveBeenCalledWith("job", expect.any(Date));
     });
 
+    it("fails malformed submitted recovery payloads instead of requeueing them forever", async () => {
+        const d = deps(
+            baseJob({
+                status: "submitted",
+                txHash: `0x${"66".repeat(32)}`,
+                payload: { proof },
+            }),
+        );
+        d.findJobsToRun = vi.fn();
+        d.claimSubmittedJobs = vi.fn().mockResolvedValue([
+            baseJob({
+                status: "submitted",
+                txHash: `0x${"66".repeat(32)}`,
+                payload: { proof },
+            }),
+        ]);
+        d.pub.getTransactionReceipt = vi.fn().mockResolvedValue({
+            status: "success",
+            blockNumber: 91n,
+        });
+
+        await recoverStuckJobs(d);
+
+        expect(d.markJobFailed).toHaveBeenCalledWith(
+            "job",
+            "invalid signature",
+            "invalid_signature",
+        );
+        expect(d.markJobPending).not.toHaveBeenCalled();
+    });
+
     it("replays reverted submitted jobs at the mined block", async () => {
         const d = deps(
             baseJob({ status: "submitted", txHash: `0x${"66".repeat(32)}` }),
@@ -342,6 +373,7 @@ describe("relayer loop", () => {
             "no_credits",
             "no_credits",
         );
+        expect(d.markJobPending).not.toHaveBeenCalled();
     });
 
     it("replays reverted submitted jobs to keep failure reasons decodable", async () => {

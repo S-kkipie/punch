@@ -13,7 +13,6 @@ import { foundry } from "viem/chains";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { deployAll, seedCafe, waitForWrite } from "@/../scripts/dev-chain";
 import { abis } from "@/core/chain/abis";
-import localAddresses from "@/core/chain/addresses.local.json";
 import { createChainWalletClient } from "@/core/chain/chain";
 import { runIndexerOnce } from "@/core/chain/server/indexer/indexer";
 import {
@@ -339,9 +338,6 @@ installIntegrationDbMutex();
 const mnemonic = "test test test test test test test test test test test junk";
 let anvil: ChildProcessWithoutNullStreams | undefined;
 let rpcUrl = "";
-let previousRpc: string | undefined;
-let previousEnv: string | undefined;
-let previousAddresses = "";
 
 async function freePort() {
     return await new Promise<number>((resolve, reject) => {
@@ -394,14 +390,8 @@ liveDescribe("reconciler live integration", () => {
     const productId = 700001n;
 
     beforeEach(async () => {
-        previousAddresses = JSON.stringify(localAddresses);
-        previousRpc = process.env.CHAIN_RPC_URL;
-        previousEnv = process.env.CHAIN_ENV;
         await startLive();
         liveAddresses = await deployAll(rpcUrl);
-        Object.assign(localAddresses, liveAddresses);
-        process.env.CHAIN_RPC_URL = rpcUrl;
-        process.env.CHAIN_ENV = "local";
         pub = createPublicClient({ chain: foundry, transport: http(rpcUrl) });
         owner = deriveAccount(mnemonic, 7);
         const funder = createChainWalletClient(
@@ -454,9 +444,6 @@ liveDescribe("reconciler live integration", () => {
         await db.delete(projectionConsumption);
         await db.delete(indexerCursor);
         await db.delete(projectionStatus);
-        Object.assign(localAddresses, JSON.parse(previousAddresses));
-        process.env.CHAIN_RPC_URL = previousRpc;
-        process.env.CHAIN_ENV = previousEnv;
         await stopLive();
     });
 

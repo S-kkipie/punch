@@ -16,7 +16,6 @@ import { toPurchaseView } from "./purchase-view";
 
 type ConfirmDeps = {
     findOrder: typeof purchaseRepository.findOrder;
-    findCafeOwner: typeof purchaseRepository.findCafeOwner;
     findUserWallet: typeof findUserWallet;
     requireOwner: typeof requireCafeRole;
     signProof: typeof signProofAs;
@@ -25,7 +24,6 @@ type ConfirmDeps = {
 
 const defaultDeps: ConfirmDeps = {
     findOrder: purchaseRepository.findOrder,
-    findCafeOwner: purchaseRepository.findCafeOwner,
     findUserWallet,
     requireOwner: requireCafeRole,
     signProof: signProofAs,
@@ -65,12 +63,8 @@ export async function confirmPurchaseService(
             );
         }
 
-        const owner = await d.findCafeOwner(order.cafeId);
-        if (!owner || owner.userId !== confirmingUserId) {
-            return err(AppErrors.forbidden());
-        }
         const buyerWallet = await d.findUserWallet(order.userId);
-        const ownerWallet = await d.findUserWallet(owner.userId);
+        const ownerWallet = await d.findUserWallet(confirmingUserId);
         if (
             !buyerWallet?.walletAddress ||
             buyerWallet.walletIndex === null ||
