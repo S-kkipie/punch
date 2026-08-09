@@ -20,6 +20,7 @@ import {
     claimSubmittedOrders,
     findOrdersToRun,
     markOrderConfirmed,
+    markOrderExecuting,
     markOrderFailed,
     markOrderPending,
     markOrderRetry,
@@ -33,6 +34,7 @@ const RECEIPT_WAIT_MS = 15_000;
 export type PlanRunnerDeps = {
     findOrdersToRun: typeof findOrdersToRun;
     claimSubmittedOrders: typeof claimSubmittedOrders;
+    markOrderExecuting: typeof markOrderExecuting;
     markOrderSubmitted: typeof markOrderSubmitted;
     markOrderConfirmed: typeof markOrderConfirmed;
     markOrderRetry: typeof markOrderRetry;
@@ -43,7 +45,12 @@ export type PlanRunnerDeps = {
     ensureMpen: (input: { account: HDAccount; price: bigint }) => Promise<void>;
     readAllowance: (owner: Address) => Promise<bigint>;
     approve: (account: HDAccount, amount: bigint) => Promise<void>;
-    execute: (
+    simulate: (
+        account: HDAccount,
+        kind: PlanOrderKind,
+        chainCafeId: number,
+    ) => Promise<void>;
+    send: (
         account: HDAccount,
         kind: PlanOrderKind,
         chainCafeId: number,
@@ -55,6 +62,7 @@ export type PlanRunnerDeps = {
 const defaults: PlanRunnerDeps = {
     findOrdersToRun,
     claimSubmittedOrders,
+    markOrderExecuting,
     markOrderSubmitted,
     markOrderConfirmed,
     markOrderRetry,
@@ -81,7 +89,7 @@ const defaults: PlanRunnerDeps = {
         });
         await createChainPublicClient().waitForTransactionReceipt({ hash });
     },
-    execute: async (account, kind, chainCafeId) => {
+    simulate: async (account, kind, chainCafeId) => {
         const pub = createChainPublicClient();
         const address = getAddresses().planManager;
         const functionName = kind === "plan" ? "subscribe" : "buyPack";
@@ -94,7 +102,11 @@ const defaults: PlanRunnerDeps = {
             args: [BigInt(chainCafeId)],
             account: account.address,
         });
+    },
+    send: async (account, kind, chainCafeId) => {
         const wallet = createChainWalletClient(undefined, account);
+        const address = getAddresses().planManager;
+        const functionName = kind === "plan" ? "subscribe" : "buyPack";
         return wallet.writeContract({
             account,
             address,
@@ -139,17 +151,44 @@ async function runPending(
     d: PlanRunnerDeps,
     order: PlanOrderRow,
 ): Promise<void> {
+    let account: HDAccount;
     try {
-        const account = d.deriveAccount(order.signerWalletIndex);
+        account = d.deriveAccount(order.signerWalletIndex);
         await d.ensureGas(account.address);
         await d.ensureMpen({ account, price: order.price });
         const allowance = await d.readAllowance(account.address);
         if (allowance < order.price) await d.approve(account, order.price);
-        const hash = await d.execute(account, order.kind, order.chainCafeId);
-        const nextRetryAt = new Date(d.now().getTime() + 2_000);
-        await d.markOrderSubmitted(order.id, hash, nextRetryAt);
+        await d.simulate(account, order.kind, order.chainCafeId);
+        const executing = await d.markOrderExecuting(
+            order.id,
+            new Date(d.now().getTime() + 2_000),
+        );
+        if (!executing) return;
     } catch (error) {
         await handleFailure(d, order, error);
+        return;
+    }
+
+    try {
+        const hash = await d.send(account, order.kind, order.chainCafeId);
+        const submitted = await d.markOrderSubmitted(
+            order.id,
+            hash,
+            new Date(d.now().getTime() + 2_000),
+        );
+        if (!submitted) {
+            await d.markOrderFailed(
+                order.id,
+                "transaction submission could not be recorded",
+                "needs_reconciliation",
+            );
+        }
+    } catch (error) {
+        await d.markOrderFailed(
+            order.id,
+            errorText(error),
+            "needs_reconciliation",
+        );
     }
 }
 
@@ -158,7 +197,11 @@ async function runSubmitted(
     order: PlanOrderRow,
 ): Promise<void> {
     if (!order.txHash) {
-        await d.markOrderPending(order.id, d.now());
+        await d.markOrderFailed(
+            order.id,
+            "submitted without a recorded transaction hash",
+            "needs_reconciliation",
+        );
         return;
     }
     try {

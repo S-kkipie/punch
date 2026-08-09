@@ -136,6 +136,18 @@ export async function claimSubmittedOrders(
     return claimByStatus("submitted", limit, leaseMs);
 }
 
+export async function markOrderExecuting(
+    id: string,
+    nextRetryAt: Date,
+): Promise<PlanOrderRow | null> {
+    const [row] = await db
+        .update(planOrder)
+        .set({ status: "submitted", lastError: null, nextRetryAt })
+        .where(and(eq(planOrder.id, id), eq(planOrder.status, "pending")))
+        .returning();
+    return row ?? null;
+}
+
 export async function markOrderSubmitted(
     id: string,
     txHash: string,
@@ -226,6 +238,7 @@ export const planRepository = {
     listOrdersByCafe,
     findOrdersToRun,
     claimSubmittedOrders,
+    markOrderExecuting,
     markOrderSubmitted,
     markOrderConfirmed,
     markOrderRetry,

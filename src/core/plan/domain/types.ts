@@ -9,7 +9,8 @@ export type PlanFailureReason =
     | "faucet_cap_exceeded"
     | "funding_unavailable"
     | "max_attempts"
-    | "reverted";
+    | "reverted"
+    | "needs_reconciliation";
 
 import type { z } from "zod";
 import type {

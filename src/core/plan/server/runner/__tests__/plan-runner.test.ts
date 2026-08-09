@@ -24,6 +24,7 @@ function deps(overrides = {}) {
     return {
         findOrdersToRun: vi.fn().mockResolvedValue([order]),
         claimSubmittedOrders: vi.fn().mockResolvedValue([]),
+        markOrderExecuting: vi.fn().mockResolvedValue(order),
         markOrderSubmitted: vi.fn().mockResolvedValue(order),
         markOrderConfirmed: vi.fn().mockResolvedValue(order),
         markOrderRetry: vi.fn().mockResolvedValue(order),
@@ -36,7 +37,8 @@ function deps(overrides = {}) {
         ensureMpen: vi.fn().mockResolvedValue(undefined),
         readAllowance: vi.fn().mockResolvedValue(0n),
         approve: vi.fn().mockResolvedValue(undefined),
-        execute: vi.fn().mockResolvedValue("0xdead"),
+        simulate: vi.fn().mockResolvedValue(undefined),
+        send: vi.fn().mockResolvedValue("0xdead"),
         waitForReceipt: vi.fn().mockResolvedValue({ status: "success" }),
         now: () => new Date("2026-08-09T00:00:00Z"),
         ...overrides,
@@ -52,7 +54,8 @@ describe("runPlanRunnerOnce", () => {
             expect.objectContaining({ price: 49_000_000n }),
         );
         expect(d.approve).toHaveBeenCalledWith(expect.anything(), 49_000_000n);
-        expect(d.execute).toHaveBeenCalledWith(expect.anything(), "plan", 1);
+        expect(d.simulate).toHaveBeenCalledWith(expect.anything(), "plan", 1);
+        expect(d.send).toHaveBeenCalledWith(expect.anything(), "plan", 1);
         expect(d.markOrderSubmitted).toHaveBeenCalledWith(
             "o1",
             "0xdead",
@@ -66,7 +69,7 @@ describe("runPlanRunnerOnce", () => {
         });
         await runPlanRunnerOnce(d);
         expect(d.approve).not.toHaveBeenCalled();
-        expect(d.execute).toHaveBeenCalled();
+        expect(d.send).toHaveBeenCalled();
     });
 
     it("buys a pack when the order kind is pack", async () => {
@@ -78,12 +81,12 @@ describe("runPlanRunnerOnce", () => {
                 ]),
         });
         await runPlanRunnerOnce(d);
-        expect(d.execute).toHaveBeenCalledWith(expect.anything(), "pack", 1);
+        expect(d.send).toHaveBeenCalledWith(expect.anything(), "pack", 1);
     });
 
     it("fails permanently on an authorization revert", async () => {
         const d = deps({
-            execute: vi
+            simulate: vi
                 .fn()
                 .mockRejectedValue(new Error("NotAuthorizedForCafe(1, 0x0)")),
         });
@@ -94,11 +97,12 @@ describe("runPlanRunnerOnce", () => {
             "not_authorized",
         );
         expect(d.markOrderRetry).not.toHaveBeenCalled();
+        expect(d.send).not.toHaveBeenCalled();
     });
 
     it("retries a transient failure with backoff", async () => {
         const d = deps({
-            execute: vi.fn().mockRejectedValue(new Error("fetch failed")),
+            simulate: vi.fn().mockRejectedValue(new Error("fetch failed")),
         });
         await runPlanRunnerOnce(d);
         expect(d.markOrderRetry).toHaveBeenCalledWith(
@@ -114,7 +118,7 @@ describe("runPlanRunnerOnce", () => {
             findOrdersToRun: vi
                 .fn()
                 .mockResolvedValue([{ ...order, attempts: 4 }]),
-            execute: vi.fn().mockRejectedValue(new Error("fetch failed")),
+            simulate: vi.fn().mockRejectedValue(new Error("fetch failed")),
         });
         await runPlanRunnerOnce(d);
         expect(d.markOrderFailed).toHaveBeenCalledWith(
@@ -135,6 +139,84 @@ describe("runPlanRunnerOnce", () => {
             "o1",
             expect.stringContaining("funding_unavailable"),
             "funding_unavailable",
+        );
+    });
+
+    it("does not retry after a send when recording the tx throws", async () => {
+        const d = deps({
+            findOrdersToRun: vi
+                .fn()
+                .mockResolvedValueOnce([order])
+                .mockResolvedValueOnce([]),
+            markOrderSubmitted: vi
+                .fn()
+                .mockRejectedValue(new Error("database unavailable")),
+        });
+        await runPlanRunnerOnce(d);
+        await runPlanRunnerOnce(d);
+        expect(d.markOrderRetry).not.toHaveBeenCalled();
+        expect(d.markOrderFailed).toHaveBeenCalledWith(
+            "o1",
+            expect.stringContaining("database unavailable"),
+            "needs_reconciliation",
+        );
+        expect(d.send).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not retry after a send when recording the tx returns null", async () => {
+        const d = deps({
+            findOrdersToRun: vi
+                .fn()
+                .mockResolvedValueOnce([order])
+                .mockResolvedValueOnce([]),
+            markOrderSubmitted: vi.fn().mockResolvedValue(null),
+        });
+        await runPlanRunnerOnce(d);
+        await runPlanRunnerOnce(d);
+        expect(d.markOrderRetry).not.toHaveBeenCalled();
+        expect(d.markOrderFailed).toHaveBeenCalledWith(
+            "o1",
+            expect.stringContaining(
+                "transaction submission could not be recorded",
+            ),
+            "needs_reconciliation",
+        );
+        expect(d.send).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not send when another worker wins the executing claim", async () => {
+        const d = deps({ markOrderExecuting: vi.fn().mockResolvedValue(null) });
+        await runPlanRunnerOnce(d);
+        expect(d.send).not.toHaveBeenCalled();
+    });
+
+    it("fails a submitted order without a transaction hash for reconciliation", async () => {
+        const submitted = { ...order, status: "submitted" as const };
+        const d = deps({
+            findOrdersToRun: vi.fn().mockResolvedValue([]),
+            claimSubmittedOrders: vi.fn().mockResolvedValue([submitted]),
+        });
+        await runPlanRunnerOnce(d);
+        expect(d.markOrderFailed).toHaveBeenCalledWith(
+            "o1",
+            "submitted without a recorded transaction hash",
+            "needs_reconciliation",
+        );
+        expect(d.send).not.toHaveBeenCalled();
+    });
+
+    it("simulates authorization failures before sending", async () => {
+        const d = deps({
+            simulate: vi
+                .fn()
+                .mockRejectedValue(new Error("NotAuthorizedForCafe(1, 0x0)")),
+        });
+        await runPlanRunnerOnce(d);
+        expect(d.send).not.toHaveBeenCalled();
+        expect(d.markOrderFailed).toHaveBeenCalledWith(
+            "o1",
+            expect.stringContaining("NotAuthorizedForCafe"),
+            "not_authorized",
         );
     });
 
