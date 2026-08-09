@@ -17,6 +17,7 @@ import {
     projectionPunchBalance,
     projectionStatus,
 } from "@/server/drizzle/schemas/chain-schema";
+import { clearChainDerivedPurchaseProjections } from "./purchase-projection-rebuild";
 
 export type ReconcilerDeps = {
     pub: Pick<PublicClient, "getBlockNumber" | "getLogs" | "readContract">;
@@ -168,28 +169,6 @@ async function setPaused(
         });
 }
 
-async function wipeProjections(database: typeof db): Promise<void> {
-    await database.transaction(async (tx) => {
-        await tx.delete(projectionPunchBalance);
-        await tx.delete(projectionCafeCredit);
-        await tx.delete(projectionConsumption);
-        await tx
-            .insert(indexerCursor)
-            .values({ contract: "punch", lastProcessedBlock: 0n })
-            .onConflictDoUpdate({
-                target: indexerCursor.contract,
-                set: { lastProcessedBlock: 0n },
-            });
-        await tx
-            .insert(projectionStatus)
-            .values({ projection: "chain", paused: true, lastGoodBlock: 0n })
-            .onConflictDoUpdate({
-                target: projectionStatus.projection,
-                set: { paused: true },
-            });
-    });
-}
-
 export async function runReconcilerOnce(
     deps: ReconcilerDeps = defaultDeps(),
 ): Promise<{ diverged: boolean; repaired: boolean }> {
@@ -202,7 +181,7 @@ export async function runReconcilerOnce(
 
     await setPaused(deps.database, true);
     try {
-        await wipeProjections(deps.database);
+        await clearChainDerivedPurchaseProjections(deps.database);
         await (deps.runIndexer ?? runIndexerOnce)({
             pub: deps.pub,
             database: deps.database,
