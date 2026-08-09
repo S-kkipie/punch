@@ -162,6 +162,46 @@ export async function deployAll(rpcUrl = RPC): Promise<AddressMap> {
         "set campaign escrow",
     );
 
+    const escrowAbi = abis.campaignEscrow;
+    const relayerAccount = mnemonicToAccount(appMnemonic, {
+        addressIndex: Number(process.env.RELAYER_WALLET_INDEX ?? 0),
+    });
+    const opsAccount = mnemonicToAccount(appMnemonic, {
+        addressIndex: Number(process.env.OPS_WALLET_INDEX ?? 9000),
+    });
+
+    await waitForWrite(
+        pub,
+        await wallet.sendTransaction({
+            to: opsAccount.address,
+            value: parseEther("10"),
+        } as never),
+        "fund ops wallet",
+    );
+
+    // Order matters: setCampaignOperator is onlyOwner and the deployer is
+    // still the owner at this point.
+    await waitForWrite(
+        pub,
+        await wallet.writeContract({
+            address: campaignEscrow,
+            abi: escrowAbi,
+            functionName: "setCampaignOperator",
+            args: [relayerAccount.address],
+        }),
+        "set campaign operator",
+    );
+    await waitForWrite(
+        pub,
+        await wallet.writeContract({
+            address: campaignEscrow,
+            abi: escrowAbi,
+            functionName: "transferOwnership",
+            args: [opsAccount.address],
+        }),
+        "transfer escrow ownership to ops",
+    );
+
     return {
         cafeRegistry,
         planManager,
