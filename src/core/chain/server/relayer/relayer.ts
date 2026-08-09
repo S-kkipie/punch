@@ -1,5 +1,7 @@
 import "server-only";
 
+import { getLogger } from "@logtape/logtape";
+import { eq } from "drizzle-orm";
 import {
     type Address,
     type Hex,
@@ -30,6 +32,8 @@ import {
     markJobSubmitted,
     RELAYER_CLAIM_LEASE_MS,
 } from "@/core/purchase/server/repository/purchase-repository";
+import { db } from "@/server/drizzle/db";
+import { consumerTransaction } from "@/server/drizzle/schemas/consumption-schema";
 import {
     type ParsedRevert,
     parseRevert,
@@ -44,6 +48,9 @@ const PERMANENT_CODES = new Set<RevertCode | "nonce_conflict">([
     "ticket_too_small",
     "product_not_eligible",
     "invalid_signature",
+    "insufficient_punch",
+    "host_not_operational",
+    "reward_not_eligible",
     "nonce_conflict",
 ]);
 
@@ -53,6 +60,11 @@ type Submission = {
     proof: ConsumptionProof;
     cafeSignature: Hex;
     userSignature: Hex;
+};
+type RedemptionSubmission = {
+    user: Address;
+    cafeId: bigint;
+    productId: bigint;
 };
 
 export type RelayerDeps = {
@@ -76,19 +88,13 @@ export type RelayerDeps = {
         failureReason: string,
     ) => Promise<unknown>;
     markJobPending: (id: string, nextRetryAt: Date) => Promise<unknown>;
+    hasRedemptionLedger?: (requestId: string) => Promise<boolean>;
     wallet: RelayerWallet;
     pub: {
         waitForTransactionReceipt: PublicClient["waitForTransactionReceipt"];
         getTransactionReceipt: PublicClient["getTransactionReceipt"];
         getLogs: PublicClient["getLogs"];
-        simulateContract: (args: {
-            address: Address;
-            abi: typeof abis.consumptionLog;
-            functionName: "recordConsumption";
-            args: [ConsumptionProof, Hex, Hex];
-            account: Address;
-            blockNumber?: bigint;
-        }) => Promise<unknown>;
+        simulateContract: (args: never) => Promise<unknown>;
     };
     addresses: ReturnType<typeof getAddresses>;
     submitter: Address;
@@ -112,8 +118,20 @@ function defaultDeps(): RelayerDeps {
     };
     return {
         ...repository,
+        hasRedemptionLedger: async (requestId: string) => {
+            const [row] = await db
+                .select({ id: consumerTransaction.id })
+                .from(consumerTransaction)
+                .where(
+                    eq(
+                        consumerTransaction.idempotencyKey,
+                        `chain_redemption:${requestId}`,
+                    ),
+                );
+            return !!row;
+        },
         wallet,
-        pub: createChainPublicClient(),
+        pub: createChainPublicClient() as unknown as RelayerDeps["pub"],
         addresses: getAddresses(),
         submitter: submitterAccount.address,
         now: () => new Date(),
@@ -130,6 +148,12 @@ function sanitizedFailure(parsed: ParsedRevert): string {
 
 async function confirm(deps: RelayerDeps, job: Job) {
     await deps.markJobConfirmed(job.id);
+}
+
+async function hasRedemptionLedger(deps: RelayerDeps, requestId: string) {
+    if (!deps.hasRedemptionLedger)
+        throw new Error("redemption ledger guard unavailable");
+    return deps.hasRedemptionLedger(requestId);
 }
 
 function parseSubmission(job: Job): Submission {
@@ -154,6 +178,26 @@ function parseSubmission(job: Job): Submission {
     }
 }
 
+function parseRedemptionSubmission(job: Job): RedemptionSubmission {
+    if (!job.payload || typeof job.payload !== "object")
+        throw new Error("invalid payload");
+    const payload = job.payload as Record<string, unknown>;
+    if (
+        typeof payload.userWallet !== "string" ||
+        !/^0x[0-9a-fA-F]{40}$/.test(payload.userWallet) ||
+        typeof payload.chainCafeId !== "number" ||
+        !Number.isInteger(payload.chainCafeId) ||
+        typeof payload.chainProductId !== "number" ||
+        !Number.isInteger(payload.chainProductId)
+    )
+        throw new Error("invalid payload");
+    return {
+        user: payload.userWallet as Address,
+        cafeId: BigInt(payload.chainCafeId),
+        productId: BigInt(payload.chainProductId),
+    };
+}
+
 async function replaySubmissionError(
     deps: RelayerDeps,
     submission: Submission,
@@ -171,7 +215,27 @@ async function replaySubmissionError(
             ],
             account: deps.submitter,
             blockNumber,
-        });
+        } as never);
+    } catch (error) {
+        return error;
+    }
+    return new Error("transaction reverted");
+}
+
+async function replayRedemptionError(
+    deps: RelayerDeps,
+    submission: RedemptionSubmission,
+    blockNumber?: bigint,
+): Promise<unknown> {
+    try {
+        await deps.pub.simulateContract({
+            address: deps.addresses.punchVault,
+            abi: abis.punchVault,
+            functionName: "redeem",
+            args: [submission.user, submission.cafeId, submission.productId],
+            account: deps.submitter,
+            blockNumber,
+        } as never);
     } catch (error) {
         return error;
     }
@@ -228,6 +292,11 @@ async function handleFailure(
         : invalidSignature
           ? "invalid signature"
           : sanitizedFailure(parsed);
+    if (code === "not_redeemer") {
+        getLogger(["chain", "relayer"]).error(
+            "punch vault redeemer not configured",
+        );
+    }
     if (code === "nonce_used") {
         if (submission && (await hasRecordedProof(deps, submission))) {
             await confirm(deps, job);
@@ -257,7 +326,54 @@ function isMissingReceiptError(error: unknown): boolean {
     );
 }
 
+async function submitRedemptionJob(deps: RelayerDeps, job: Job) {
+    if (!job.redemptionRequestId) {
+        await deps.markJobFailed(job.id, "invalid payload", "unknown");
+        return;
+    }
+    if (await hasRedemptionLedger(deps, job.redemptionRequestId)) {
+        await confirm(deps, job);
+        return;
+    }
+    let hash: Hex;
+    let submission: RedemptionSubmission | undefined;
+    try {
+        submission = parseRedemptionSubmission(job);
+        hash = (await deps.wallet.writeContract({
+            address: deps.addresses.punchVault,
+            abi: abis.punchVault,
+            functionName: "redeem",
+            args: [submission.user, submission.cafeId, submission.productId],
+        } as never)) as Hex;
+    } catch (error) {
+        await handleFailure(deps, job, error);
+        return;
+    }
+    await deps.markJobSubmitted(
+        job.id,
+        hash,
+        new Date(deps.now().getTime() + RELAYER_CLAIM_LEASE_MS),
+    );
+    try {
+        const receipt = await deps.pub.waitForTransactionReceipt({ hash });
+        if (receipt.status === "success") await confirm(deps, job);
+        else
+            await handleFailure(
+                deps,
+                job,
+                await replayRedemptionError(
+                    deps,
+                    submission,
+                    receipt.blockNumber,
+                ),
+            );
+    } catch (error) {
+        await handleFailure(deps, job, error);
+    }
+}
+
 async function submitJob(deps: RelayerDeps, job: Job) {
+    if (job.kind === "punch_redemption") return submitRedemptionJob(deps, job);
     let hash: Hex;
     let submission: Submission | undefined;
     try {
@@ -329,6 +445,52 @@ export async function recoverStuckJobs(
     for (const job of jobs) {
         if (!job.txHash) {
             await deps.markJobPending(job.id, deps.now());
+            continue;
+        }
+
+        if (job.kind === "punch_redemption") {
+            if (
+                job.redemptionRequestId &&
+                (await hasRedemptionLedger(deps, job.redemptionRequestId))
+            ) {
+                await confirm(deps, job);
+                continue;
+            }
+            let redemption: RedemptionSubmission;
+            try {
+                redemption = parseRedemptionSubmission(job);
+            } catch (error) {
+                await handleFailure(deps, job, error);
+                continue;
+            }
+            let receipt: Awaited<
+                ReturnType<RelayerDeps["pub"]["getTransactionReceipt"]>
+            >;
+            try {
+                receipt = await deps.pub.getTransactionReceipt({
+                    hash: job.txHash as Hex,
+                });
+            } catch (error) {
+                if (isMissingReceiptError(error)) {
+                    await deps.markJobPending(job.id, deps.now());
+                    continue;
+                }
+                await handleFailure(deps, job, error);
+                continue;
+            }
+            if (receipt.status === "success") {
+                await confirm(deps, job);
+                continue;
+            }
+            await handleFailure(
+                deps,
+                job,
+                await replayRedemptionError(
+                    deps,
+                    redemption,
+                    receipt.blockNumber,
+                ),
+            );
             continue;
         }
 

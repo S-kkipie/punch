@@ -9,7 +9,10 @@ import {
     cafeMember,
     cafeProduct,
 } from "@/server/drizzle/schemas/cafe-schema";
-import { consumptionProof } from "@/server/drizzle/schemas/consumption-schema";
+import {
+    consumptionProof,
+    redemptionRequest,
+} from "@/server/drizzle/schemas/consumption-schema";
 import {
     type PurchaseOrderRow,
     purchaseOrder,
@@ -364,8 +367,13 @@ export async function markJobSubmitted(
                 nextRetryAt,
             })
             .where(and(eq(relayerJob.id, id), eq(relayerJob.status, "pending")))
-            .returning({ orderId: relayerJob.orderId });
+            .returning({
+                kind: relayerJob.kind,
+                orderId: relayerJob.orderId,
+                redemptionRequestId: relayerJob.redemptionRequestId,
+            });
         if (!job) return null;
+        if (job.kind === "punch_redemption") return job;
         if (!job.orderId) throw new Error("consumption job missing orderId");
         const [order] = await tx
             .update(purchaseOrder)
@@ -394,29 +402,39 @@ export async function markJobConfirmed(id: string) {
                     inArray(relayerJob.status, ["pending", "submitted"]),
                 ),
             )
-            .returning({ orderId: relayerJob.orderId });
+            .returning({
+                kind: relayerJob.kind,
+                orderId: relayerJob.orderId,
+                redemptionRequestId: relayerJob.redemptionRequestId,
+            });
 
         if (!job) {
-            const [current] = await tx
+            const [currentJob] = await tx
                 .select({
+                    kind: relayerJob.kind,
                     jobStatus: relayerJob.status,
-                    orderStatus: purchaseOrder.status,
+                    orderId: relayerJob.orderId,
                 })
                 .from(relayerJob)
-                .innerJoin(
-                    purchaseOrder,
-                    eq(purchaseOrder.id, relayerJob.orderId),
-                )
                 .where(eq(relayerJob.id, id));
             if (
-                current?.jobStatus === "confirmed" &&
-                current.orderStatus === "confirmed"
-            ) {
+                currentJob?.kind === "punch_redemption" &&
+                currentJob.jobStatus === "confirmed"
+            )
                 return null;
-            }
-            if (!current) return null;
+            if (!currentJob) return null;
+            const [currentOrder] = await tx
+                .select({ status: purchaseOrder.status })
+                .from(purchaseOrder)
+                .where(eq(purchaseOrder.id, currentJob.orderId as string));
+            if (
+                currentOrder?.status === "confirmed" &&
+                currentJob.jobStatus === "confirmed"
+            )
+                return null;
             throw new Error("relayer confirmed order transition rejected");
         }
+        if (job.kind === "punch_redemption") return job;
         if (!job.orderId) throw new Error("consumption job missing orderId");
 
         const [order] = await tx
@@ -462,8 +480,13 @@ export async function markJobRetry(
                     inArray(relayerJob.status, ["pending", "submitted"]),
                 ),
             )
-            .returning({ orderId: relayerJob.orderId });
+            .returning({
+                kind: relayerJob.kind,
+                orderId: relayerJob.orderId,
+                redemptionRequestId: relayerJob.redemptionRequestId,
+            });
         if (!job) return null;
+        if (job.kind === "punch_redemption") return job;
         if (!job.orderId) throw new Error("consumption job missing orderId");
         const [order] = await tx
             .update(purchaseOrder)
@@ -488,8 +511,13 @@ export async function markJobPending(id: string, nextRetryAt: Date) {
             .where(
                 and(eq(relayerJob.id, id), eq(relayerJob.status, "submitted")),
             )
-            .returning({ orderId: relayerJob.orderId });
+            .returning({
+                kind: relayerJob.kind,
+                orderId: relayerJob.orderId,
+                redemptionRequestId: relayerJob.redemptionRequestId,
+            });
         if (!job) return null;
+        if (job.kind === "punch_redemption") return job;
         if (!job.orderId) throw new Error("consumption job missing orderId");
         const [order] = await tx
             .update(purchaseOrder)
@@ -522,8 +550,26 @@ export async function markJobFailed(
                     inArray(relayerJob.status, ["pending", "submitted"]),
                 ),
             )
-            .returning({ orderId: relayerJob.orderId });
+            .returning({
+                kind: relayerJob.kind,
+                orderId: relayerJob.orderId,
+                redemptionRequestId: relayerJob.redemptionRequestId,
+            });
         if (!job) return null;
+        if (job.kind === "punch_redemption") {
+            if (job.redemptionRequestId) {
+                await tx
+                    .update(redemptionRequest)
+                    .set({ status: "failed", failureReason })
+                    .where(
+                        and(
+                            eq(redemptionRequest.id, job.redemptionRequestId),
+                            eq(redemptionRequest.status, "approved"),
+                        ),
+                    );
+            }
+            return job;
+        }
         if (!job.orderId) throw new Error("consumption job missing orderId");
         const [order] = await tx
             .update(purchaseOrder)
