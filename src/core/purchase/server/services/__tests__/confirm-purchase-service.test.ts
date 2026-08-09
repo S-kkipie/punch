@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { confirmPurchaseService } from "../confirm-purchase-service";
 
+const chainTimestamp = 1_787_773_200n;
+
 const order = {
     id: "order-1",
     cafeId: "cafe-1",
@@ -24,6 +26,7 @@ function deps(overrides: Record<string, unknown> = {}) {
         async (callback: (tx: unknown) => Promise<unknown>) => callback({}),
     );
     return {
+        getChainTimestamp: vi.fn().mockResolvedValue(chainTimestamp),
         findOrder: vi.fn().mockResolvedValue(order),
         findCafeOwner: vi.fn().mockResolvedValue({ userId: "owner-1" }),
         findUserWallet: vi.fn().mockImplementation(async (userId: string) => {

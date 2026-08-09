@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createChainPublicClient } from "@/core/chain/chain";
 import { isAuthorizedCafeOperator } from "@/core/chain/server/cafe-authorization";
 import {
     buildReceiptHash,
@@ -26,6 +27,7 @@ import {
 
 type ConfirmQuoteDeps = {
     now: () => Date;
+    getChainTimestamp: () => Promise<bigint>;
     generateOrderId: () => string;
     randomNonce: typeof randomNonce;
     signProof: typeof signProofAs;
@@ -40,6 +42,8 @@ type ConfirmQuoteDeps = {
 
 const defaultDeps: ConfirmQuoteDeps = {
     now: () => new Date(),
+    getChainTimestamp: async () =>
+        (await createChainPublicClient().getBlock()).timestamp,
     generateOrderId: () => crypto.randomUUID(),
     randomNonce,
     signProof: signProofAs,
@@ -121,7 +125,7 @@ export async function confirmQuoteService(
             amount: BigInt(quote.amountCentimos) * 10_000n,
             receiptHash: buildReceiptHash(orderId, quote.yapeRef),
             nonce: d.randomNonce(),
-            expiry: BigInt(Math.floor(quote.expiresAt.getTime() / 1000)),
+            expiry: (await d.getChainTimestamp()) + 600n,
         };
         const [userSignature, cafeSignature] = await Promise.all([
             d.signProof(consumerWallet.walletIndex, proof),

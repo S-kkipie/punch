@@ -2,7 +2,6 @@ import { eq } from "drizzle-orm";
 import { createPublicClient, http } from "viem";
 import { foundry } from "viem/chains";
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { seedHistoricalConsumptions } from "@/core/chain/server/bootstrap-local/historical-consumptions";
 import { runIndexerOnce } from "@/core/chain/server/indexer/indexer";
 import { runReconcilerOnce } from "@/core/chain/server/reconciler/reconciler";
 import {
@@ -75,11 +74,10 @@ async function findFixture() {
 describeLive("live purchase journey and projection recovery", () => {
     beforeAll(async () => {
         await findFixture();
-        await seedHistoricalConsumptions({
-            consumerUserId: consumerId,
-            count: 11,
-            targetCafeId: cafeId,
-        });
+        await runIndexerOnce();
+    });
+
+    it("confirms once on chain, applies effects once, and rebuilds after drift", async () => {
         const chain = createPublicClient({
             chain: foundry,
             transport: http(
@@ -87,14 +85,11 @@ describeLive("live purchase journey and projection recovery", () => {
             ),
         });
         await chain.request({
-            method: "anvil_setTime",
-            params: [Date.now()],
+            method: "evm_increaseTime",
+            params: [3 * 24 * 60 * 60],
         } as never);
         await chain.request({ method: "evm_mine", params: [] } as never);
-        await runIndexerOnce();
-    });
 
-    it("confirms once on chain, applies effects once, and rebuilds after drift", async () => {
         const logs: string[] = [];
         const logSpies = ["log", "warn", "error"].map((method) =>
             vi.spyOn(console, method as "log").mockImplementation((...args) => {
