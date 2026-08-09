@@ -48,6 +48,8 @@ export const chainPurchaseEffect = pgTable(
             .references(() => purchaseOrder.id, { onDelete: "cascade" }),
         kind: chainPurchaseEffectKind("kind").notNull(),
         targetId: text("target_id").notNull(),
+        createdVoucherId: text("created_voucher_id"),
+        progressId: text("progress_id"),
         transactionHash: text("transaction_hash").notNull(),
         logIndex: integer("log_index").notNull(),
         createdAt: timestamp("created_at").defaultNow().notNull(),

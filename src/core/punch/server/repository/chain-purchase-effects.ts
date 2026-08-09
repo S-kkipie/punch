@@ -1,5 +1,6 @@
 import "server-only";
 
+import { eq } from "drizzle-orm";
 import type { DbClient } from "@/server/drizzle/db";
 import { chainPurchaseEffect } from "@/server/drizzle/schemas/punch-schema";
 import {
@@ -33,7 +34,8 @@ async function recordEffect(
     input: ChainPurchaseEffectsInput,
     kind: "campaign_qualification" | "crawl_step",
     targetId: string,
-): Promise<boolean> {
+    progressId?: string,
+): Promise<{ id: string } | null> {
     const [row] = await tx
         .insert(chainPurchaseEffect)
         .values({
@@ -41,6 +43,7 @@ async function recordEffect(
             purchaseOrderId: input.purchaseOrderId,
             kind,
             targetId,
+            progressId,
             transactionHash: input.transactionHash,
             logIndex: input.logIndex,
         })
@@ -52,7 +55,7 @@ async function recordEffect(
             ],
         })
         .returning({ id: chainPurchaseEffect.id });
-    return Boolean(row);
+    return row ?? null;
 }
 
 export async function applyChainPurchaseEffects(
@@ -75,15 +78,28 @@ export async function applyChainPurchaseEffects(
                 chainBlockNumber: input.blockNumber,
                 logIndex: input.logIndex,
             },
-        )) &&
-        (await recordEffect(tx, input, "campaign_qualification", campaign.id))
+        ))
     ) {
-        await unlockCampaignVoucher(tx as DbClient, {
-            campaignId: campaign.id,
-            consumerUserId: input.consumerUserId,
-            cafeId: input.cafeId,
-            expiresAt: campaign.windowEnd,
-        });
+        const effect = await recordEffect(
+            tx,
+            input,
+            "campaign_qualification",
+            campaign.id,
+        );
+        if (effect) {
+            const voucher = await unlockCampaignVoucher(tx as DbClient, {
+                campaignId: campaign.id,
+                consumerUserId: input.consumerUserId,
+                cafeId: input.cafeId,
+                expiresAt: campaign.windowEnd,
+            });
+            if (voucher) {
+                await tx
+                    .update(chainPurchaseEffect)
+                    .set({ createdVoucherId: voucher.id })
+                    .where(eq(chainPurchaseEffect.id, effect.id));
+            }
+        }
     }
 
     const crawl = await findActiveCrawlForCafe(tx as DbClient, input.cafeId);
@@ -97,9 +113,15 @@ export async function applyChainPurchaseEffects(
     const nextIndex = progress.completedCafeIds.length;
     const nextStep = steps[nextIndex];
     if (!nextStep || nextStep.cafeId !== input.cafeId) return;
-    if (!(await recordEffect(tx, input, "crawl_step", nextStep.id))) {
-        return;
-    }
+    const effect = await recordEffect(
+        tx,
+        input,
+        "crawl_step",
+        nextStep.id,
+        progress.id,
+    );
+    if (!effect) return;
+
     const completedCafeIds = [...progress.completedCafeIds, input.cafeId];
     await advanceCrawlProgress(
         tx as DbClient,
@@ -108,10 +130,16 @@ export async function applyChainPurchaseEffects(
         completedCafeIds.length >= steps.length,
     );
     if (completedCafeIds.length >= steps.length) {
-        await unlockCrawlVoucher(tx as DbClient, {
+        const voucher = await unlockCrawlVoucher(tx as DbClient, {
             crawlId: crawl.id,
             consumerUserId: input.consumerUserId,
             expiresAt: crawl.expiresAt,
         });
+        if (voucher) {
+            await tx
+                .update(chainPurchaseEffect)
+                .set({ createdVoucherId: voucher.id })
+                .where(eq(chainPurchaseEffect.id, effect.id));
+        }
     }
 }

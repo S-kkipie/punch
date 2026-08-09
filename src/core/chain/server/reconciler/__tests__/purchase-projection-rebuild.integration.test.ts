@@ -5,18 +5,15 @@ import { db } from "@/server/drizzle/db";
 import { user } from "@/server/drizzle/schemas/auth-schema";
 import { cafe, cafeProduct } from "@/server/drizzle/schemas/cafe-schema";
 import {
-    indexerCursor,
-    projectionCafeCredit,
-    projectionConsumption,
-    projectionPunchBalance,
-} from "@/server/drizzle/schemas/chain-schema";
-import {
     consumerTransaction,
     consumptionProof,
 } from "@/server/drizzle/schemas/consumption-schema";
 import {
     campaign,
     chainPurchaseEffect,
+    coffeeCrawl,
+    coffeeCrawlStep,
+    consumerCrawlProgress,
     consumerVoucher,
     punchBalanceProjection,
 } from "@/server/drizzle/schemas/punch-schema";
@@ -30,8 +27,110 @@ installIntegrationDbMutex();
 
 const fixtures: string[] = [];
 
+async function seedMinimalCase(options?: {
+    manualCampaignVoucher?: boolean;
+    redeemAutoVoucher?: boolean;
+}) {
+    const suffix = crypto.randomUUID();
+    const ids = {
+        userId: `rebuild-user-${suffix}`,
+        cafeId: `rebuild-cafe-${suffix}`,
+        productId: `rebuild-product-${suffix}`,
+        campaignId: `rebuild-campaign-${suffix}`,
+        orderId: `rebuild-order-${suffix}`,
+        proofId: `rebuild-proof-${suffix}`,
+    };
+    const txHash =
+        `0x${suffix.replaceAll("-", "").padStart(64, "0")}` as `0x${string}`;
+    fixtures.push(ids.userId);
+    await db.insert(user).values({
+        id: ids.userId,
+        name: "Rebuild User",
+        email: `${suffix}@rebuild.invalid`,
+    });
+    await db.insert(cafe).values({
+        id: ids.cafeId,
+        name: "Rebuild Cafe",
+        slug: suffix,
+        chainCafeId: 990000 + Math.floor(Math.random() * 9000),
+        onboardingStatus: "approved",
+    });
+    await db.insert(cafeProduct).values({
+        id: ids.productId,
+        cafeId: ids.cafeId,
+        name: "Coffee",
+        priceSoles: "8",
+        type: "emission",
+        approvalStatus: "approved",
+        active: true,
+        chainProductId: 991002,
+    });
+    await db.insert(campaign).values({
+        id: ids.campaignId,
+        kind: "verified_acquisition",
+        cafeId: ids.cafeId,
+        name: "Campaign",
+        windowStart: new Date(Date.now() - 60_000),
+        windowEnd: new Date(Date.now() + 60_000),
+        active: true,
+    });
+    await db.insert(purchaseOrder).values({
+        id: ids.orderId,
+        cafeId: ids.cafeId,
+        userId: ids.userId,
+        productId: ids.productId,
+        amount: 8_000_000n,
+        yapeRef: "rebuild-ref",
+        receiptHash: `0x${"ab".repeat(32)}`,
+        nonce: suffix,
+        expiry: new Date(Date.now() + 60_000),
+        status: "submitted",
+    });
+    await db.insert(consumptionProof).values({
+        id: ids.proofId,
+        cafeId: ids.cafeId,
+        productId: ids.productId,
+        issuedByUserId: ids.userId,
+        consumerUserId: ids.userId,
+        amountCentimos: 800,
+        purchaseOrderId: ids.orderId,
+        yapeRef: "rebuild-ref",
+        receiptHash: `0x${"ab".repeat(32)}`,
+        nonce: suffix,
+        status: "submitted",
+        expiresAt: new Date(Date.now() + 60_000),
+    });
+    if (options?.manualCampaignVoucher) {
+        await db.insert(consumerVoucher).values({
+            id: `rebuild-manual-voucher-${suffix}`,
+            source: "campaign",
+            campaignId: ids.campaignId,
+            consumerUserId: ids.userId,
+            cafeId: ids.cafeId,
+            status: "available",
+            expiresAt: new Date(Date.now() + 60_000),
+            createdAt: new Date(Date.now() + 60_000),
+        });
+    }
+    await db.transaction(async (tx) => {
+        await applyConfirmedConsumptionProjection(tx, {
+            orderId: ids.orderId,
+            txHash,
+            logIndex: 0,
+            blockNumber: 12n,
+        });
+    });
+    if (options?.redeemAutoVoucher) {
+        await db
+            .update(consumerVoucher)
+            .set({ status: "redeemed", redeemedAt: new Date() })
+            .where(eq(consumerVoucher.campaignId, ids.campaignId));
+    }
+    return ids;
+}
+
 describeIntegration("clearChainDerivedPurchaseProjections", () => {
-    it("removes chain-derived state while preserving definitions and manual vouchers", async () => {
+    it("removes exact auto-unlocked voucher and crawl/projection state, then replay reproduces it", async () => {
         const suffix = crypto.randomUUID();
         const userId = `rebuild-user-${suffix}`;
         const cafeId = `rebuild-cafe-${suffix}`;
@@ -45,7 +144,6 @@ describeIntegration("clearChainDerivedPurchaseProjections", () => {
             `0x${suffix.replaceAll("-", "").padStart(64, "0")}` as `0x${string}`;
         const chainCafeId = 990000 + Math.floor(Math.random() * 9000);
         fixtures.push(userId);
-
         await db.insert(user).values({
             id: userId,
             name: "Rebuild User",
@@ -68,23 +166,45 @@ describeIntegration("clearChainDerivedPurchaseProjections", () => {
             active: true,
             chainProductId: 991002,
         });
-        await db.insert(campaign).values({
-            id: campaignId,
-            kind: "verified_acquisition",
-            cafeId,
-            name: "Campaign",
-            windowStart: new Date(Date.now() - 60_000),
-            windowEnd: new Date(Date.now() + 60_000),
+        await db.insert(campaign).values([
+            {
+                id: campaignId,
+                kind: "verified_acquisition",
+                cafeId,
+                name: "Campaign",
+                windowStart: new Date(Date.now() - 60_000),
+                windowEnd: new Date(Date.now() + 60_000),
+                active: true,
+            },
+            {
+                id: manualCampaignId,
+                kind: "verified_acquisition",
+                cafeId,
+                name: "Manual Campaign",
+                windowStart: new Date(Date.now() - 60_000),
+                windowEnd: new Date(Date.now() + 60_000),
+                active: true,
+            },
+        ]);
+        const crawlId = `rebuild-crawl-${suffix}`;
+        await db.insert(coffeeCrawl).values({
+            id: crawlId,
+            name: "Rebuild Crawl",
+            expiresAt: new Date(Date.now() + 60_000),
             active: true,
         });
-        await db.insert(campaign).values({
-            id: manualCampaignId,
-            kind: "verified_acquisition",
+        await db.insert(coffeeCrawlStep).values({
+            id: `rebuild-step-${suffix}`,
+            crawlId,
+            stepIndex: 0,
             cafeId,
-            name: "Manual Campaign",
-            windowStart: new Date(Date.now() - 60_000),
-            windowEnd: new Date(Date.now() + 60_000),
-            active: true,
+        });
+        await db.insert(consumerCrawlProgress).values({
+            id: `rebuild-progress-${suffix}`,
+            crawlId,
+            consumerUserId: userId,
+            completedCafeIds: [],
+            status: "in_progress",
         });
         await db.insert(consumerVoucher).values({
             id: manualVoucherId,
@@ -130,83 +250,56 @@ describeIntegration("clearChainDerivedPurchaseProjections", () => {
                 blockNumber: 12n,
             });
         });
-        await db.insert(punchBalanceProjection).values({ userId, balance: 12 });
-        await db.insert(projectionPunchBalance).values({
-            userAddress: userId,
-            balance: 12n,
-            lastBlock: 12n,
-        });
-        await db
-            .insert(projectionCafeCredit)
-            .values({ chainCafeId, credits: 4n, lastBlock: 12n });
-        await db.insert(projectionConsumption).values({
-            id: `rebuild-consumption-${suffix}`,
-            chainCafeId,
-            userAddress: userId,
-            receiptHash: `0x${"cd".repeat(32)}`,
-            txHash,
-            block: 12n,
-            logIndex: 1,
-        });
-        await db
-            .insert(indexerCursor)
-            .values({ contract: "punch", lastProcessedBlock: 12n })
-            .onConflictDoUpdate({
-                target: indexerCursor.contract,
-                set: { lastProcessedBlock: 12n },
-            });
-
-        await clearChainDerivedPurchaseProjections(db);
-
+        const autoVoucher = (
+            await db
+                .select({ id: consumerVoucher.id })
+                .from(consumerVoucher)
+                .where(eq(consumerVoucher.campaignId, campaignId))
+        )[0];
+        expect(autoVoucher).toBeDefined();
+        const [crawlVoucher] = await db
+            .select({ id: consumerVoucher.id })
+            .from(consumerVoucher)
+            .where(eq(consumerVoucher.crawlId, crawlId));
+        expect(crawlVoucher).toBeDefined();
         expect(
             await db
                 .select()
                 .from(chainPurchaseEffect)
                 .where(eq(chainPurchaseEffect.purchaseOrderId, orderId)),
+        ).toHaveLength(2);
+        await clearChainDerivedPurchaseProjections(db);
+        expect(
+            await db
+                .select()
+                .from(consumerVoucher)
+                .where(eq(consumerVoucher.id, autoVoucher?.id ?? "missing")),
         ).toEqual([]);
         expect(
             await db
                 .select()
-                .from(consumerTransaction)
-                .where(eq(consumerTransaction.purchaseOrderId, orderId)),
+                .from(consumerVoucher)
+                .where(eq(consumerVoucher.id, crawlVoucher?.id ?? "missing")),
         ).toEqual([]);
         expect(
             (
                 await db
-                    .select({ status: purchaseOrder.status })
-                    .from(purchaseOrder)
-                    .where(eq(purchaseOrder.id, orderId))
-            )[0]?.status,
-        ).toBe("submitted");
-        expect(
-            (
-                await db
-                    .select({ status: consumptionProof.status })
-                    .from(consumptionProof)
-                    .where(eq(consumptionProof.id, proofId))
-            )[0]?.status,
-        ).toBe("submitted");
-        expect(await db.select().from(projectionPunchBalance)).toEqual([]);
-        expect(await db.select().from(projectionCafeCredit)).toEqual([]);
-        expect(await db.select().from(projectionConsumption)).toEqual([]);
-        expect(
-            (
-                await db
-                    .select({ block: indexerCursor.lastProcessedBlock })
-                    .from(indexerCursor)
-                    .where(eq(indexerCursor.contract, "punch"))
-            )[0]?.block,
-        ).toBe(0n);
-        expect(
-            await db.select().from(campaign).where(eq(campaign.id, campaignId)),
-        ).toHaveLength(1);
+                    .select()
+                    .from(consumerCrawlProgress)
+                    .where(
+                        eq(
+                            consumerCrawlProgress.id,
+                            `rebuild-progress-${suffix}`,
+                        ),
+                    )
+            )[0]?.completedCafeIds,
+        ).toEqual([]);
         expect(
             await db
                 .select()
                 .from(consumerVoucher)
                 .where(eq(consumerVoucher.id, manualVoucherId)),
         ).toHaveLength(1);
-
         await db.transaction(async (tx) => {
             await applyConfirmedConsumptionProjection(tx, {
                 orderId,
@@ -218,9 +311,60 @@ describeIntegration("clearChainDerivedPurchaseProjections", () => {
         expect(
             await db
                 .select()
-                .from(consumerTransaction)
-                .where(eq(consumerTransaction.purchaseOrderId, orderId)),
+                .from(consumerVoucher)
+                .where(eq(consumerVoucher.campaignId, campaignId)),
         ).toHaveLength(1);
+        expect(
+            await db
+                .select()
+                .from(chainPurchaseEffect)
+                .where(eq(chainPurchaseEffect.purchaseOrderId, orderId)),
+        ).toHaveLength(2);
+    });
+
+    it("preserves a redeemed effect voucher and does not re-grant it on replay", async () => {
+        const ids = await seedMinimalCase({ redeemAutoVoucher: true });
+        const [voucherBefore] = await db
+            .select()
+            .from(consumerVoucher)
+            .where(eq(consumerVoucher.campaignId, ids.campaignId));
+        await clearChainDerivedPurchaseProjections(db);
+        const [voucherAfter] = await db
+            .select()
+            .from(consumerVoucher)
+            .where(eq(consumerVoucher.id, voucherBefore?.id ?? "missing"));
+        expect(voucherAfter?.status).toBe("redeemed");
+        await db.transaction(async (tx) => {
+            await applyConfirmedConsumptionProjection(tx, {
+                orderId: ids.orderId,
+                txHash: `0x${"ef".repeat(32)}`,
+                logIndex: 1,
+                blockNumber: 13n,
+            });
+        });
+        expect(
+            await db
+                .select()
+                .from(consumerVoucher)
+                .where(eq(consumerVoucher.campaignId, ids.campaignId)),
+        ).toHaveLength(1);
+    });
+
+    it("preserves a manual voucher for the same campaign and user", async () => {
+        const ids = await seedMinimalCase({ manualCampaignVoucher: true });
+        const [manual] = await db
+            .select()
+            .from(consumerVoucher)
+            .where(eq(consumerVoucher.campaignId, ids.campaignId));
+        await clearChainDerivedPurchaseProjections(db);
+        expect(
+            (
+                await db
+                    .select()
+                    .from(consumerVoucher)
+                    .where(eq(consumerVoucher.id, manual?.id ?? "missing"))
+            )[0]?.status,
+        ).toBe("available");
     });
 });
 
@@ -250,12 +394,23 @@ afterEach(async () => {
             .delete(punchBalanceProjection)
             .where(eq(punchBalanceProjection.userId, userId));
         await db
-            .delete(campaign)
+            .delete(consumerCrawlProgress)
+            .where(eq(consumerCrawlProgress.consumerUserId, userId));
+        await db
+            .delete(coffeeCrawlStep)
             .where(
-                inArray(campaign.id, [
-                    `rebuild-campaign-${userId.slice("rebuild-user-".length)}`,
-                    `rebuild-manual-campaign-${userId.slice("rebuild-user-".length)}`,
-                ]),
+                eq(
+                    coffeeCrawlStep.cafeId,
+                    `rebuild-cafe-${userId.slice("rebuild-user-".length)}`,
+                ),
+            );
+        await db
+            .delete(coffeeCrawl)
+            .where(
+                eq(
+                    coffeeCrawl.id,
+                    `rebuild-crawl-${userId.slice("rebuild-user-".length)}`,
+                ),
             );
         await db
             .delete(cafeProduct)
@@ -264,6 +419,13 @@ afterEach(async () => {
                     cafeProduct.cafeId,
                     `rebuild-cafe-${userId.slice("rebuild-user-".length)}`,
                 ),
+            );
+        await db
+            .delete(campaign)
+            .where(
+                inArray(campaign.cafeId, [
+                    `rebuild-cafe-${userId.slice("rebuild-user-".length)}`,
+                ]),
             );
         await db
             .delete(cafe)

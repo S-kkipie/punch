@@ -20,92 +20,67 @@ import {
 } from "@/server/drizzle/schemas/punch-schema";
 import { purchaseOrder } from "@/server/drizzle/schemas/purchase-schema";
 
+type CampaignEffect = { createdVoucherId: string | null };
+type CrawlEffect = {
+    targetId: string;
+    progressId: string | null;
+    createdVoucherId: string | null;
+};
+
 async function reverseCampaignEffects(
     tx: DbClient,
-    effects: Array<{ targetId: string; purchaseOrderId: string }>,
+    effects: CampaignEffect[],
 ): Promise<void> {
     for (const effect of effects) {
-        const [order] = await tx
-            .select({
-                userId: purchaseOrder.userId,
-                createdAt: purchaseOrder.createdAt,
-            })
-            .from(purchaseOrder)
-            .where(eq(purchaseOrder.id, effect.purchaseOrderId));
-        if (!order) continue;
-        const vouchers = await tx
-            .select({ id: consumerVoucher.id })
-            .from(consumerVoucher)
+        if (!effect.createdVoucherId) continue;
+        await tx
+            .delete(consumerVoucher)
             .where(
                 and(
+                    eq(consumerVoucher.id, effect.createdVoucherId),
                     eq(consumerVoucher.source, "campaign"),
-                    eq(consumerVoucher.campaignId, effect.targetId),
-                    eq(consumerVoucher.consumerUserId, order.userId),
-                    sql`${consumerVoucher.createdAt} > ${order.createdAt}`,
+                    eq(consumerVoucher.status, "available"),
                 ),
             );
-        for (const voucher of vouchers) {
-            await tx
-                .delete(consumerVoucher)
-                .where(eq(consumerVoucher.id, voucher.id));
-        }
     }
 }
 
 async function reverseCrawlEffects(
     tx: DbClient,
-    effects: Array<{ targetId: string; purchaseOrderId: string }>,
+    effects: CrawlEffect[],
 ): Promise<void> {
     for (const effect of effects) {
-        const [step] = await tx
-            .select({
-                crawlId: coffeeCrawlStep.crawlId,
-                cafeId: coffeeCrawlStep.cafeId,
-            })
-            .from(coffeeCrawlStep)
-            .where(eq(coffeeCrawlStep.id, effect.targetId));
-        if (!step) continue;
-        const [order] = await tx
-            .select({
-                userId: purchaseOrder.userId,
-                createdAt: purchaseOrder.createdAt,
-            })
-            .from(purchaseOrder)
-            .where(eq(purchaseOrder.id, effect.purchaseOrderId));
-        if (!order) continue;
-        const [progress] = await tx
-            .select()
-            .from(consumerCrawlProgress)
-            .where(
-                and(
-                    eq(consumerCrawlProgress.crawlId, step.crawlId),
-                    eq(consumerCrawlProgress.consumerUserId, order.userId),
-                ),
-            );
-        if (progress) {
-            const completedCafeIds = progress.completedCafeIds.filter(
-                (cafeId) => cafeId !== step.cafeId,
-            );
-            await tx
-                .update(consumerCrawlProgress)
-                .set({ completedCafeIds, status: "in_progress" })
-                .where(eq(consumerCrawlProgress.id, progress.id));
+        if (effect.progressId) {
+            const [step] = await tx
+                .select({ cafeId: coffeeCrawlStep.cafeId })
+                .from(coffeeCrawlStep)
+                .where(eq(coffeeCrawlStep.id, effect.targetId));
+            const [progress] = await tx
+                .select()
+                .from(consumerCrawlProgress)
+                .where(eq(consumerCrawlProgress.id, effect.progressId));
+            if (step && progress) {
+                await tx
+                    .update(consumerCrawlProgress)
+                    .set({
+                        completedCafeIds: progress.completedCafeIds.filter(
+                            (cafeId) => cafeId !== step.cafeId,
+                        ),
+                        status: "in_progress",
+                    })
+                    .where(eq(consumerCrawlProgress.id, progress.id));
+            }
         }
-        const vouchers = await tx
-            .select({ id: consumerVoucher.id })
-            .from(consumerVoucher)
-            .where(
-                and(
-                    eq(consumerVoucher.source, "crawl"),
-                    eq(consumerVoucher.crawlId, step.crawlId),
-                    eq(consumerVoucher.consumerUserId, order.userId),
-                    sql`${consumerVoucher.createdAt} > ${order.createdAt}`,
-                ),
-            );
-        for (const voucher of vouchers) {
+        if (effect.createdVoucherId) {
             await tx
                 .delete(consumerVoucher)
-                .where(eq(consumerVoucher.id, voucher.id));
+                .where(
+                    and(
+                        eq(consumerVoucher.id, effect.createdVoucherId),
+                        eq(consumerVoucher.source, "crawl"),
+                        eq(consumerVoucher.status, "available"),
+                    ),
+                );
         }
     }
 }
@@ -118,20 +93,28 @@ export async function clearChainDerivedPurchaseProjections(
             .select({
                 kind: chainPurchaseEffect.kind,
                 targetId: chainPurchaseEffect.targetId,
-                purchaseOrderId: chainPurchaseEffect.purchaseOrderId,
+                progressId: chainPurchaseEffect.progressId,
+                createdVoucherId: chainPurchaseEffect.createdVoucherId,
             })
             .from(chainPurchaseEffect);
         await reverseCampaignEffects(
             tx,
-            effects.filter(
-                (effect) => effect.kind === "campaign_qualification",
-            ),
+            effects
+                .filter((effect) => effect.kind === "campaign_qualification")
+                .map((effect) => ({
+                    createdVoucherId: effect.createdVoucherId,
+                })),
         );
         await reverseCrawlEffects(
             tx,
-            effects.filter((effect) => effect.kind === "crawl_step"),
+            effects
+                .filter((effect) => effect.kind === "crawl_step")
+                .map((effect) => ({
+                    targetId: effect.targetId,
+                    progressId: effect.progressId,
+                    createdVoucherId: effect.createdVoucherId,
+                })),
         );
-
         await tx.delete(chainPurchaseEffect).where(sql`true`);
         await tx
             .delete(consumerTransaction)
@@ -152,7 +135,6 @@ export async function clearChainDerivedPurchaseProjections(
             .update(purchaseOrder)
             .set({ status: "submitted", txHash: null })
             .where(eq(purchaseOrder.status, "confirmed"));
-
         await tx.delete(projectionConsumption).where(sql`true`);
         await tx.delete(projectionPunchBalance).where(sql`true`);
         await tx.delete(projectionCafeCredit).where(sql`true`);
