@@ -33,6 +33,16 @@ export const bootstrapRepository: BootstrapRepository = {
 
         const result: ApprovedSeedCafe[] = [];
         for (const row of cafes) {
+            const operators = await db
+                .select({ walletAddress: user.walletAddress })
+                .from(cafeMember)
+                .innerJoin(user, eq(user.id, cafeMember.userId))
+                .where(
+                    and(
+                        eq(cafeMember.cafeId, row.id),
+                        eq(cafeMember.role, "barista"),
+                    ),
+                );
             const products = await db
                 .select({
                     id: cafeProduct.id,
@@ -52,7 +62,13 @@ export const bootstrapRepository: BootstrapRepository = {
                     ),
                 )
                 .orderBy(asc(cafeProduct.createdAt), asc(cafeProduct.id));
-            result.push({ ...row, products });
+            result.push({
+                ...row,
+                operatorWalletAddresses: operators
+                    .map((operator) => operator.walletAddress)
+                    .filter((address): address is string => address !== null),
+                products,
+            });
         }
         return result;
     },
