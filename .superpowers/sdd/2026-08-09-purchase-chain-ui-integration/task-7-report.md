@@ -106,3 +106,13 @@ Reviewer-fix commit: `e1960ee fix(chain): preserve voucher provenance during reb
 - `pnpm exec biome check --write src/core/purchase/server/services/confirm-quote-service.ts src/core/purchase/server/services/confirm-purchase-service.ts src/core/chain/server/__tests__/purchase-journey.live.test.ts` — PASS.
 - `pnpm typecheck` — PASS.
 - Anvil will be stopped again after this follow-up.
+
+## Legacy provenance convergence follow-up
+
+- Added a legacy-state regression covering NULL campaign/crawl provenance, existing voucher/progress rows, crawl effect re-recording when progress is already complete, and a second clear/replay convergence pass.
+- Campaign and crawl unlock conflict paths now return the existing row so replay records provenance; completed crawl progress re-records the missing effect and links its existing progress/voucher state without duplicating progress.
+- RED output saved at `/tmp/punch-task7-red.txt`: the new regression failed with one crawl effect after replay (`expected ... length of 2 but got 1`).
+- Fresh `punch_task7_legacy` database created and migrated with `DATABASE_SSL=false`.
+- `PUNCH_RUN_INTEGRATION=1 DATABASE_SSL=false pnpm vitest run src/core/chain/server/reconciler/__tests__/purchase-projection-rebuild.integration.test.ts src/core/punch/server/repository/__tests__/` — PASS: 2 files, 10 tests.
+- `pnpm typecheck` — PASS.
+- Biome check on all changed files — PASS.

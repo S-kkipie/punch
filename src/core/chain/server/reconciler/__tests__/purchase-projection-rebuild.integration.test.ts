@@ -30,6 +30,7 @@ const fixtures: string[] = [];
 async function seedMinimalCase(options?: {
     manualCampaignVoucher?: boolean;
     redeemAutoVoucher?: boolean;
+    crawl?: boolean;
 }) {
     const suffix = crypto.randomUUID();
     const ids = {
@@ -39,6 +40,7 @@ async function seedMinimalCase(options?: {
         campaignId: `rebuild-campaign-${suffix}`,
         orderId: `rebuild-order-${suffix}`,
         proofId: `rebuild-proof-${suffix}`,
+        crawlId: `rebuild-crawl-${suffix}`,
     };
     const txHash =
         `0x${suffix.replaceAll("-", "").padStart(64, "0")}` as `0x${string}`;
@@ -100,6 +102,27 @@ async function seedMinimalCase(options?: {
         status: "submitted",
         expiresAt: new Date(Date.now() + 60_000),
     });
+    if (options?.crawl) {
+        await db.insert(coffeeCrawl).values({
+            id: ids.crawlId,
+            name: "Rebuild Crawl",
+            expiresAt: new Date(Date.now() + 60_000),
+            active: true,
+        });
+        await db.insert(coffeeCrawlStep).values({
+            id: `rebuild-step-${suffix}`,
+            crawlId: ids.crawlId,
+            stepIndex: 0,
+            cafeId: ids.cafeId,
+        });
+        await db.insert(consumerCrawlProgress).values({
+            id: `rebuild-progress-${suffix}`,
+            crawlId: ids.crawlId,
+            consumerUserId: ids.userId,
+            completedCafeIds: [],
+            status: "in_progress",
+        });
+    }
     if (options?.manualCampaignVoucher) {
         await db.insert(consumerVoucher).values({
             id: `rebuild-manual-voucher-${suffix}`,
@@ -130,6 +153,113 @@ async function seedMinimalCase(options?: {
 }
 
 describeIntegration("clearChainDerivedPurchaseProjections", () => {
+    it("self-heals legacy effect provenance and converges on the next rebuild", async () => {
+        const ids = await seedMinimalCase({ crawl: true });
+        const replayTxHash =
+            `0x${crypto.randomUUID().replaceAll("-", "").padStart(64, "0")}` as `0x${string}`;
+        const [legacyVoucher] = await db
+            .select()
+            .from(consumerVoucher)
+            .where(eq(consumerVoucher.campaignId, ids.campaignId));
+        const [legacyProgress] = await db
+            .select()
+            .from(consumerCrawlProgress)
+            .where(eq(consumerCrawlProgress.crawlId, ids.crawlId));
+        expect(legacyVoucher).toBeDefined();
+        expect(legacyProgress?.completedCafeIds).toEqual([ids.cafeId]);
+        await db
+            .update(chainPurchaseEffect)
+            .set({ createdVoucherId: null, progressId: null })
+            .where(eq(chainPurchaseEffect.purchaseOrderId, ids.orderId));
+
+        await clearChainDerivedPurchaseProjections(db);
+        await db.transaction(async (tx) => {
+            await applyConfirmedConsumptionProjection(tx, {
+                orderId: ids.orderId,
+                txHash: replayTxHash,
+                logIndex: 0,
+                blockNumber: 12n,
+            });
+        });
+
+        const firstReplayEffects = await db
+            .select()
+            .from(chainPurchaseEffect)
+            .where(eq(chainPurchaseEffect.purchaseOrderId, ids.orderId));
+        const [firstReplayVoucher] = await db
+            .select()
+            .from(consumerVoucher)
+            .where(eq(consumerVoucher.campaignId, ids.campaignId));
+        const [firstReplayProgress] = await db
+            .select()
+            .from(consumerCrawlProgress)
+            .where(eq(consumerCrawlProgress.crawlId, ids.crawlId));
+        expect(firstReplayEffects).toHaveLength(2);
+        expect(firstReplayEffects).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    kind: "campaign_qualification",
+                    createdVoucherId: firstReplayVoucher?.id,
+                }),
+                expect.objectContaining({
+                    kind: "crawl_step",
+                    progressId: firstReplayProgress?.id,
+                }),
+            ]),
+        );
+        expect(firstReplayVoucher?.id).toBe(legacyVoucher?.id);
+        expect(firstReplayProgress?.id).toBe(legacyProgress?.id);
+        expect(firstReplayProgress?.completedCafeIds).toEqual([ids.cafeId]);
+
+        await clearChainDerivedPurchaseProjections(db);
+        await db.transaction(async (tx) => {
+            await applyConfirmedConsumptionProjection(tx, {
+                orderId: ids.orderId,
+                txHash: replayTxHash,
+                logIndex: 0,
+                blockNumber: 12n,
+            });
+        });
+
+        const secondReplayEffects = await db
+            .select()
+            .from(chainPurchaseEffect)
+            .where(eq(chainPurchaseEffect.purchaseOrderId, ids.orderId));
+        const [secondReplayVoucher] = await db
+            .select()
+            .from(consumerVoucher)
+            .where(eq(consumerVoucher.campaignId, ids.campaignId));
+        const [secondReplayProgress] = await db
+            .select()
+            .from(consumerCrawlProgress)
+            .where(eq(consumerCrawlProgress.crawlId, ids.crawlId));
+        expect(secondReplayEffects).toHaveLength(2);
+        expect(secondReplayVoucher).toMatchObject({
+            source: "campaign",
+            campaignId: ids.campaignId,
+            consumerUserId: ids.userId,
+            status: "available",
+        });
+        expect(secondReplayProgress).toMatchObject({
+            crawlId: ids.crawlId,
+            consumerUserId: ids.userId,
+            completedCafeIds: [ids.cafeId],
+            status: "completed",
+        });
+        expect(secondReplayEffects).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    kind: "campaign_qualification",
+                    createdVoucherId: secondReplayVoucher?.id,
+                }),
+                expect.objectContaining({
+                    kind: "crawl_step",
+                    progressId: secondReplayProgress?.id,
+                }),
+            ]),
+        );
+    });
+
     it("removes exact auto-unlocked voucher and crawl/projection state, then replay reproduces it", async () => {
         const suffix = crypto.randomUUID();
         const userId = `rebuild-user-${suffix}`;
