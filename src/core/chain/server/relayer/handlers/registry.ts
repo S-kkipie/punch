@@ -4,6 +4,7 @@ import {
     campaignFundApproveHandler,
     campaignFundHandler,
 } from "./campaign-fund";
+import { campaignPublishHandler } from "./campaign-publish";
 import { consumptionRecordHandler } from "./consumption-record";
 import type { JobHandler } from "./types";
 
@@ -11,6 +12,7 @@ const handlers: Partial<Record<RelayerJobKind, JobHandler>> = {
     campaign_create: campaignCreateHandler,
     campaign_fund_approve: campaignFundApproveHandler,
     campaign_fund: campaignFundHandler,
+    campaign_publish: campaignPublishHandler,
     consumption_record: consumptionRecordHandler,
 };
 
