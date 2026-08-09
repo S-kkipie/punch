@@ -84,3 +84,58 @@ The full Vitest run retains unrelated pre-existing stderr diagnostics from exist
 ## Issues or concerns
 
 - Existing repository test stderr warnings remain as noted above; they are outside Task 7 and do not affect exit status.
+
+## Fix round 1
+
+### Changes
+
+- Restored an explicit `rejected` row branch in the café redemptions page. It renders `rejectionReason` as a human decision reason; `failed` continues to render the separate chain `failureReason`.
+- Scoped `listFulfillmentRequestsForCafe` to `pending`, `approved`, `confirmed`, and `failed` statuses and added a hard limit of 100 rows. Rejected requests are excluded from persisted inbox results because the inbox is for actionable and recently settled on-chain requests, while the UI branch still handles a rejection returned during the current session.
+- Updated the inbox route summary to describe the bounded actionable/settled result instead of calling it only pending.
+- Added a repository safety test that inspects the status predicate and verifies the 100-row limit.
+- Added a redemptions-page test for a rejected request with no transaction and a rejection reason.
+- Removed the dead chain-mode setup from the consumer redemption test and renamed it to `enables eligible PUNCH redemption`.
+- Typed `PayoutSummaryCard` with the exported `CafePayouts` type instead of accepting `unknown` and recasting it.
+
+### Revert-proof RED evidence
+
+After adding the rejected-row fixture and assertion, I temporarily removed only the rejected rendering branch and ran:
+
+```text
+pnpm vitest run 'src/app/(app)/(workspace)/cafe/[cafeId]/redemptions/__tests__/redemptions-page.test.tsx'
+```
+
+It failed as expected: 1 test failed, with `expected ... to contain "No corresponde a esta campaña"`; the rendered text contained the confirmed, failed, and approved states but no rejection reason. The branch was restored immediately.
+
+### Fix-round GREEN and verification
+
+Focused command:
+
+```text
+pnpm vitest run 'src/app/(app)/(workspace)/cafe/[cafeId]/redemptions/__tests__/redemptions-page.test.tsx' src/core/consumption/server/repository/__tests__/safety.test.ts 'src/app/(app)/(consumer)/redeem/[productId]/__tests__/redeem-page.test.tsx'
+```
+
+Result: 3 test files passed, 21 tests passed.
+
+The repository status-predicate test specifically passed for `pending`, `approved`, `confirmed`, and `failed`, rejected the `rejected` status, and verified `limit(100)`. The rejected-row UI assertion passed with no transaction fields present.
+
+The full fix-round verification commands were:
+
+```text
+pnpm vitest run
+pnpm typecheck
+pnpm exec biome check --write 'src/app/(app)/(consumer)/redeem/[productId]/__tests__/redeem-page.test.tsx' 'src/app/(app)/(workspace)/cafe/[cafeId]/page.tsx' 'src/app/(app)/(workspace)/cafe/[cafeId]/redemptions/page.tsx' 'src/app/(app)/(workspace)/cafe/[cafeId]/redemptions/__tests__/redemptions-page.test.tsx' src/core/consumption/server/api/routes/list-cafe-redemption-inbox.route.ts src/core/consumption/server/repository/redemption-requests.ts src/core/consumption/server/repository/__tests__/safety.test.ts
+```
+
+Results: full Vitest, typecheck, and Biome completed successfully. The same unrelated existing stderr warnings described above remain.
+
+### Fix-round files
+
+- `src/app/(app)/(consumer)/redeem/[productId]/__tests__/redeem-page.test.tsx`
+- `src/app/(app)/(workspace)/cafe/[cafeId]/page.tsx`
+- `src/app/(app)/(workspace)/cafe/[cafeId]/redemptions/page.tsx`
+- `src/app/(app)/(workspace)/cafe/[cafeId]/redemptions/__tests__/redemptions-page.test.tsx`
+- `src/core/consumption/server/api/routes/list-cafe-redemption-inbox.route.ts`
+- `src/core/consumption/server/repository/redemption-requests.ts`
+- `src/core/consumption/server/repository/__tests__/safety.test.ts`
+- This report

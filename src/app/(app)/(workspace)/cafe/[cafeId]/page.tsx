@@ -20,6 +20,7 @@ import { StatusBadge } from "@/core/cafe/client/ui/status-badge";
 import { submissionGaps } from "@/core/cafe/domain/transitions";
 import type { CafeAdmin, ProductAdmin } from "@/core/cafe/domain/types";
 import { useCafePayouts } from "@/core/consumption/client/hooks";
+import type { CafePayouts } from "@/core/consumption/server/services/get-cafe-payouts-service";
 import { Button } from "@/frontend/components/ui/button";
 import {
     Card,
@@ -29,14 +30,8 @@ import {
 } from "@/frontend/components/ui/card";
 import { Spinner } from "@/frontend/components/ui/spinner";
 
-function PayoutSummaryCard({ payouts }: { payouts?: unknown }) {
-    const data = payouts as
-        | {
-              totalCentimos: number;
-              redemptionCount: number;
-              ownerMpenCentimos: number | null;
-          }
-        | undefined;
+function PayoutSummaryCard({ payouts }: { payouts?: CafePayouts }) {
+    const data = payouts;
     return (
         <Card>
             <CardHeader>
@@ -181,7 +176,9 @@ export default function CafePanelPage() {
                     Motivo del rechazo: {cafe.reviewNote}
                 </p>
             )}
-            <PayoutSummaryCard payouts={payoutsQuery.data} />
+            <PayoutSummaryCard
+                payouts={payoutsQuery.data as CafePayouts | undefined}
+            />
             <Card>
                 <CardHeader>
                     <CardTitle>Perfil del café</CardTitle>

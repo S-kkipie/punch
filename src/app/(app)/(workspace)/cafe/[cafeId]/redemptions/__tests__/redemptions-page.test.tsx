@@ -23,6 +23,7 @@ const { punchMutate, voucherMutate, txState, inboxData, txError } = vi.hoisted(
             transactionId?: string;
             transactionStatus?: string;
             failureReason?: string;
+            rejectionReason?: string;
         }>,
     }),
 );
@@ -206,6 +207,12 @@ describe("café redemption settlement lifecycle", () => {
                 kind: "punch_reward",
                 status: "approved",
             },
+            {
+                id: "rejected-punch",
+                kind: "punch_reward",
+                status: "rejected",
+                rejectionReason: "No corresponde a esta campaña",
+            },
         );
         const container = document.createElement("div");
         document.body.append(container);
@@ -214,6 +221,9 @@ describe("café redemption settlement lifecycle", () => {
         expect(container.textContent).toContain("S/3.60");
         expect(container.textContent).toContain("INSUFFICIENT_BALANCE");
         expect(container.textContent).toContain("Procesando on-chain");
+        expect(container.textContent).toContain(
+            "No corresponde a esta campaña",
+        );
         await act(async () => root.unmount());
     });
 

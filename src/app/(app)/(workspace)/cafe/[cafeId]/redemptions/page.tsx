@@ -205,6 +205,16 @@ export default function CafeRedemptionsPage() {
                                             "No se pudo completar el canje."}
                                     </p>
                                 )}
+                                {request.status === "rejected" && (
+                                    <p
+                                        className="text-muted-foreground text-sm"
+                                        role="status"
+                                    >
+                                        Rechazado:{" "}
+                                        {request.rejectionReason ??
+                                            "Sin motivo indicado."}
+                                    </p>
+                                )}
                                 {request.status === "approved" && !decision && (
                                     <p className="text-sm" role="status">
                                         Procesando on-chain
