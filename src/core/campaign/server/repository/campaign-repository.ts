@@ -1,6 +1,7 @@
 import "server-only";
 
 import { eq } from "drizzle-orm";
+import type { JobTransaction } from "@/core/chain/server/relayer/job-repository";
 import type { DbClient, DbTransaction } from "@/server/drizzle/db";
 import { db } from "@/server/drizzle/db";
 import {
@@ -26,7 +27,7 @@ export async function insertCampaign(
 }
 
 export async function linkChainCampaign(
-    tx: DbTransaction,
+    tx: JobTransaction,
     campaignId: string,
     chainCampaignId: number,
 ): Promise<void> {

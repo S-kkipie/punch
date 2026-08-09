@@ -8,10 +8,8 @@ describe("handler registry", () => {
         );
     });
 
-    it("throws for a kind with no handler yet", () => {
-        expect(() => handlerFor("campaign_create")).toThrow(
-            /unsupported relayer job kind/,
-        );
+    it("returns the campaign create handler", () => {
+        expect(handlerFor("campaign_create").kind).toBe("campaign_create");
     });
 
     it("signs consumption jobs with the relayer key", () => {
