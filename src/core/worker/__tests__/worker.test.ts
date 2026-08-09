@@ -1,4 +1,10 @@
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const packageJson = JSON.parse(
+    readFileSync(new URL("../../../../package.json", import.meta.url), "utf8"),
+) as { scripts: Record<string, string> };
+
 import {
     startWorker,
     type WorkerDependencies,
@@ -17,6 +23,12 @@ const deferred = <T = void>() => {
 describe("worker entrypoint", () => {
     beforeEach(() => {
         vi.useFakeTimers();
+    });
+
+    it("uses Node server conditions in the worker package script", () => {
+        expect(packageJson.scripts.worker).toBe(
+            "node --conditions=react-server --import tsx --env-file=.env scripts/worker.ts",
+        );
     });
 
     it("recovers before scheduling independent loops at their exact intervals", async () => {
