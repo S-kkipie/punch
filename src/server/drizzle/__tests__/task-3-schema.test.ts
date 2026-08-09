@@ -162,6 +162,12 @@ describe("consumer domain Drizzle schemas", () => {
         expect(generatedMigration).toContain(
             "ALTER TYPE public.purchase_proof_status ADD VALUE 'expired'",
         );
+        expect(generatedMigration).toContain(
+            "UPDATE consumption_proof SET yape_ref = 'legacy-' || id WHERE yape_ref IS NULL",
+        );
+        expect(generatedMigration).toContain(
+            "ALTER TABLE consumption_proof ALTER COLUMN yape_ref SET NOT NULL",
+        );
     });
 
     it("declares voucher provenance, proof binding, campaign, and crawl constraints", () => {

@@ -4,7 +4,11 @@ vi.mock("../../repository/proofs", () => ({
     findProofById: vi.fn(),
     expireQuote: vi.fn(),
 }));
+vi.mock("@/server/auth/membership/require-cafe-role", () => ({
+    requireCafeRole: vi.fn(),
+}));
 
+import { requireCafeRole } from "@/server/auth/membership/require-cafe-role";
 import { expireQuote, findProofById } from "../../repository/proofs";
 import { getPurchaseQuoteService } from "../get-purchase-quote-service";
 
@@ -42,6 +46,39 @@ describe("getPurchaseQuoteService", () => {
             },
         });
         expect(JSON.stringify(result)).not.toContain("YAPE-1234");
+    });
+
+    it("rejects an unrelated authenticated user from a bound quote", async () => {
+        vi.mocked(findProofById).mockResolvedValue({
+            id: "quote-1",
+            cafeId: "cafe-1",
+            productId: "product-1",
+            amountCentimos: 800,
+            expiresAt: new Date(Date.now() + 60_000),
+            status: "submitted",
+            yapeRef: "YAPE-1234",
+            issuedByUserId: "barista-1",
+            consumerUserId: "consumer-1",
+            purchaseOrderId: "order-1",
+            receiptHash: null,
+            nonce: null,
+            cafeSignature: null,
+            consumerSignature: null,
+            failureReason: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+        } as never);
+        vi.mocked(requireCafeRole).mockResolvedValue({
+            ok: false,
+            error: { type: "ForbiddenError", code: "FORBIDDEN", status: 403 },
+        } as never);
+        const result = await getPurchaseQuoteService("intruder", "quote-1");
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.error.status).toBe(403);
+        expect(requireCafeRole).toHaveBeenCalledWith("intruder", "cafe-1", [
+            "owner",
+            "barista",
+        ]);
     });
 
     it("expires a stale issued quote before returning it", async () => {

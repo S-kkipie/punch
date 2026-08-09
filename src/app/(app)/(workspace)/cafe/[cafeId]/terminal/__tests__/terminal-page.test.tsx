@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { readFileSync } from "node:fs";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -87,6 +88,14 @@ describe("CafeTerminalPage", () => {
     afterEach(() => {
         document.body.innerHTML = "";
         vi.clearAllMocks();
+    });
+
+    it("does not submit a fabricated Yape reference", () => {
+        const source = readFileSync(
+            "src/app/(app)/(workspace)/cafe/[cafeId]/terminal/page.tsx",
+            "utf8",
+        );
+        expect(source).not.toContain("UI_PENDING");
     });
 
     it("unwraps the raw Eden response and renders an absolute QR link", async () => {

@@ -2,6 +2,7 @@ import "server-only";
 
 import { maskYapeRef } from "@/core/consumption/domain/quotes";
 import type { PurchaseQuoteView } from "@/core/consumption/domain/types";
+import { requireCafeRole } from "@/server/auth/membership/require-cafe-role";
 import {
     AppErrors,
     type AsyncAppResult,
@@ -11,11 +12,19 @@ import {
 import { expireQuote, findProofById } from "../repository/proofs";
 
 export async function getPurchaseQuoteService(
-    _requestingUserId: string,
+    requestingUserId: string,
     quoteId: string,
 ): AsyncAppResult<PurchaseQuoteView> {
     const row = await findProofById(quoteId);
     if (!row) return err(AppErrors.notFound({ targets: ["proofId"] }));
+
+    if (row.consumerUserId && row.consumerUserId !== requestingUserId) {
+        const membership = await requireCafeRole(requestingUserId, row.cafeId, [
+            "owner",
+            "barista",
+        ]);
+        if (!membership.ok) return err(membership.error);
+    }
 
     let current = row;
     if (
