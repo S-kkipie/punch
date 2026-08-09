@@ -11,6 +11,7 @@ import {
 } from "@/server/drizzle/schemas/chain-schema";
 import { purchaseOrder } from "@/server/drizzle/schemas/purchase-schema";
 import { applyConfirmedConsumptionProjection } from "./purchase-projection";
+import { applyRewardRedeemedProjection } from "./redemption-projection";
 
 export const CREDITS_PER_PURCHASE = 100n;
 const MAX_SQL_INT = 2_147_483_647;
@@ -19,6 +20,7 @@ type EventArgs = Record<string, unknown>;
 export type IndexerEvent = {
     eventName:
         | "PunchIssued"
+        | "RewardRedeemed"
         | "ConsumptionRecorded"
         | "EmissionCreditConsumed"
         | "PlanActivated"
@@ -186,6 +188,14 @@ export async function applyEvent(
     switch (event.eventName) {
         case "PunchIssued":
             return addPunch(tx, event);
+        case "RewardRedeemed":
+            return applyRewardRedeemedProjection(tx, {
+                userAddress: address(event.args.user),
+                chainCafeId: cafeId(event.args.hostCafeId),
+                txHash: event.transactionHash,
+                logIndex: logIndex(event),
+                blockNumber: block(event),
+            });
         case "ConsumptionRecorded":
             return recordConsumption(tx, event);
         case "EmissionCreditConsumed":

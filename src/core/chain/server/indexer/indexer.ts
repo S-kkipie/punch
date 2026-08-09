@@ -64,7 +64,7 @@ function source(
 }
 
 const sources = [
-    source("punchVault", abis.punchVault, ["PunchIssued"]),
+    source("punchVault", abis.punchVault, ["PunchIssued", "RewardRedeemed"]),
     source("consumptionLog", abis.consumptionLog, ["ConsumptionRecorded"]),
     source("planManager", abis.planManager, [
         "EmissionCreditConsumed",
