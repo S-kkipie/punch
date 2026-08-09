@@ -34,10 +34,12 @@ describe("getConsumerBalance", () => {
 describe("getChainBackedBalance", () => {
     it("reads an exact projected integer and never consults mock balance", async () => {
         const d = deps();
-        await expect(getChainBackedBalance("user-1", d)).resolves.toMatchObject({
-            ok: true,
-            data: { punchBalance: 42, stale: false },
-        });
+        await expect(getChainBackedBalance("user-1", d)).resolves.toMatchObject(
+            {
+                ok: true,
+                data: { punchBalance: 42, stale: false },
+            },
+        );
         expect(d.findBalance).toHaveBeenCalled();
     });
 

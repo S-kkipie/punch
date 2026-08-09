@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
+import { describe, expect, it } from "vitest";
 import { db } from "@/server/drizzle/db";
 import { user } from "@/server/drizzle/schemas/auth-schema";
 import { cafe } from "@/server/drizzle/schemas/cafe-schema";
@@ -18,7 +18,9 @@ describe.skipIf(!live)("live historical consumption seeding", () => {
             .from(cafe)
             .where(eq(cafe.slug, "esquina-sur"));
         if (!consumer || !targetCafe) {
-            throw new Error("live test precondition missing: run db:seed first");
+            throw new Error(
+                "live test precondition missing: run db:seed first",
+            );
         }
 
         const receiptHashes = await seedHistoricalConsumptions({
