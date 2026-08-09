@@ -1,4 +1,3 @@
-import { requiredBudget } from "@/core/campaign/domain/transitions";
 import { abis } from "@/core/chain/abis";
 import type { JobFailure, JobHandler } from "./types";
 
@@ -50,10 +49,7 @@ export const campaignPublishHandler: JobHandler = {
             functionName: "campaigns",
             args: [BigInt(payload.chainCampaignId)],
         })) as { budget: bigint; voucherPayout: bigint; maxVouchers: bigint };
-        const required = requiredBudget({
-            voucherPayout: live.voucherPayout,
-            maxVouchers: Number(live.maxVouchers),
-        });
+        const required = live.voucherPayout * live.maxVouchers;
         if (live.budget < required) {
             return {
                 code: "unknown",
