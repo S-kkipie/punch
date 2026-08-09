@@ -160,6 +160,9 @@ describe("consumer domain Drizzle schemas", () => {
             "CREATE UNIQUE INDEX consumption_proof_purchase_order_uq",
         );
         expect(generatedMigration).toContain(
+            "CHECK (((consumption_proof.status)::text <> ALL (ARRAY['submitted'::text, 'confirmed'::text])) OR (consumption_proof.consumer_user_id IS NOT NULL AND consumption_proof.purchase_order_id IS NOT NULL))",
+        );
+        expect(generatedMigration).toContain(
             "ALTER TYPE public.purchase_proof_status ADD VALUE 'expired'",
         );
         expect(generatedMigration).toContain(

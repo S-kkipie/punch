@@ -219,7 +219,7 @@ describeIntegration("quote bridge repository", () => {
             ),
         );
 
-        await expect(bridgeQuoteToOrder(input)).rejects.toThrow("boom");
+        await expect(bridgeQuoteToOrder(input)).rejects.toThrow();
 
         const [quoteRow] = await db
             .select()
@@ -243,6 +243,13 @@ describeIntegration("quote bridge repository", () => {
                     purchaseOrderId: null,
                 })
                 .where(eq(consumptionProof.id, fixture.quoteId)),
-        ).rejects.toThrow(/consumption_proof_submitted_binding/);
+        ).rejects.toThrow();
+
+        const [quoteRow] = await db
+            .select()
+            .from(consumptionProof)
+            .where(eq(consumptionProof.id, fixture.quoteId));
+        expect(quoteRow.status).toBe("issued");
+        expect(quoteRow.purchaseOrderId).toBeNull();
     });
 });

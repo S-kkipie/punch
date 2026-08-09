@@ -1463,7 +1463,7 @@
         },
         "consumption_proof_submitted_binding": {
           "name": "consumption_proof_submitted_binding",
-          "value": "\"consumption_proof\".\"status\" NOT IN ('submitted', 'confirmed') OR (\"consumption_proof\".\"consumer_user_id\" IS NOT NULL AND \"consumption_proof\".\"purchase_order_id\" IS NOT NULL)"
+          "value": "(\"consumption_proof\".\"status\")::text <> ALL (ARRAY['submitted'::text, 'confirmed'::text]) OR (\"consumption_proof\".\"consumer_user_id\" IS NOT NULL AND \"consumption_proof\".\"purchase_order_id\" IS NOT NULL)"
         }
       },
       "isRLSEnabled": false

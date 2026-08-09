@@ -70,7 +70,7 @@ export const consumptionProof = pgTable(
         ),
         check(
             "consumption_proof_submitted_binding",
-            sql`${table.status} NOT IN ('submitted', 'confirmed') OR (${table.consumerUserId} IS NOT NULL AND ${table.purchaseOrderId} IS NOT NULL)`,
+            sql`(${table.status})::text <> ALL (ARRAY['submitted'::text, 'confirmed'::text]) OR (${table.consumerUserId} IS NOT NULL AND ${table.purchaseOrderId} IS NOT NULL)`,
         ),
     ],
 );
