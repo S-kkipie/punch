@@ -7,6 +7,7 @@ import {
     purchaseOrder,
     relayerJob,
 } from "@/server/drizzle/schemas/purchase-schema";
+import { installIntegrationDbMutex } from "@/test/integration-db-mutex";
 import {
     claimSubmittedJobs,
     findJobsToRun,
@@ -18,6 +19,7 @@ import {
 
 const runIntegration = process.env.PUNCH_RUN_INTEGRATION === "1";
 const describeIntegration = describe.skipIf(!runIntegration);
+installIntegrationDbMutex();
 
 type Fixture = {
     userId: string;
@@ -125,8 +127,10 @@ describeIntegration("purchase repository concurrency", () => {
             findJobsToRun(1, leaseMs),
             findJobsToRun(1, leaseMs),
         ]);
-        expect(first).toHaveLength(1);
-        expect(second).toHaveLength(0);
+        expect([first.length, second.length].sort()).toEqual([0, 1]);
+        expect([...first, ...second].map((claimed) => claimed.id)).toEqual([
+            job.id,
+        ]);
 
         await new Promise((resolve) => setTimeout(resolve, leaseMs + 10));
         const afterLease = await findJobsToRun(1, leaseMs);
@@ -201,8 +205,10 @@ describeIntegration("purchase repository concurrency", () => {
             claimSubmittedJobs(1, leaseMs),
             claimSubmittedJobs(1, leaseMs),
         ]);
-        expect(first).toHaveLength(1);
-        expect(second).toHaveLength(0);
+        expect([first.length, second.length].sort()).toEqual([0, 1]);
+        expect([...first, ...second].map((claimed) => claimed.id)).toEqual([
+            job.id,
+        ]);
 
         await new Promise((resolve) => setTimeout(resolve, leaseMs + 10));
         const afterLease = await claimSubmittedJobs(1, leaseMs);

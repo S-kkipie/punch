@@ -40,9 +40,11 @@ import {
     purchaseOrder,
     relayerJob,
 } from "@/server/drizzle/schemas/purchase-schema";
+import { installIntegrationDbMutex } from "@/test/integration-db-mutex";
 
 const runIntegration = process.env.PUNCH_RUN_INTEGRATION === "1";
 const describeIntegration = describe.skipIf(!runIntegration);
+installIntegrationDbMutex();
 const ANVIL_MNEMONIC =
     "test test test test test test test test test test test junk";
 const RELAYER_MNEMONIC =
@@ -821,8 +823,9 @@ describeIntegration("relayer live integration", () => {
             findJobsToRun(1, 200),
         ]);
 
-        expect(first).toHaveLength(1);
-        expect(second).toHaveLength(0);
-        expect(first[0]?.orderId).toBe(setup.fixture.orderId);
+        expect([first.length, second.length].sort()).toEqual([0, 1]);
+        expect([...first, ...second].map((job) => job.orderId)).toEqual([
+            setup.fixture.orderId,
+        ]);
     });
 });
