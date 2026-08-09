@@ -5,12 +5,14 @@ import type { DbClient, db } from "@/server/drizzle/db";
 import {
     indexerCursor,
     projectionCafeCredit,
+    projectionCafePayout,
     projectionConsumption,
     projectionPunchBalance,
 } from "@/server/drizzle/schemas/chain-schema";
 import {
     consumerTransaction,
     consumptionProof,
+    redemptionRequest,
 } from "@/server/drizzle/schemas/consumption-schema";
 import {
     chainPurchaseEffect,
@@ -127,6 +129,22 @@ export async function clearChainDerivedPurchaseProjections(
                     ),
                 ),
             );
+        await tx
+            .delete(consumerTransaction)
+            .where(
+                and(
+                    eq(consumerTransaction.operation, "punch_redemption"),
+                    like(
+                        consumerTransaction.idempotencyKey,
+                        "chain_redemption:%",
+                    ),
+                ),
+            );
+        await tx
+            .update(redemptionRequest)
+            .set({ status: "approved" })
+            .where(eq(redemptionRequest.status, "confirmed"));
+        await tx.delete(projectionCafePayout).where(sql`true`);
         await tx
             .update(consumptionProof)
             .set({ status: "submitted" })
