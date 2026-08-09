@@ -31,6 +31,63 @@ describe("worker entrypoint", () => {
         );
     });
 
+    it("shuts down safely when signaled during startup recovery", async () => {
+        const recovery = deferred();
+        const signals = fakeSignals();
+        const setInterval = vi.fn() as unknown as NonNullable<
+            WorkerDependencies["setInterval"]
+        >;
+        const exit = vi.fn();
+        const starting = startWorker(
+            workerDeps({
+                recoverStuckJobs: () => recovery.promise,
+                signals,
+                setInterval,
+                exit,
+            }),
+        );
+
+        signals.emit("SIGINT");
+        signals.emit("SIGTERM");
+        expect(setInterval).not.toHaveBeenCalled();
+        expect(exit).not.toHaveBeenCalled();
+
+        recovery.resolve();
+        await starting;
+        await Promise.resolve();
+        expect(setInterval).not.toHaveBeenCalled();
+        expect(exit).toHaveBeenCalledTimes(1);
+        expect(exit).toHaveBeenCalledWith(0);
+    });
+
+    it("redacts credentials and secret fields from logged errors", async () => {
+        const logger = { error: vi.fn() };
+        const worker = await startWorker(
+            workerDeps({
+                logger,
+                runRelayerOnce: async () => {
+                    throw new Error(
+                        "request failed postgres://db-user:db-password@example.test/db?token=url-token with bearer bearer-secret password=pass-123 mnemonic: seed words private_key=key-123",
+                    );
+                },
+            }),
+        );
+
+        await vi.advanceTimersByTimeAsync(2_000);
+        const logged = logger.error.mock.calls[0]?.[1]?.error as {
+            name: string;
+            message: string;
+        };
+        expect(logged.name).toBe("Error");
+        expect(logged.message).not.toContain("db-password");
+        expect(logged.message).not.toContain("url-token");
+        expect(logged.message).not.toContain("bearer-secret");
+        expect(logged.message).not.toContain("pass-123");
+        expect(logged.message).not.toContain("seed words");
+        expect(logged.message).not.toContain("key-123");
+        await worker.shutdown();
+    });
+
     it("recovers before scheduling independent loops at their exact intervals", async () => {
         const calls: string[] = [];
         const deps = workerDeps({
@@ -127,6 +184,19 @@ describe("worker entrypoint", () => {
         expect(exit).toHaveBeenCalledTimes(1);
     });
 });
+
+type FakeSignals = NonNullable<WorkerDependencies["signals"]> & {
+    emit(signal: "SIGINT" | "SIGTERM"): void;
+};
+
+function fakeSignals(): FakeSignals {
+    const listeners = new Map<string, () => void>();
+    return {
+        on: (signal, listener) => listeners.set(signal, listener),
+        removeListener: (signal) => listeners.delete(signal),
+        emit: (signal: "SIGINT" | "SIGTERM") => listeners.get(signal)?.(),
+    } as FakeSignals;
+}
 
 function workerDeps(
     overrides: Partial<WorkerDependencies> = {},
