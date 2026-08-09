@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+    bigint,
     boolean,
     check,
     integer,
@@ -52,6 +53,7 @@ export const chainPurchaseEffect = pgTable(
         progressId: text("progress_id"),
         transactionHash: text("transaction_hash").notNull(),
         logIndex: integer("log_index").notNull(),
+        failureReason: text("failure_reason"),
         createdAt: timestamp("created_at").defaultNow().notNull(),
     },
     (table) => [
@@ -77,6 +79,9 @@ export const campaign = pgTable(
         windowStart: timestamp("window_start").notNull(),
         windowEnd: timestamp("window_end").notNull(),
         active: boolean("active").default(true).notNull(),
+        chainCampaignId: integer("chain_campaign_id").unique(),
+        voucherPayout: bigint("voucher_payout", { mode: "bigint" }),
+        maxVouchers: integer("max_vouchers"),
         createdAt: timestamp("created_at").defaultNow().notNull(),
     },
     (table) => [
@@ -110,6 +115,7 @@ export const consumerVoucher = pgTable(
         status: voucherStatus("status").default("available").notNull(),
         expiresAt: timestamp("expires_at").notNull(),
         redeemedAt: timestamp("redeemed_at"),
+        chainUnlockTxHash: text("chain_unlock_tx_hash"),
         createdAt: timestamp("created_at").defaultNow().notNull(),
     },
     (table) => [

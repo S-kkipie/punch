@@ -3,6 +3,7 @@ import {
     bigint,
     boolean,
     integer,
+    pgEnum,
     pgTable,
     text,
     timestamp,
@@ -20,6 +21,28 @@ export const projectionCafeCredit = pgTable("projection_cafe_credit", {
     credits: bigint("credits", { mode: "bigint" }).notNull(),
     lastBlock: bigint("last_block", { mode: "bigint" }).notNull(),
 });
+
+export const campaignProjectionStatus = pgEnum("campaign_projection_status", [
+    "draft",
+    "published",
+    "cancelled",
+]);
+
+export const projectionCampaign = pgTable("projection_campaign", {
+    chainCampaignId: integer("chain_campaign_id").primaryKey(),
+    status: campaignProjectionStatus("status").notNull(),
+    budget: bigint("budget", { mode: "bigint" }).notNull(),
+    voucherPayout: bigint("voucher_payout", { mode: "bigint" })
+        .default(sql`0`)
+        .notNull(),
+    maxVouchers: integer("max_vouchers").default(0).notNull(),
+    expiry: timestamp("expiry").notNull(),
+    unlockedCount: integer("unlocked_count").default(0).notNull(),
+    redeemedCount: integer("redeemed_count").default(0).notNull(),
+    lastBlock: bigint("last_block", { mode: "bigint" }).notNull(),
+});
+
+export type ProjectionCampaignRow = typeof projectionCampaign.$inferSelect;
 
 export const projectionConsumption = pgTable(
     "projection_consumption",
