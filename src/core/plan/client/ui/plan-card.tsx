@@ -87,7 +87,12 @@ export function PlanCard({
                     </p>
                 </div>
 
-                {status.canPay ? (
+                {status.needsReconciliation ? (
+                    <p className="text-sm text-destructive">
+                        PUNCH está verificando tu último pago. No inicies otro
+                        hasta que se resuelva, o podrías pagar dos veces.
+                    </p>
+                ) : status.canPay ? (
                     <Button
                         aria-label={`${label} · S/${price}`}
                         disabled={blocked}

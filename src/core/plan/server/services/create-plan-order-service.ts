@@ -11,7 +11,10 @@ import {
     ok,
 } from "@/server/common/responses";
 import { readPlanChainState } from "../repository/plan-chain-reader";
-import { insertOrderIfIdle } from "../repository/plan-repository";
+import {
+    findUnresolvedByCafe,
+    insertOrderIfIdle,
+} from "../repository/plan-repository";
 import { findCafeMembership } from "./get-plan-status-service";
 import { toPlanOrderView } from "./plan-view";
 
@@ -26,6 +29,7 @@ export type CreatePlanOrderDeps = {
         walletAddress: `0x${string}`;
     }) => Promise<boolean>;
     ensureWallet: typeof assignWallet;
+    findUnresolved: typeof findUnresolvedByCafe;
     insertOrderIfIdle: typeof insertOrderIfIdle;
 };
 
@@ -34,6 +38,7 @@ const defaults: CreatePlanOrderDeps = {
     readChainState: (chainCafeId) => readPlanChainState(chainCafeId),
     isAuthorized: isAuthorizedCafeOperator,
     ensureWallet: assignWallet,
+    findUnresolved: findUnresolvedByCafe,
     insertOrderIfIdle,
 };
 
@@ -51,6 +56,9 @@ export async function createPlanOrderService(
             return err(AppErrors.unprocessableEntity({ targets: ["cafeId"] }));
         }
         const chainCafeId = membership.chainCafeId;
+        if (await d.findUnresolved(input.cafeId)) {
+            return err(AppErrors.conflict({ targets: ["cafeId"] }));
+        }
 
         const wallet = await d.ensureWallet(userId);
         const authorized = await d.isAuthorized({

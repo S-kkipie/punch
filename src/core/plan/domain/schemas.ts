@@ -55,4 +55,5 @@ export const planStatusSchema = z.object({
     unallocatedReserveSoles: z.number().nonnegative(),
     canPay: z.boolean(),
     inFlightOrderId: z.string().nullable(),
+    needsReconciliation: z.boolean(),
 });

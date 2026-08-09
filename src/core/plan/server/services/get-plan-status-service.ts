@@ -15,7 +15,10 @@ import { user } from "@/server/drizzle/schemas/auth-schema";
 import { cafe, cafeMember } from "@/server/drizzle/schemas/cafe-schema";
 import { projectionCafeCredit } from "@/server/drizzle/schemas/chain-schema";
 import { readPlanChainState } from "../repository/plan-chain-reader";
-import { findInFlightByCafe } from "../repository/plan-repository";
+import {
+    findInFlightByCafe,
+    findUnresolvedByCafe,
+} from "../repository/plan-repository";
 
 export type CafeMembership = {
     chainCafeId: number | null;
@@ -62,6 +65,7 @@ export type PlanStatusDeps = {
         walletAddress: `0x${string}`;
     }) => Promise<boolean>;
     findInFlight: (cafeId: string) => Promise<{ id: string } | null>;
+    findUnresolved: (cafeId: string) => Promise<{ id: string } | null>;
 };
 
 const defaults: PlanStatusDeps = {
@@ -70,6 +74,7 @@ const defaults: PlanStatusDeps = {
     readCredits,
     isAuthorized: isAuthorizedCafeOperator,
     findInFlight: findInFlightByCafe,
+    findUnresolved: findUnresolvedByCafe,
 };
 
 export async function getPlanStatusService(
@@ -87,10 +92,11 @@ export async function getPlanStatusService(
             return err(AppErrors.unprocessableEntity({ targets: ["cafeId"] }));
         }
 
-        const [chainState, credits, inFlight] = await Promise.all([
+        const [chainState, credits, inFlight, unresolved] = await Promise.all([
             d.readChainState(chainCafeId),
             d.readCredits(chainCafeId),
             d.findInFlight(cafeId),
+            d.findUnresolved(cafeId),
         ]);
         const canPay = walletAddress
             ? await d.isAuthorized({
@@ -106,6 +112,7 @@ export async function getPlanStatusService(
             unallocatedReserveSoles: mpenToSoles(chainState.unallocatedReserve),
             canPay,
             inFlightOrderId: inFlight?.id ?? null,
+            needsReconciliation: unresolved !== null,
         });
     } catch (cause) {
         return err(AppErrors.unexpected(cause));

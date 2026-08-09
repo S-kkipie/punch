@@ -41,6 +41,24 @@ export async function findInFlightByCafe(
     return row ?? null;
 }
 
+/** An order whose on-chain outcome is unknown blocks new payments until a human resolves it. */
+export async function findUnresolvedByCafe(
+    cafeId: string,
+): Promise<PlanOrderRow | null> {
+    const [row] = await db
+        .select()
+        .from(planOrder)
+        .where(
+            and(
+                eq(planOrder.cafeId, cafeId),
+                eq(planOrder.status, "failed"),
+                eq(planOrder.failureReason, "needs_reconciliation"),
+            ),
+        )
+        .limit(1);
+    return row ?? null;
+}
+
 /**
  * Inserts unless the cafe already has a payment in flight. The partial unique
  * index is the real guard: two concurrent requests both reach the insert and
@@ -237,6 +255,7 @@ export const planRepository = {
     insertOrderIfIdle,
     findOrder,
     findInFlightByCafe,
+    findUnresolvedByCafe,
     listOrdersByCafe,
     findOrdersToRun,
     claimSubmittedOrders,

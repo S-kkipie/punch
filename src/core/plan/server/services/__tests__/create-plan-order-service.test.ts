@@ -35,6 +35,7 @@ function deps(overrides = {}) {
             address: "0x2222222222222222222222222222222222222222",
         }),
         insertOrderIfIdle: vi.fn().mockResolvedValue({ created: true, row }),
+        findUnresolved: vi.fn().mockResolvedValue(null),
         ...overrides,
     };
 }
@@ -81,6 +82,23 @@ describe("createPlanOrderService", () => {
         expect(result.ok).toBe(true);
         if (!result.ok) return;
         expect(result.data.priceSoles).toBe(40);
+    });
+
+    it("rejects a new order while a payment needs reconciliation", async () => {
+        const insertOrderIfIdle = vi.fn();
+        const d = deps({
+            findUnresolved: vi.fn().mockResolvedValue({ id: "o2" }),
+            insertOrderIfIdle,
+        });
+        const result = await createPlanOrderService(
+            "u1",
+            { cafeId: "c1", kind: "plan" },
+            d,
+        );
+        expect(result.ok).toBe(false);
+        if (result.ok) return;
+        expect(result.error.status).toBe(409);
+        expect(insertOrderIfIdle).not.toHaveBeenCalled();
     });
 
     it("rejects a pack when the plan is not active", async () => {

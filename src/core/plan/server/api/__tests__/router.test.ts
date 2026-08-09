@@ -94,6 +94,7 @@ describe("plan router", () => {
                 unallocatedReserveSoles: 30,
                 canPay: true,
                 inFlightOrderId: null,
+                needsReconciliation: false,
             },
         } as never);
         const response = await planRouter.handle(

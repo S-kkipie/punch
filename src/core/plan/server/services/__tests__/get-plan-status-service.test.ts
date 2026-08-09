@@ -16,6 +16,7 @@ function deps(overrides = {}) {
         readCredits: vi.fn().mockResolvedValue(100n),
         isAuthorized: vi.fn().mockResolvedValue(true),
         findInFlight: vi.fn().mockResolvedValue(null),
+        findUnresolved: vi.fn().mockResolvedValue(null),
         ...overrides,
     };
 }
@@ -32,6 +33,7 @@ describe("getPlanStatusService", () => {
             unallocatedReserveSoles: 30,
             canPay: true,
             inFlightOrderId: null,
+            needsReconciliation: false,
         });
     });
 
@@ -66,6 +68,24 @@ describe("getPlanStatusService", () => {
         expect(result.ok).toBe(true);
         if (!result.ok) return;
         expect(result.data.inFlightOrderId).toBe("o1");
+    });
+
+    it("reports when an unresolved payment needs reconciliation", async () => {
+        const result = await getPlanStatusService(
+            "u1",
+            "c1",
+            deps({ findUnresolved: vi.fn().mockResolvedValue({ id: "o2" }) }),
+        );
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.data.needsReconciliation).toBe(true);
+    });
+
+    it("reports no reconciliation when there is no unresolved payment", async () => {
+        const result = await getPlanStatusService("u1", "c1", deps());
+        expect(result.ok).toBe(true);
+        if (!result.ok) return;
+        expect(result.data.needsReconciliation).toBe(false);
     });
 
     it("rejects a user who is not a member", async () => {

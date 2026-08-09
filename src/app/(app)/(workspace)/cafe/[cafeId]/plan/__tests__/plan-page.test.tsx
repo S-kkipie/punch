@@ -3,6 +3,10 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+(
+    globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true;
+
 const usePlanStatus = vi.fn();
 const usePlanOrders = vi.fn();
 const useCreatePlanOrder = vi.fn();
@@ -41,7 +45,7 @@ function button(name: RegExp) {
 
 describe("plan page", () => {
     afterEach(() => {
-        renderedRoot?.unmount();
+        act(() => renderedRoot?.unmount());
         renderedRoot = undefined;
         document.body.innerHTML = "";
         vi.clearAllMocks();
@@ -114,6 +118,21 @@ describe("plan page", () => {
         await renderPage();
         expect(button(/Activar plan/i)).toBeUndefined();
         expect(document.body.textContent).toMatch(/no está autorizada/i);
+    });
+
+    it("blocks payment while PUNCH verifies an unresolved payment", async () => {
+        setup({
+            cafeId: "c1",
+            planActive: false,
+            credits: 0,
+            unallocatedReserveSoles: 0,
+            canPay: true,
+            inFlightOrderId: null,
+            needsReconciliation: true,
+        });
+        await renderPage();
+        expect(button(/Activar plan/i)).toBeUndefined();
+        expect(document.body.textContent).toMatch(/PUNCH está verificando/i);
     });
 
     it("lists past payments", async () => {

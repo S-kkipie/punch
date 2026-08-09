@@ -9,6 +9,7 @@ import {
     extendSubmittedLease,
     findInFlightByCafe,
     findOrdersToRun,
+    findUnresolvedByCafe,
     insertOrderIfIdle,
     markOrderConfirmed,
     markOrderExecuting,
@@ -160,6 +161,32 @@ describeIntegration("plan repository", () => {
         expect(extended?.status).toBe("submitted");
         expect(extended?.txHash).toBe(submitted?.txHash);
         expect(extended?.nextRetryAt?.getTime()).toBe(lease.getTime());
+    });
+
+    it("finds only failed orders that need reconciliation", async () => {
+        const base = await fixture();
+        const unresolved = await insertOrderIfIdle(newOrder(base));
+        await markOrderFailed(
+            unresolved.row.id,
+            "unknown receipt outcome",
+            "needs_reconciliation",
+        );
+        expect((await findUnresolvedByCafe(base.cafeId))?.id).toBe(
+            unresolved.row.id,
+        );
+
+        const other = await insertOrderIfIdle(newOrder(base));
+        await markOrderFailed(other.row.id, "reverted", "reverted");
+        expect((await findUnresolvedByCafe(base.cafeId))?.id).toBe(
+            unresolved.row.id,
+        );
+    });
+
+    it("returns no unresolved order for a different failed reason", async () => {
+        const base = await fixture();
+        const order = await insertOrderIfIdle(newOrder(base));
+        await markOrderFailed(order.row.id, "reverted", "reverted");
+        expect(await findUnresolvedByCafe(base.cafeId)).toBeNull();
     });
 
     it("records a permanent failure with its reason", async () => {
