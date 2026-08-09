@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, isNotNull } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import { db } from "@/server/drizzle/db";
 import { user } from "@/server/drizzle/schemas/auth-schema";
@@ -27,6 +27,7 @@ async function fixture() {
     const [seedCafe] = await db
         .select({ id: cafe.id, chainCafeId: cafe.chainCafeId })
         .from(cafe)
+        .where(isNotNull(cafe.chainCafeId))
         .limit(1);
     if (!seedUser || !seedCafe || seedCafe.chainCafeId === null) {
         throw new Error(

@@ -58,7 +58,7 @@ export async function insertOrderIfIdle(
         })
         .onConflictDoNothing({
             target: planOrder.cafeId,
-            targetWhere: sql`status in ('pending', 'submitted')`,
+            where: sql`status in ('pending', 'submitted')`,
         })
         .returning();
     if (inserted) return { created: true, row: inserted };
