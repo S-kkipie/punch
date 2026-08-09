@@ -1,10 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../repository/balance", () => ({ getBalance: vi.fn() }));
+vi.mock("@/core/purchase/server/services/get-balance-service", () => ({
+    getConsumerBalance: vi.fn(),
+}));
 vi.mock("../../repository/dashboard", () => ({
     getDashboardReadData: vi.fn(),
 }));
 
+import { getConsumerBalance } from "@/core/purchase/server/services/get-balance-service";
 import { getBalance } from "../../repository/balance";
 import { getDashboardReadData } from "../../repository/dashboard";
 import { getDashboardService } from "../get-dashboard-service";
@@ -15,6 +19,10 @@ describe("getDashboardService", () => {
     beforeEach(() => {
         vi.clearAllMocks();
         vi.mocked(getDashboardReadData).mockResolvedValue(summaries);
+        vi.mocked(getConsumerBalance).mockImplementation((async () => ({
+            ok: true,
+            data: { punchBalance: await getBalance("user-1"), stale: false },
+        })) as never);
     });
 
     it.each([
@@ -30,6 +38,49 @@ describe("getDashboardService", () => {
                 denominator: 12,
             });
         }
+    });
+
+    it("does not invent zero progress for an unknown chain balance", async () => {
+        vi.mocked(getConsumerBalance).mockResolvedValue({
+            ok: true,
+            data: { punchBalance: null, stale: true },
+        });
+        const result = await getDashboardService("user-1", {
+            consumerChainMode: "local",
+        });
+        expect(result).toMatchObject({
+            ok: true,
+            data: { balance: null, stale: true, progress: null },
+        });
+    });
+
+    it("uses chain-backed balance in local mode and includes staleness", async () => {
+        vi.mocked(getConsumerBalance).mockResolvedValue({
+            ok: true,
+            data: { punchBalance: 11, stale: true },
+        });
+        const result = await getDashboardService("user-1", {
+            consumerChainMode: "local",
+        });
+        expect(getBalance).not.toHaveBeenCalled();
+        expect(result).toMatchObject({
+            ok: true,
+            data: { balance: 11, stale: true },
+        });
+    });
+
+    it("uses the mock repository only in explicit mock mode", async () => {
+        vi.mocked(getBalance).mockResolvedValue(4);
+        const result = await getDashboardService("user-1", {
+            consumerChainMode: "mock",
+        });
+        expect(getConsumerBalance).toHaveBeenCalledWith("user-1", {
+            consumerChainMode: "mock",
+        });
+        expect(result).toMatchObject({
+            ok: true,
+            data: { balance: 4, stale: false },
+        });
     });
 
     it("passes the authenticated user to the dashboard read repository", async () => {

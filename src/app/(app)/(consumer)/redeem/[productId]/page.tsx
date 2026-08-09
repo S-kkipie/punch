@@ -24,6 +24,21 @@ export default function RedeemPage() {
     const punchRedemption = useRequestPunchRedemption(cafeId);
     const voucherRedemption = useRequestVoucherRedemption(cafeId);
     const [isOnline, setIsOnline] = useState(true);
+    const [lastKnownBalance, setLastKnownBalance] = useState<number | null>(
+        null,
+    );
+    useEffect(() => {
+        const currentBalance = (
+            dashboard.data as { balance: number | null } | undefined
+        )?.balance;
+        if (
+            currentBalance !== null &&
+            currentBalance !== undefined &&
+            currentBalance !== lastKnownBalance
+        ) {
+            setLastKnownBalance(currentBalance);
+        }
+    }, [dashboard.data, lastKnownBalance]);
     useEffect(() => {
         setIsOnline(navigator.onLine);
         const goOnline = () => setIsOnline(true);
@@ -41,8 +56,11 @@ export default function RedeemPage() {
                 <Spinner />
             </div>
         );
-    const balance =
-        (dashboard.data as { balance: number } | undefined)?.balance ?? 0;
+    const dashboardBalance = dashboard.data as
+        | { balance: number | null; stale: boolean }
+        | undefined;
+    const currentBalance = dashboardBalance?.balance;
+    const balance = currentBalance ?? lastKnownBalance;
     const product = (
         (products.data ?? []) as Array<{ id: string; name: string }>
     ).find((item) => item.id === productId);
@@ -62,8 +80,14 @@ export default function RedeemPage() {
                   (item.cafeId === null || item.cafeId === cafeId),
           )
         : undefined;
-    const eligible = canRedeem(balance);
+    const eligible =
+        balance !== null && balance !== undefined && canRedeem(balance);
     const isVoucherFlow = Boolean(voucherId);
+    const isLocalChain =
+        (dashboard.data as { chainMode?: "mock" | "local" } | undefined)
+            ?.chainMode === "local";
+    const isUnknownBalance =
+        currentBalance === null || currentBalance === undefined;
     const redeem = () => {
         if (voucherId) {
             if (voucher) voucherRedemption.mutate({ voucherId });
@@ -87,12 +111,27 @@ export default function RedeemPage() {
                             : "Voucher no disponible"
                         : "Costo fijo: 12 PUNCH"}
                 </p>
-                {!isVoucherFlow && (
-                    <p className="text-[var(--color-ink-2)] text-sm">
-                        Tu progreso: {balance} / 12
+                {!isVoucherFlow &&
+                    balance !== null &&
+                    balance !== undefined && (
+                        <p className="text-[var(--color-ink-2)] text-sm">
+                            Tu progreso: {Math.min(balance, 12)} / 12
+                        </p>
+                    )}
+                {!isVoucherFlow && isUnknownBalance && (
+                    <p
+                        className="text-[var(--color-ink-2)] text-sm"
+                        role="status"
+                    >
+                        Actualizando desde la cadena
                     </p>
                 )}
-                {!isVoucherFlow && !eligible && (
+                {!isVoucherFlow && isLocalChain && (
+                    <p className="text-amber-700 text-sm">
+                        La redención on-chain aún no disponible.
+                    </p>
+                )}
+                {!isVoucherFlow && !isLocalChain && !eligible && (
                     <p className="text-amber-700 text-sm">
                         Necesitas 12 PUNCH para canjear.
                     </p>
@@ -111,7 +150,9 @@ export default function RedeemPage() {
                 className="min-h-12 w-full"
                 disabled={
                     !isOnline ||
-                    (isVoucherFlow ? !voucher : !eligible) ||
+                    (isVoucherFlow
+                        ? !voucher
+                        : isLocalChain || isUnknownBalance || !eligible) ||
                     punchRedemption.isPending ||
                     voucherRedemption.isPending
                 }

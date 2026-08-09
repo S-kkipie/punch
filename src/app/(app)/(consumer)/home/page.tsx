@@ -38,16 +38,25 @@ export default function HomePage() {
     const [savedDashboard, setSavedDashboard] = useState<Dashboard | null>(
         null,
     );
+    const [lastKnownDashboard, setLastKnownDashboard] =
+        useState<Dashboard | null>(null);
     const userId = sessionQuery.data?.user.id;
 
     useEffect(() => {
         if (!userId || typeof window === "undefined") return;
-        if (dashboardQuery.data) {
+        const dashboardData = dashboardQuery.data as Dashboard | undefined;
+        if (dashboardData) {
+            if (
+                dashboardData.balance !== null &&
+                lastKnownDashboard?.balance !== dashboardData.balance
+            ) {
+                setLastKnownDashboard(dashboardData);
+            }
             writePunchSnapshot(
                 window.localStorage,
                 userId,
                 "dashboard",
-                dashboardQuery.data,
+                dashboardData,
             );
         } else if (dashboardQuery.isError && navigator.onLine === false) {
             setSavedDashboard(
@@ -58,7 +67,12 @@ export default function HomePage() {
                 ),
             );
         }
-    }, [dashboardQuery.data, dashboardQuery.isError, userId]);
+    }, [
+        dashboardQuery.data,
+        dashboardQuery.isError,
+        lastKnownDashboard,
+        userId,
+    ]);
     const myCafes = myCafesQuery.data as
         | Array<{
               id: string;
@@ -111,8 +125,19 @@ export default function HomePage() {
     }
 
     const dashboard = (dashboardQuery.data ?? savedDashboard) as Dashboard;
+    const knownDashboard =
+        dashboard.balance === null ? lastKnownDashboard : dashboard;
+    const displayDashboard = knownDashboard ?? dashboard;
     return (
         <div className="grid gap-6">
+            {dashboard.stale && (
+                <p
+                    className="rounded-md bg-[var(--color-surface-2)] p-3 text-sm"
+                    role="status"
+                >
+                    Actualizando desde la cadena
+                </p>
+            )}
             {savedDashboard && !dashboardQuery.data && (
                 <p
                     className="rounded-md bg-[var(--color-surface-2)] p-3 text-sm"
@@ -130,7 +155,9 @@ export default function HomePage() {
                     Cada visita cuenta para mantener viva la red.
                 </p>
             </section>
-            <PunchMeter balance={dashboard.balance} />
+            {displayDashboard.balance !== null && (
+                <PunchMeter balance={displayDashboard.balance} />
+            )}
             <Button asChild size="lg" className="min-h-12 w-full text-base">
                 <Link href="/scan">
                     Escanear compra <span aria-hidden="true">→</span>

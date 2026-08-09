@@ -1,5 +1,5 @@
 "use client";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useElysia } from "@/frontend/lib/eden";
 
 const unwrap = (result: unknown) => (result as { response: unknown }).response;
@@ -12,6 +12,7 @@ export const useDashboard = () => {
             unknown
         >),
         queryKey: ["punch", "dashboard"],
+        placeholderData: keepPreviousData,
         select: unwrap,
     });
 };

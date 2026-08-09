@@ -7,11 +7,11 @@ import {
     errorToResponse,
     successResponseSchema,
 } from "@/server/common/responses";
-import { getBalanceService } from "../../services/get-balance-service";
+import { getConsumerBalance } from "../../services/get-balance-service";
 
 const balanceSchema = z
     .object({
-        punchBalance: z.number().int().nonnegative(),
+        punchBalance: z.number().int().nonnegative().nullable(),
         stale: z.boolean(),
     })
     .strict();
@@ -19,7 +19,7 @@ const balanceSchema = z
 export const getMyBalanceRoute = new Elysia().use(authed).get(
     "/balance",
     async ({ user, status }) => {
-        const result = await getBalanceService(user.id);
+        const result = await getConsumerBalance(user.id);
         if (!result.ok)
             return status(
                 result.error.status as 500,
