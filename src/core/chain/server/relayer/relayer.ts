@@ -4,35 +4,35 @@ import {
     type Address,
     type Hex,
     type PublicClient,
-    parseEventLogs,
+    type TransactionReceipt,
     TransactionReceiptNotFoundError,
     type WalletClient,
 } from "viem";
 import { env } from "@/config/env";
-import { abis } from "@/core/chain/abis";
-import { getAddresses } from "@/core/chain/addresses";
+import { type AddressMap, getAddresses } from "@/core/chain/addresses";
 import {
     createChainPublicClient,
     createChainWalletClient,
 } from "@/core/chain/chain";
-import {
-    type ConsumptionProof,
-    deserializeProof,
-} from "@/core/chain/server/proof/proof";
+import type { JobSideEffect } from "@/core/chain/server/relayer/job-repository";
 import {
     claimSubmittedJobs,
     findJobsToRun,
     markJobConfirmed,
     markJobFailed,
     markJobPending,
+    markJobRetry,
     markJobSubmitted,
     RELAYER_CLAIM_LEASE_MS,
 } from "@/core/chain/server/relayer/job-repository";
 import { deriveUserAccount } from "@/core/chain/server/wallet/derive";
 import {
-    markJobRetry as markPurchaseJobRetry,
-    purchaseJobSideEffects,
-} from "@/core/purchase/server/repository/purchase-repository";
+    hasRecordedProof,
+    parseSubmission,
+    replaySubmissionError,
+} from "./handlers/consumption-record";
+import { handlerFor } from "./handlers/registry";
+import type { JobContext, JobFailure } from "./handlers/types";
 import {
     type ParsedRevert,
     parseRevert,
@@ -52,11 +52,6 @@ const PERMANENT_CODES = new Set<RevertCode | "nonce_conflict">([
 
 type Job = Awaited<ReturnType<typeof findJobsToRun>>[number];
 type RelayerWallet = WalletClient;
-type Submission = {
-    proof: ConsumptionProof;
-    cafeSignature: Hex;
-    userSignature: Hex;
-};
 
 export type RelayerDeps = {
     findJobsToRun: (limit: number) => Promise<Job[]>;
@@ -65,37 +60,43 @@ export type RelayerDeps = {
         id: string,
         txHash: Hex,
         nextRetryAt: Date,
+        sideEffect?: JobSideEffect,
     ) => Promise<unknown>;
-    markJobConfirmed: (id: string) => Promise<unknown>;
+    markJobConfirmed: (
+        id: string,
+        sideEffect?: JobSideEffect,
+    ) => Promise<unknown>;
     markJobRetry: (
         id: string,
         error: string,
         attempts: number,
         nextRetryAt: Date,
+        sideEffect?: JobSideEffect,
     ) => Promise<unknown>;
     markJobFailed: (
         id: string,
         error: string,
         failureReason: string,
+        sideEffect?: JobSideEffect,
     ) => Promise<unknown>;
-    markJobPending: (id: string, nextRetryAt: Date) => Promise<unknown>;
+    markJobPending: (
+        id: string,
+        nextRetryAt: Date,
+        sideEffect?: JobSideEffect,
+    ) => Promise<unknown>;
     wallet: RelayerWallet;
     pub: {
         waitForTransactionReceipt: PublicClient["waitForTransactionReceipt"];
         getTransactionReceipt: PublicClient["getTransactionReceipt"];
         getLogs: PublicClient["getLogs"];
-        simulateContract: (args: {
-            address: Address;
-            abi: typeof abis.consumptionLog;
-            functionName: "recordConsumption";
-            args: [ConsumptionProof, Hex, Hex];
-            account: Address;
-            blockNumber?: bigint;
-        }) => Promise<unknown>;
+        simulateContract: (...args: never[]) => Promise<unknown>;
+
+        readContract?: PublicClient["readContract"];
     };
-    addresses: ReturnType<typeof getAddresses>;
+    addresses: AddressMap;
     submitter: Address;
     now: () => Date;
+    useHandlerSideEffects?: boolean;
 };
 
 function defaultDeps(): RelayerDeps {
@@ -104,132 +105,119 @@ function defaultDeps(): RelayerDeps {
         undefined,
         submitterAccount,
     ) as RelayerWallet;
-    const repository = {
+    return {
         findJobsToRun,
         claimSubmittedJobs,
-        markJobSubmitted: (id: string, txHash: Hex, nextRetryAt: Date) =>
-            markJobSubmitted(
-                id,
-                txHash,
-                nextRetryAt,
-                purchaseJobSideEffects.submitted(txHash),
-            ),
-        markJobConfirmed: (id: string) =>
-            markJobConfirmed(id, purchaseJobSideEffects.confirmed),
-        markJobRetry: markPurchaseJobRetry,
-        markJobFailed: (id: string, error: string, failureReason: string) =>
-            markJobFailed(
-                id,
-                error,
-                failureReason,
-                purchaseJobSideEffects.failed(failureReason),
-            ),
-        markJobPending: (id: string, nextRetryAt: Date) =>
-            markJobPending(id, nextRetryAt, purchaseJobSideEffects.pending),
-    };
-    return {
-        ...repository,
+        markJobSubmitted,
+        markJobConfirmed,
+        markJobRetry,
+        markJobFailed,
+        markJobPending,
         wallet,
         pub: createChainPublicClient(),
         addresses: getAddresses(),
         submitter: submitterAccount.address,
         now: () => new Date(),
+        useHandlerSideEffects: true,
     };
 }
 
-function isSignature(value: unknown): value is Hex {
-    return typeof value === "string" && /^0x[0-9a-fA-F]{130}$/.test(value);
+function context(deps: RelayerDeps): JobContext & { submitter: Address } {
+    return {
+        addresses: deps.addresses,
+        pub: deps.pub as unknown as JobContext["pub"],
+        now: deps.now,
+        submitter: deps.submitter,
+    };
 }
 
 function sanitizedFailure(parsed: ParsedRevert): string {
     return parsed.message;
 }
-
-async function confirm(deps: RelayerDeps, job: Job) {
-    await deps.markJobConfirmed(job.id);
+function effect(deps: RelayerDeps, value: JobSideEffect | undefined) {
+    return deps.useHandlerSideEffects ? value : undefined;
 }
-
-function parseSubmission(job: Job): Submission {
-    if (!job.payload || typeof job.payload !== "object") {
-        throw new Error("invalid payload");
-    }
-    const payload = job.payload as Record<string, unknown>;
-    if (
-        !isSignature(payload.cafeSignature) ||
-        !isSignature(payload.userSignature)
-    ) {
-        throw new Error("invalid signature");
-    }
-    try {
-        return {
-            proof: deserializeProof(payload.proof),
-            cafeSignature: payload.cafeSignature,
-            userSignature: payload.userSignature,
-        };
-    } catch {
-        throw new Error("invalid payload");
-    }
-}
-
-async function replaySubmissionError(
+async function markConfirmed(
     deps: RelayerDeps,
-    submission: Submission,
-    blockNumber?: bigint,
-): Promise<unknown> {
-    try {
-        await deps.pub.simulateContract({
-            address: deps.addresses.consumptionLog,
-            abi: abis.consumptionLog,
-            functionName: "recordConsumption",
-            args: [
-                submission.proof,
-                submission.cafeSignature,
-                submission.userSignature,
-            ],
-            account: deps.submitter,
-            blockNumber,
-        });
-    } catch (error) {
-        return error;
-    }
-    return new Error("transaction reverted");
+    id: string,
+    sideEffect?: JobSideEffect,
+) {
+    return sideEffect
+        ? deps.markJobConfirmed(id, sideEffect)
+        : deps.markJobConfirmed(id);
+}
+async function markSubmitted(
+    deps: RelayerDeps,
+    id: string,
+    hash: Hex,
+    next: Date,
+    sideEffect?: JobSideEffect,
+) {
+    return sideEffect
+        ? deps.markJobSubmitted(id, hash, next, sideEffect)
+        : deps.markJobSubmitted(id, hash, next);
+}
+async function markFailed(
+    deps: RelayerDeps,
+    id: string,
+    error: string,
+    reason: string,
+    sideEffect?: JobSideEffect,
+) {
+    return sideEffect
+        ? deps.markJobFailed(id, error, reason, sideEffect)
+        : deps.markJobFailed(id, error, reason);
+}
+async function markRetry(
+    deps: RelayerDeps,
+    id: string,
+    error: string,
+    attempts: number,
+    next: Date,
+    sideEffect?: JobSideEffect,
+) {
+    return sideEffect
+        ? deps.markJobRetry(id, error, attempts, next, sideEffect)
+        : deps.markJobRetry(id, error, attempts, next);
+}
+async function markPending(
+    deps: RelayerDeps,
+    id: string,
+    next: Date,
+    sideEffect?: JobSideEffect,
+) {
+    return sideEffect
+        ? deps.markJobPending(id, next, sideEffect)
+        : deps.markJobPending(id, next);
+}
+function isMissingReceiptError(error: unknown): boolean {
+    return (
+        error instanceof TransactionReceiptNotFoundError ||
+        (error instanceof Error &&
+            error.name === "TransactionReceiptNotFoundError")
+    );
 }
 
-async function hasRecordedProof(
+async function confirm(
     deps: RelayerDeps,
-    submission: Submission,
-): Promise<boolean> {
-    const logs = await deps.pub.getLogs({
-        address: deps.addresses.consumptionLog,
-        fromBlock: 0n,
-    });
-    const events = parseEventLogs({
-        abi: abis.consumptionLog,
-        logs,
-        eventName: "ConsumptionRecorded",
-        strict: true,
-    });
-    return events.some((event) => {
-        const args = event.args as {
-            cafeId?: bigint;
-            user?: Address;
-            receiptHash?: Hex;
-        };
-        return (
-            args.cafeId === submission.proof.cafeId &&
-            args.user?.toLowerCase() === submission.proof.user.toLowerCase() &&
-            args.receiptHash?.toLowerCase() ===
-                submission.proof.receiptHash.toLowerCase()
-        );
-    });
+    job: Job,
+    receipt?: TransactionReceipt,
+) {
+    const handler = handlerFor(job.kind ?? "consumption_record");
+    await markConfirmed(
+        deps,
+        job.id,
+        effect(deps, handler.onConfirmed?.(job, receipt as TransactionReceipt)),
+    );
 }
 
 async function handleFailure(
     deps: RelayerDeps,
     job: Job,
     error: unknown,
-    submission?: Submission,
+    submission?: ReturnType<typeof parseSubmission>,
 ) {
+    const handler = handlerFor(job.kind ?? "consumption_record");
     const parsed = parseRevert(error);
     const invalidPayload =
         error instanceof Error && error.message === "invalid payload";
@@ -240,84 +228,116 @@ async function handleFailure(
         : invalidSignature
           ? "invalid_signature"
           : parsed.code;
-    const message = invalidPayload
-        ? "invalid payload"
-        : invalidSignature
-          ? "invalid signature"
-          : sanitizedFailure(parsed);
+    const failure: JobFailure = {
+        code,
+        message: invalidPayload
+            ? "invalid payload"
+            : invalidSignature
+              ? "invalid signature"
+              : sanitizedFailure(parsed),
+    };
     if (code === "nonce_used") {
-        if (submission && (await hasRecordedProof(deps, submission))) {
+        if (submission && (await hasRecordedProof(context(deps), submission))) {
             await confirm(deps, job);
             return;
         }
-        await deps.markJobFailed(job.id, "nonce_conflict", "nonce_conflict");
+        await markFailed(
+            deps,
+            job.id,
+            "nonce_conflict",
+            "nonce_conflict",
+            effect(
+                deps,
+                handler.onFailed?.(job, {
+                    code: "unknown",
+                    message: "nonce_conflict",
+                }),
+            ),
+        );
         return;
     }
     if (invalidPayload || PERMANENT_CODES.has(code)) {
-        await deps.markJobFailed(job.id, message, code);
+        await markFailed(
+            deps,
+            job.id,
+            failure.message,
+            code,
+            effect(deps, handler.onFailed?.(job, failure)),
+        );
         return;
     }
     const attempts = job.attempts + 1;
     if (attempts >= 3) {
-        await deps.markJobFailed(job.id, message, code);
+        await markFailed(
+            deps,
+            job.id,
+            failure.message,
+            code,
+            effect(deps, handler.onFailed?.(job, failure)),
+        );
         return;
     }
     const nextRetryAt = new Date(deps.now().getTime() + 5_000 * 2 ** attempts);
-    await deps.markJobRetry(job.id, message, attempts, nextRetryAt);
-}
-
-function isMissingReceiptError(error: unknown): boolean {
-    return (
-        error instanceof TransactionReceiptNotFoundError ||
-        (error instanceof Error &&
-            error.name === "TransactionReceiptNotFoundError")
+    await markRetry(
+        deps,
+        job.id,
+        failure.message,
+        attempts,
+        nextRetryAt,
+        effect(deps, handler.onRetry?.(job)),
     );
 }
 
 async function submitJob(deps: RelayerDeps, job: Job) {
+    const handler = handlerFor(job.kind ?? "consumption_record");
+    const ctx = context(deps);
+    const preflight = await handler.preflight?.(job, ctx);
+    if (preflight) {
+        await markFailed(
+            deps,
+            job.id,
+            preflight.message,
+            preflight.code,
+            effect(deps, handler.onFailed?.(job, preflight)),
+        );
+        return;
+    }
+    let submission: ReturnType<typeof parseSubmission> | undefined;
+    let call: Awaited<ReturnType<typeof handler.call>>;
     let hash: Hex;
-    let submission: Submission | undefined;
     try {
-        submission = parseSubmission(job);
+        if (job.kind === "consumption_record" || job.kind === undefined)
+            submission = parseSubmission(job);
+        call = await handler.call(job, ctx);
         hash = (await deps.wallet.writeContract({
-            address: deps.addresses.consumptionLog,
-            abi: abis.consumptionLog,
-            functionName: "recordConsumption",
-            args: [
-                submission.proof,
-                submission.cafeSignature,
-                submission.userSignature,
-            ],
+            ...call,
+            args: call.args,
         } as never)) as Hex;
     } catch (error) {
         await handleFailure(deps, job, error, submission);
         return;
     }
-
-    // Database transition failures must escape rather than being mistaken for
-    // chain failures. The outer drain continues other leased jobs and reports
-    // the update failure to its caller.
-    await deps.markJobSubmitted(
+    await markSubmitted(
+        deps,
         job.id,
         hash,
         new Date(deps.now().getTime() + RELAYER_CLAIM_LEASE_MS),
+        effect(deps, handler.onSubmitted?.(job, hash)),
     );
     try {
         const receipt = await deps.pub.waitForTransactionReceipt({ hash });
-        if (receipt.status === "success") {
-            await confirm(deps, job);
-        } else {
+        if (receipt.status === "success") await confirm(deps, job, receipt);
+        else
             await handleFailure(
                 deps,
                 job,
                 await replaySubmissionError(
-                    deps,
-                    submission,
+                    ctx,
+                    submission as ReturnType<typeof parseSubmission>,
                     receipt.blockNumber,
                 ),
                 submission,
             );
-        }
     } catch (error) {
         await handleFailure(deps, job, error, submission);
     }
@@ -344,19 +364,23 @@ export async function recoverStuckJobs(
 ): Promise<void> {
     const jobs = await deps.claimSubmittedJobs(10);
     for (const job of jobs) {
+        const handler = handlerFor(job.kind ?? "consumption_record");
         if (!job.txHash) {
-            await deps.markJobPending(job.id, deps.now());
+            await markPending(
+                deps,
+                job.id,
+                deps.now(),
+                effect(deps, handler.onPending?.(job)),
+            );
             continue;
         }
-
-        let submission: Submission;
+        let submission: ReturnType<typeof parseSubmission>;
         try {
             submission = parseSubmission(job);
         } catch (error) {
             await handleFailure(deps, job, error);
             continue;
         }
-
         let receipt: Awaited<
             ReturnType<RelayerDeps["pub"]["getTransactionReceipt"]>
         >;
@@ -366,27 +390,27 @@ export async function recoverStuckJobs(
             });
         } catch (error) {
             if (isMissingReceiptError(error)) {
-                // A missing receipt is not evidence of success. Requeue safely
-                // and move the order back with the job so the two state
-                // machines agree.
-                await deps.markJobPending(job.id, deps.now());
+                await markPending(
+                    deps,
+                    job.id,
+                    deps.now(),
+                    effect(deps, handler.onPending?.(job)),
+                );
                 continue;
             }
             await handleFailure(deps, job, error, submission);
             continue;
         }
-
         if (receipt.status === "success") {
-            await confirm(deps, job);
+            await confirm(deps, job, receipt);
             continue;
         }
-
         try {
             await handleFailure(
                 deps,
                 job,
                 await replaySubmissionError(
-                    deps,
+                    context(deps),
                     submission,
                     receipt.blockNumber,
                 ),

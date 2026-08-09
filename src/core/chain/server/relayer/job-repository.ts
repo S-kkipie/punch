@@ -140,6 +140,7 @@ export async function markJobRetry(
     error: string,
     attempts: number,
     nextRetryAt: Date,
+    sideEffect?: JobSideEffect,
 ): Promise<unknown> {
     return db.transaction(async (tx) => {
         const [job] = await tx
@@ -152,6 +153,7 @@ export async function markJobRetry(
                 ),
             )
             .returning();
+        if (job && sideEffect) await sideEffect(tx, job);
         return job ?? null;
     });
 }
