@@ -4,8 +4,9 @@ const edges: Record<PlanOrderStatus, PlanOrderStatus[]> = {
     // pending → confirmed is the lost-receipt recovery: the tx landed but the
     // write that recorded it did not.
     pending: ["submitted", "confirmed", "failed"],
-    // submitted → pending is the expired-lease recovery.
-    submitted: ["confirmed", "failed", "pending"],
+    // A sent order never returns to pending: subscribe is not idempotent, so a
+    // second send would charge the café again.
+    submitted: ["confirmed", "failed"],
     confirmed: [],
     failed: [],
 };

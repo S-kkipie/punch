@@ -56,8 +56,8 @@ describe("plan order transitions", () => {
         expect(canTransition("submitted", "confirmed")).toBe(true);
     });
 
-    it("allows recovering a submitted order back to pending", () => {
-        expect(canTransition("submitted", "pending")).toBe(true);
+    it("forbids recovering a submitted order back to pending", () => {
+        expect(canTransition("submitted", "pending")).toBe(false);
     });
 
     it("allows pending to confirm directly when a lost receipt reappears", () => {
