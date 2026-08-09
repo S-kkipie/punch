@@ -35,6 +35,20 @@ const onError = (error: unknown) =>
     );
 const withError = <T extends object>(options: T) =>
     ({ ...options, onError }) as T;
+const terminalOrderStatuses = new Set<PurchaseOrderStatus>([
+    "confirmed",
+    "failed",
+    "expired",
+]);
+const invalidateEconomicQueries = (
+    queryClient: ReturnType<typeof useQueryClient>,
+) => {
+    void queryClient.invalidateQueries({ queryKey: punchDashboardQueryKey });
+    void queryClient.invalidateQueries({ queryKey: punchVouchersQueryKey });
+    void queryClient.invalidateQueries({
+        queryKey: ["consumption", "history"],
+    });
+};
 
 export const useCreatePurchaseProof = (cafeId: string) => {
     const client = useElysia().consumption;
@@ -89,6 +103,8 @@ export const usePurchaseProof = (proofId: string) => {
 
 export const usePurchaseOrder = (orderId: string | undefined) => {
     const client = useElysia();
+    const queryClient = useQueryClient();
+    let terminalStatusSeen: PurchaseOrderStatus | undefined;
     return useQuery({
         ...(client
             .purchases({ id: orderId ?? "" })
@@ -104,6 +120,13 @@ export const usePurchaseOrder = (orderId: string | undefined) => {
                   }
                 | undefined;
             const status = data?.response?.status ?? data?.status;
+            if (status && terminalOrderStatuses.has(status)) {
+                if (terminalStatusSeen !== status) {
+                    terminalStatusSeen = status;
+                    invalidateEconomicQueries(queryClient);
+                }
+                return false;
+            }
             return status === "queued" || status === "submitted" ? 2000 : false;
         },
     });

@@ -35,7 +35,7 @@ type PurchaseQuote = {
     failureReason: string | null;
 };
 
-export default function PurchaseConfirmPage() {
+export function PurchaseConfirmPage() {
     const { proofId } = useParams<{ proofId: string }>();
     const router = useRouter();
     const proofQuery = usePurchaseProof(proofId);
@@ -50,7 +50,14 @@ export default function PurchaseConfirmPage() {
     useEffect(() => {
         const linkedOrderId = (proofQuery.data as PurchaseQuote | undefined)
             ?.purchaseOrderId;
-        if (linkedOrderId) setOrderId(linkedOrderId);
+        if (linkedOrderId) {
+            setOrderId(linkedOrderId);
+        } else {
+            setOrderId(undefined);
+            setLocalOrder(undefined);
+            setHasSubmitted(false);
+            submissionStarted.current = false;
+        }
     }, [proofQuery.data]);
 
     useEffect(() => {
@@ -111,6 +118,10 @@ export default function PurchaseConfirmPage() {
                     setOrderId(response.order.id);
                     setLocalOrder(response.order);
                 },
+                onError: () => {
+                    setHasSubmitted(false);
+                    submissionStarted.current = false;
+                },
             },
         );
     };
@@ -158,7 +169,6 @@ export default function PurchaseConfirmPage() {
                     rejectionReason={
                         order?.failureReason ?? proof.failureReason ?? undefined
                     }
-                    onRetry={status === "failed" ? confirm : undefined}
                 />
             ) : (
                 <Button
@@ -195,3 +205,5 @@ export default function PurchaseConfirmPage() {
         </div>
     );
 }
+
+export default PurchaseConfirmPage;

@@ -12,12 +12,11 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Client, Pool } from "pg";
 import { afterEach, describe, expect, it } from "vitest";
+import { drizzleRoot } from "../migration-path";
 
 const runIntegration = process.env.PUNCH_RUN_INTEGRATION === "1";
 const describeIntegration = describe.skipIf(!runIntegration);
 const baseUrl = process.env.DATABASE_URL ?? "";
-const projectRoot = "/home/skkippie/work/AI-DO/punch";
-const drizzleRoot = join(projectRoot, "drizzle");
 const createdDatabases: string[] = [];
 const tempFolders: string[] = [];
 

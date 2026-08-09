@@ -32,6 +32,7 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 import {
     transactionPollingInterval,
     useConfirmPurchase,
+    usePurchaseOrder,
     usePurchaseProof,
     useTransactionStatus,
 } from "../hooks";
@@ -117,6 +118,19 @@ describe("useTransactionStatus polling", () => {
         expect(
             options.refetchInterval({ state: { data: { status: "expired" } } }),
         ).toBe(false);
+    });
+
+    it("refreshes economics when order polling reaches a terminal state", () => {
+        usePurchaseOrder("order-polled");
+        const options = useQuery.mock.calls.at(-1)?.[0] as {
+            refetchInterval: (query: {
+                state: { data: unknown };
+            }) => number | false;
+        };
+        options.refetchInterval({ state: { data: { status: "confirmed" } } });
+        expect(invalidateQueries).toHaveBeenCalledWith({
+            queryKey: ["punch", "dashboard"],
+        });
     });
 
     it("seeds the returned quote and order and refreshes economics only after terminal confirmation", () => {

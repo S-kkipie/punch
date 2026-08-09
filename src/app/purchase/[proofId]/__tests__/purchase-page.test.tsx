@@ -45,7 +45,7 @@ vi.mock("@/frontend/components/ui/spinner", () => ({
     Spinner: () => <span>Cargando</span>,
 }));
 
-import PurchaseConfirmPage from "../page";
+import PurchaseConfirmPage from "@/core/consumption/client/ui/purchase-confirm-page";
 
 const proof = {
     id: "proof-123",
@@ -74,6 +74,7 @@ afterEach(() => {
 });
 
 beforeEach(() => {
+    mutate.mockReset();
     usePurchaseProof.mockReturnValue({
         isPending: false,
         isError: false,
@@ -96,6 +97,42 @@ describe("PurchaseConfirmPage rendered behavior", () => {
         });
         await renderPage();
         expect(usePurchaseOrder).toHaveBeenCalledWith("order-123");
+    });
+
+    it("re-enables confirmation after a transient mutation failure", async () => {
+        mutate.mockImplementation(
+            (_input: unknown, options: { onError: () => void }) =>
+                options.onError(),
+        );
+        const { container, root } = await renderPage();
+        await act(async () => container.querySelector("button")?.click());
+        expect(container.textContent).toContain("Confirmar compra");
+        expect(
+            (container.querySelector("button") as HTMLButtonElement).disabled,
+        ).toBe(false);
+        await act(async () => root.unmount());
+    });
+
+    it("clears a previous linked order when navigating to an unlinked quote", async () => {
+        usePurchaseProof
+            .mockReturnValueOnce({
+                isPending: false,
+                isError: false,
+                data: {
+                    ...proof,
+                    purchaseOrderId: "order-old",
+                    status: "submitted",
+                },
+            })
+            .mockReturnValue({ isPending: false, isError: false, data: proof });
+        usePurchaseOrder.mockImplementation((id?: string) => ({
+            data: id ? { id: "order-old", status: "confirmed" } : undefined,
+            isError: false,
+        }));
+        const { container, root } = await renderPage();
+        await act(async () => root.render(<PurchaseConfirmPage />));
+        expect(container.textContent).toContain("Confirmar compra");
+        await act(async () => root.unmount());
     });
 
     it("shows only the masked Yape reference and disables repeated confirmation", async () => {
@@ -188,12 +225,12 @@ describe("PurchaseConfirmPage rendered behavior", () => {
         await act(async () => container.querySelector("button")?.click());
 
         expect(container.textContent).toContain("Reintento disponible");
-        const retry = Array.from(container.querySelectorAll("button")).find(
-            (button) => button.textContent === "Reintentar",
-        );
-        expect(retry).not.toBeUndefined();
-        await act(async () => retry?.click());
-        expect(mutate).toHaveBeenCalledTimes(2);
+        expect(
+            Array.from(container.querySelectorAll("button")).find(
+                (button) => button.textContent === "Reintentar",
+            ),
+        ).toBeUndefined();
+        expect(mutate).toHaveBeenCalledTimes(1);
         await act(async () => root.unmount());
     });
 });
