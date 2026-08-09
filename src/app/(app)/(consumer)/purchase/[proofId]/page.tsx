@@ -2,6 +2,8 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useCafe, useCafeProducts } from "@/core/cafe/client/hooks";
+import type { Product } from "@/core/cafe/domain/types";
 import {
     useConfirmPurchase,
     usePurchaseProof,
@@ -15,6 +17,10 @@ export default function PurchaseConfirmPage() {
     const { proofId } = useParams<{ proofId: string }>();
     const router = useRouter();
     const proofQuery = usePurchaseProof(proofId);
+    const proofCafeId =
+        (proofQuery.data as { cafeId?: string } | undefined)?.cafeId ?? "";
+    const cafeQuery = useCafe(proofCafeId);
+    const productsQuery = useCafeProducts(proofCafeId);
     const confirmPurchase = useConfirmPurchase();
     const [transactionId, setTransactionId] = useState<string>();
     const [localStatus, setLocalStatus] = useState<{
@@ -47,9 +53,15 @@ export default function PurchaseConfirmPage() {
 
     const proof = proofQuery.data as {
         id: string;
+        cafeId: string;
+        productId: string;
         amountCentimos: number;
         expiresAt: string;
     };
+    const cafeName = (cafeQuery.data as { name?: string } | undefined)?.name;
+    const productName = ((productsQuery.data ?? []) as Product[]).find(
+        (product) => product.id === proof.productId,
+    )?.name;
     const expired = new Date(proof.expiresAt) < new Date();
     const confirm = () => {
         confirmPurchase.mutate(
@@ -97,6 +109,10 @@ export default function PurchaseConfirmPage() {
             </section>
             <div className="consumer-panel grid gap-2 p-5">
                 <p className="font-semibold">
+                    {cafeName ?? "Café"}
+                    {productName ? ` · ${productName}` : ""}
+                </p>
+                <p className="font-semibold text-2xl">
                     S/ {(proof.amountCentimos / 100).toFixed(2)}
                 </p>
                 <p className="text-[var(--color-ink-2)] text-sm">

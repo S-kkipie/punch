@@ -5,7 +5,11 @@ import QRCode from "qrcode";
 import { useEffect, useRef, useState } from "react";
 import { useCafeProducts } from "@/core/cafe/client/hooks";
 import type { Product } from "@/core/cafe/domain/types";
-import { useCreatePurchaseProof } from "@/core/consumption/client/hooks";
+import {
+    useCreatePurchaseProof,
+    usePurchaseProof,
+} from "@/core/consumption/client/hooks";
+import { Badge } from "@/frontend/components/ui/badge";
 import { Button } from "@/frontend/components/ui/button";
 import {
     Card,
@@ -35,8 +39,19 @@ export default function CafeTerminalPage() {
             product.active,
     );
     const proof = ((
-        createProof.data as { response?: { deepLink?: string } } | undefined
-    )?.response ?? createProof.data) as { deepLink?: string } | undefined;
+        createProof.data as
+            | { response?: { id?: string; deepLink?: string } }
+            | undefined
+    )?.response ?? createProof.data) as
+        | { id?: string; deepLink?: string }
+        | undefined;
+    // Polls so the barista sees the moment the customer's phone confirms —
+    // without this the terminal has no way to know the sale went through.
+    const proofStatusQuery = usePurchaseProof(proof?.id ?? "");
+    const confirmed =
+        Boolean(proof?.id) &&
+        (proofStatusQuery.data as { status?: string } | undefined)?.status ===
+            "confirmed";
 
     useEffect(() => {
         if (!proof?.deepLink || !canvasRef.current) return;
@@ -51,46 +66,63 @@ export default function CafeTerminalPage() {
         createProof.mutate({ productId, receiptHash });
     };
 
+    const nextSale = () => {
+        setProductId("");
+        createProof.reset();
+    };
+
     return (
         <div className="mx-auto w-full max-w-md space-y-4 p-6">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Generar compra</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    {productsQuery.isError ? (
-                        <p className="text-destructive text-sm">
-                            No se pudo cargar el catálogo.
-                        </p>
-                    ) : (
-                        <Select value={productId} onValueChange={setProductId}>
-                            <SelectTrigger aria-label="Producto de emisión">
-                                <SelectValue placeholder="Elige un producto de emisión" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {emissionProducts.map((product) => (
-                                    <SelectItem
-                                        key={product.id}
-                                        value={product.id}
-                                    >
-                                        {product.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    )}
-                    <Button
-                        className="min-h-11 w-full"
-                        disabled={!productId || createProof.isPending}
-                        onClick={generate}
-                    >
-                        {createProof.isPending ? "Generando…" : "Generar QR"}
-                    </Button>
-                </CardContent>
-            </Card>
+            {!proof && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Generar compra</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        {productsQuery.isError ? (
+                            <p className="text-destructive text-sm">
+                                No se pudo cargar el catálogo.
+                            </p>
+                        ) : (
+                            <Select
+                                value={productId}
+                                onValueChange={setProductId}
+                            >
+                                <SelectTrigger aria-label="Producto de emisión">
+                                    <SelectValue placeholder="Elige un producto de emisión" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {emissionProducts.map((product) => (
+                                        <SelectItem
+                                            key={product.id}
+                                            value={product.id}
+                                        >
+                                            {product.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        )}
+                        <Button
+                            className="min-h-11 w-full"
+                            disabled={!productId || createProof.isPending}
+                            onClick={generate}
+                        >
+                            {createProof.isPending
+                                ? "Generando…"
+                                : "Generar QR"}
+                        </Button>
+                    </CardContent>
+                </Card>
+            )}
             {proof && (
                 <Card>
                     <CardContent className="flex flex-col items-center gap-3 p-4">
+                        <Badge variant={confirmed ? "default" : "outline"}>
+                            {confirmed
+                                ? "Compra confirmada"
+                                : "Esperando que el cliente escanee y confirme…"}
+                        </Badge>
                         <canvas
                             ref={canvasRef}
                             aria-label="Código QR de compra"
@@ -98,6 +130,11 @@ export default function CafeTerminalPage() {
                         <p className="break-all text-muted-foreground text-xs">
                             {proof.deepLink}
                         </p>
+                        <Button className="min-h-11 w-full" onClick={nextSale}>
+                            {confirmed
+                                ? "Siguiente venta"
+                                : "Cancelar y generar otro código"}
+                        </Button>
                     </CardContent>
                 </Card>
             )}

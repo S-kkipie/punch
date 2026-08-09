@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useCafes } from "@/core/cafe/client/hooks";
+import type { Cafe } from "@/core/cafe/domain/types";
 import { useCrawl, useVouchers } from "@/core/punch/client/hooks";
 import { Spinner } from "@/frontend/components/ui/spinner";
 
@@ -9,6 +11,7 @@ export default function CrawlDetailPage() {
     const { crawlId } = useParams<{ crawlId: string }>();
     const query = useCrawl(crawlId);
     const vouchersQuery = useVouchers();
+    const cafesQuery = useCafes();
     if (query.isPending)
         return (
             <div className="flex min-h-64 items-center justify-center">
@@ -21,6 +24,9 @@ export default function CrawlDetailPage() {
         name: string;
         steps: Array<{ stepIndex: number; cafeId: string }>;
     };
+    const cafesById = new Map(
+        ((cafesQuery.data ?? []) as Cafe[]).map((cafe) => [cafe.id, cafe]),
+    );
     const eligibleCafeId = crawl.steps[0]?.cafeId;
     const voucher = (
         (vouchersQuery.data ?? []) as Array<{
@@ -44,17 +50,30 @@ export default function CrawlDetailPage() {
                     {crawl.name}
                 </h1>
                 <div className="grid gap-3">
-                    {crawl.steps.map((step) => (
-                        <div
-                            className="flex gap-3 border-[var(--color-line)] border-b pb-3 last:border-0"
-                            key={step.stepIndex}
-                        >
-                            <span className="font-bold text-[var(--color-accent)]">
-                                {step.stepIndex + 1}
-                            </span>
-                            <span>Cafetería aliada</span>
-                        </div>
-                    ))}
+                    {crawl.steps.map((step) => {
+                        const cafe = cafesById.get(step.cafeId);
+                        return (
+                            <Link
+                                className="flex items-center gap-3 border-[var(--color-rule)] border-b pb-3 last:border-0"
+                                href={`/discover/${step.cafeId}`}
+                                key={step.stepIndex}
+                            >
+                                <span className="font-bold text-[var(--color-accent)]">
+                                    {step.stepIndex + 1}
+                                </span>
+                                <span className="grid">
+                                    <span className="font-semibold">
+                                        {cafe?.name ?? "Café por confirmar"}
+                                    </span>
+                                    {cafe?.district && (
+                                        <span className="text-[var(--color-ink-2)] text-sm">
+                                            {cafe.district}
+                                        </span>
+                                    )}
+                                </span>
+                            </Link>
+                        );
+                    })}
                 </div>
                 {voucher && eligibleCafeId && (
                     <Link

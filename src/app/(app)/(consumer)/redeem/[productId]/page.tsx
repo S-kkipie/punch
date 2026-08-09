@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useCafeProducts } from "@/core/cafe/client/hooks";
@@ -71,6 +72,8 @@ export default function RedeemPage() {
         }
         punchRedemption.mutate({ productId });
     };
+    const requestSent =
+        punchRedemption.isSuccess || voucherRedemption.isSuccess;
     return (
         <div className="mx-auto grid w-full max-w-md gap-5">
             <section className="grid gap-2">
@@ -106,23 +109,36 @@ export default function RedeemPage() {
                     Vuelve a conectarte para solicitar un canje.
                 </p>
             )}
-            <Button
-                size="lg"
-                className="min-h-12 w-full"
-                disabled={
-                    !isOnline ||
-                    (isVoucherFlow ? !voucher : !eligible) ||
-                    punchRedemption.isPending ||
-                    voucherRedemption.isPending
-                }
-                onClick={redeem}
-            >
-                {punchRedemption.isPending || voucherRedemption.isPending
-                    ? "Enviando…"
-                    : voucher
-                      ? "Usar voucher"
-                      : "Canjear 12 PUNCH"}
-            </Button>
+            {requestSent ? (
+                <div className="consumer-panel grid gap-3 p-5" role="status">
+                    <span className="consumer-eyebrow">Solicitud enviada</span>
+                    <p className="font-semibold">
+                        Muéstrale esta pantalla al barista para que confirme tu
+                        canje en caja.
+                    </p>
+                    <Button asChild variant="outline">
+                        <Link href="/history">Ver estado en mi historial</Link>
+                    </Button>
+                </div>
+            ) : (
+                <Button
+                    size="lg"
+                    className="min-h-12 w-full"
+                    disabled={
+                        !isOnline ||
+                        (isVoucherFlow ? !voucher : !eligible) ||
+                        punchRedemption.isPending ||
+                        voucherRedemption.isPending
+                    }
+                    onClick={redeem}
+                >
+                    {punchRedemption.isPending || voucherRedemption.isPending
+                        ? "Enviando…"
+                        : voucher
+                          ? "Usar voucher"
+                          : "Canjear 12 PUNCH"}
+                </Button>
+            )}
         </div>
     );
 }

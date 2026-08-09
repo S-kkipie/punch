@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useCafe } from "@/core/cafe/client/hooks";
 import { useCampaign, useVouchers } from "@/core/punch/client/hooks";
 import { Spinner } from "@/frontend/components/ui/spinner";
 
@@ -9,6 +10,9 @@ export default function CampaignDetailPage() {
     const { campaignId } = useParams<{ campaignId: string }>();
     const query = useCampaign(campaignId);
     const vouchersQuery = useVouchers();
+    const campaignCafeId =
+        (query.data as { cafeId?: string } | undefined)?.cafeId ?? "";
+    const cafeQuery = useCafe(campaignCafeId);
     if (query.isPending)
         return (
             <div className="flex min-h-64 items-center justify-center">
@@ -24,6 +28,7 @@ export default function CampaignDetailPage() {
         cafeId: string;
         windowEnd: string;
     };
+    const cafeName = (cafeQuery.data as { name?: string } | undefined)?.name;
     const voucher = (
         (vouchersQuery.data ?? []) as Array<{
             id: string;
@@ -51,8 +56,14 @@ export default function CampaignDetailPage() {
                     {new Date(campaign.windowEnd).toLocaleDateString("es-PE")}.
                 </p>
                 <p>
-                    Visita los cafés participantes y deja que cada compra sume a
-                    tu recorrido.
+                    Compra en{" "}
+                    <Link
+                        className="font-semibold underline"
+                        href={`/discover/${campaign.cafeId}`}
+                    >
+                        {cafeName ?? "el café de esta campaña"}
+                    </Link>{" "}
+                    y deja que cuente para tu recorrido.
                 </p>
                 {voucher && (
                     <Link
