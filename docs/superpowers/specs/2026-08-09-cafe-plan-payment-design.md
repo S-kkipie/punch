@@ -130,6 +130,7 @@ Tabla `plan_order`, en `src/server/drizzle/schemas/plan-schema.ts`:
 |---|---|---|
 | `id` | text pk uuid | |
 | `cafe_id` | text fk `cafe` restrict | |
+| `chain_cafe_id` | integer | snapshot, para que el runner no necesite join |
 | `user_id` | text fk `user` restrict | quién pagó |
 | `kind` | enum `plan_order_kind` (`plan`, `pack`) | |
 | `price` | bigint | snapshot: 49e6 o 40e6 |
@@ -246,9 +247,11 @@ Clasificación en el mismo espíritu que `parse-revert.ts`:
 | `plan_not_active` | `PlanNotActive` al comprar pack |
 | `faucet_cap_exceeded` | `FaucetCapExceeded` |
 | `funding_unavailable` | entorno no local sin fondeo configurado |
+| `reverted` | el receipt de una tx ya enviada volvió con estado revertido |
 
-**Transitorios** — backoff exponencial, tope de 5 intentos, luego `failed` con `last_error`: RPC
-caído, conflicto de nonce, timeout esperando receipt.
+**Transitorios** — backoff exponencial, tope de 5 intentos, luego `failed` con motivo
+`max_attempts` y el último error en `last_error`: RPC caído, conflicto de nonce, timeout esperando
+receipt.
 
 **Colgados** — orden `submitted` cuyo lease venció sin receipt: vuelve a `pending`, igual que
 `recoverStuckJobs`.
