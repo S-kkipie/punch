@@ -1,5 +1,7 @@
 export function sanitizeMessage(message: string): string {
     return message
+        .replace(/^(\s*mnemonic\s*[:=]).*$/gim, "$1[redacted]")
+        .replace(/^(\s*(?:\(\d+\)\s*)?)0x[a-f0-9]{64}\s*$/gim, "$1[redacted]")
         .replace(
             /([a-z][a-z\d+.-]*:\/\/)[^\s/@:]+:[^\s/@]+@/gi,
             "$1[redacted]@",

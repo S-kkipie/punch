@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { runDemoLocal } from "../../../../../../scripts/demo-local";
 
 describe("runDemoLocal", () => {
@@ -23,7 +23,7 @@ describe("runDemoLocal", () => {
         expect(phases).toEqual([
             "db:migrate",
             "db:seed",
-            "chain:anvil",
+            "--host 127.0.0.1 --port 8545",
             "chain:deploy",
             "chain:bootstrap-local",
             "chain:seed-history",
@@ -32,5 +32,33 @@ describe("runDemoLocal", () => {
             "worker",
             "dev",
         ]);
+    });
+
+    it("checks database reachability before spawning Anvil", async () => {
+        const spawn = vi.fn(() => ({ exited: Promise.resolve(0) })) as never;
+        await expect(
+            runDemoLocal({
+                spawn,
+                databasePing: vi.fn(async () => {
+                    throw new Error("database unavailable");
+                }),
+            }),
+        ).rejects.toThrow("database unavailable");
+        expect(spawn).not.toHaveBeenCalled();
+    });
+
+    it("polls Anvil chain id and rejects a non-local chain", async () => {
+        await expect(
+            runDemoLocal({
+                spawn: vi.fn(() => ({
+                    exited: Promise.resolve(0),
+                    kill: vi.fn(),
+                })) as never,
+                databasePing: async () => undefined,
+                waitForAnvil: async () => {
+                    throw new Error("demo seeding requires chain id 31337");
+                },
+            }),
+        ).rejects.toThrow("demo seeding requires chain id 31337");
     });
 });
