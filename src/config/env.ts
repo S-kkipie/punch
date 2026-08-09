@@ -3,7 +3,7 @@ import { wordlist } from "@scure/bip39/wordlists/english.js";
 import { createEnv } from "@t3-oss/env-nextjs";
 import { z } from "zod";
 
-export const env = createEnv({
+const parsedEnv = createEnv({
     server: {
         DATABASE_URL: z.url(),
         DATABASE_SSL: z
@@ -21,6 +21,9 @@ export const env = createEnv({
         CHAIN_ENV: z.enum(["local", "arbitrumSepolia"]).default("local"),
         CHAIN_RPC_URL: z.url().default("http://127.0.0.1:8545"),
         RELAYER_WALLET_INDEX: z.coerce.number().int().nonnegative().default(0),
+        // Reserved high index: wallet_index_seq hands user wallets out from 0,
+        // so a low ops index would eventually be derived by a real user.
+        OPS_WALLET_INDEX: z.coerce.number().int().nonnegative().default(9000),
         CONSUMER_CHAIN_MODE: z.enum(["mock", "local"]).optional(),
     },
     client: {
@@ -39,6 +42,7 @@ export const env = createEnv({
         CHAIN_ENV: process.env.CHAIN_ENV,
         CHAIN_RPC_URL: process.env.CHAIN_RPC_URL,
         RELAYER_WALLET_INDEX: process.env.RELAYER_WALLET_INDEX,
+        OPS_WALLET_INDEX: process.env.OPS_WALLET_INDEX,
         CONSUMER_CHAIN_MODE: process.env.CONSUMER_CHAIN_MODE,
         NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
         NEXT_PUBLIC_DEMO_MODE: process.env.NEXT_PUBLIC_DEMO_MODE,
@@ -46,3 +50,11 @@ export const env = createEnv({
     },
     emptyStringAsUndefined: true,
 });
+
+if (parsedEnv.OPS_WALLET_INDEX === parsedEnv.RELAYER_WALLET_INDEX) {
+    throw new Error(
+        "OPS_WALLET_INDEX must differ from RELAYER_WALLET_INDEX: the ops key owns CampaignEscrow and must not be the hot relayer key",
+    );
+}
+
+export const env = parsedEnv;
