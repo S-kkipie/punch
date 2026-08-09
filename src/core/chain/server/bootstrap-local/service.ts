@@ -177,8 +177,9 @@ export async function bootstrapApprovedSeedCafes(input: {
                 eligibleProducts,
             });
             const recoveredProducts = live.eligibleProducts;
+            const orderedProducts = [...emissions, ...rewards];
             const needsBackfill =
-                products.some(
+                orderedProducts.some(
                     (product, index) =>
                         product.chainProductId !==
                         Number(recoveredProducts[index]?.productId),

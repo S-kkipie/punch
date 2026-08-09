@@ -50,3 +50,12 @@ The isolated Anvil process was stopped by its recorded PID. The unrelated node o
 
 ## Concerns
 - `chain:seed-history --seed-history` remains a distinct setup step in the repository even though the task brief describes bootstrap as supplying the historical 11; it was included explicitly in the reproducible clean live sequence because the existing historical seeder owns those receipts.
+
+## Fix round 1
+- Added a `beforeAll` guard requiring `ServerConfig.consumerChainMode === "local"`. Without `CONSUMER_CHAIN_MODE=local`, the exact gated test command now fails loudly with: `live redemption journey requires CONSUMER_CHAIN_MODE=local; got 'mock'`.
+- Added a chain-balance precondition after the real purchase. If seeded history is absent, the test fails with: `live redemption journey requires seeded history; run pnpm chain:seed-history first (chain balance: 1)` instead of surfacing the generic 422.
+- Removed the misleading cross-type ordering term from the bootstrap backfill check; the remaining comparison uses the canonical emissions-then-rewards ordering.
+- Replaced the live test's magic reward product fallback with a definite assignment plus an explicit fixture precondition requiring the bootstrap mapping.
+- Verification on a fresh isolated stack: mode-guard run without `CONSUMER_CHAIN_MODE=local` failed with the actionable mode message; local mode without history failed with the actionable `pnpm chain:seed-history` message; after fresh bootstrap and history seeding, the local gated run passed 3/3.
+- The documented successful command is now the explicit copy-paste form: `DATABASE_URL='<redacted isolated database>' DATABASE_SSL=false CHAIN_RPC_URL=http://127.0.0.1:8546 CONSUMER_CHAIN_MODE=local PUNCH_RUN_INTEGRATION=1 PUNCH_RUN_LIVE_CHAIN=1 pnpm vitest run src/core/chain/server/__tests__/redemption-journey.live.test.ts --no-file-parallelism`.
+- Fix-round verification: focused live test 3 passed; full suite, typecheck, and Biome were rerun before the separate fix commit.

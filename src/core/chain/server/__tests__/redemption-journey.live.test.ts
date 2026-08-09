@@ -3,6 +3,7 @@ import { createPublicClient, http } from "viem";
 import { foundry } from "viem/chains";
 import { beforeAll, describe, expect, it } from "vitest";
 import { env } from "@/config/env";
+import { ServerConfig } from "@/config/server-config";
 import { abis } from "@/core/chain/abis";
 import { getAddresses } from "@/core/chain/addresses";
 import { runIndexerOnce } from "@/core/chain/server/indexer/indexer";
@@ -31,7 +32,7 @@ let cafeId = "";
 let cafeChainId = 0;
 let emissionProductId = "";
 let rewardProductId = "";
-let rewardChainProductId = 99;
+let rewardChainProductId!: number;
 let ownerWallet = "";
 let requestId = "";
 let vaultBalanceAfter = 0n;
@@ -76,7 +77,8 @@ async function findFixture() {
         !reward ||
         owner?.walletIndex === null ||
         owner?.walletIndex === undefined ||
-        !owner.walletAddress
+        !owner.walletAddress ||
+        reward.chainProductId === null
     ) {
         throw new Error("live redemption journey seed precondition is missing");
     }
@@ -86,12 +88,17 @@ async function findFixture() {
     cafeChainId = targetCafe.chainCafeId;
     emissionProductId = emission.id;
     rewardProductId = reward.id;
-    rewardChainProductId = reward.chainProductId ?? 0;
+    rewardChainProductId = reward.chainProductId;
     ownerWallet = owner.walletAddress;
 }
 
 describeLive("live redemption journey", () => {
     beforeAll(async () => {
+        if (ServerConfig.consumerChainMode !== "local") {
+            throw new Error(
+                `live redemption journey requires CONSUMER_CHAIN_MODE=local; got '${ServerConfig.consumerChainMode}'`,
+            );
+        }
         await findFixture();
         await runIndexerOnce();
     });
@@ -142,6 +149,11 @@ describeLive("live redemption journey", () => {
             functionName: "balanceOf",
             args: [consumerWallet as `0x${string}`],
         })) as bigint;
+        if (before < 12n) {
+            throw new Error(
+                `live redemption journey requires seeded history; run pnpm chain:seed-history first (chain balance: ${before.toString()})`,
+            );
+        }
 
         const requested = await requestPunchRedemptionService(
             consumerId,
