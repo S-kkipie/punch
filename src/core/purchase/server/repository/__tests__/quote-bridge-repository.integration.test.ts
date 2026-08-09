@@ -1,4 +1,5 @@
 import { eq, sql } from "drizzle-orm";
+import { Client } from "pg";
 import { afterEach, describe, expect, it } from "vitest";
 import { db } from "@/server/drizzle/db";
 import { user } from "@/server/drizzle/schemas/auth-schema";
@@ -25,6 +26,7 @@ type Fixture = {
     cafeId: string;
     productId: string;
     quoteId: string;
+    extraUserIds?: string[];
 };
 const fixtures: Fixture[] = [];
 
@@ -123,6 +125,9 @@ async function cleanup() {
             .delete(cafeProduct)
             .where(eq(cafeProduct.id, fixture.productId));
         await db.delete(cafe).where(eq(cafe.id, fixture.cafeId));
+        for (const extraUserId of fixture.extraUserIds ?? []) {
+            await db.delete(user).where(eq(user.id, extraUserId));
+        }
         await db.delete(user).where(eq(user.id, fixture.consumerUserId));
         await db.delete(user).where(eq(user.id, fixture.operatorUserId));
     }
@@ -160,7 +165,6 @@ function bridgeInput(fixture: Fixture) {
     return {
         quoteId: fixture.quoteId,
         consumerUserId: fixture.consumerUserId,
-        now: new Date(),
         orderId,
         proof,
         cafeSignature:
@@ -209,6 +213,7 @@ describeIntegration("quote bridge repository", () => {
         const fixture = await createFixture();
         const first = bridgeInput(fixture);
         const secondConsumerId = `second-${fixture.consumerUserId}`;
+        fixture.extraUserIds = [secondConsumerId];
         await db.insert(user).values({
             id: secondConsumerId,
             name: "Second Consumer",
@@ -246,25 +251,34 @@ describeIntegration("quote bridge repository", () => {
                 fulfilled.value.order.id,
             );
         }
-        await db.delete(user).where(eq(user.id, secondConsumerId));
     });
 
-    it("rejects a quote that expires before the locked bridge transaction validates it", async () => {
+    it("rejects a quote that expires while the bridge transaction waits on the row lock", async () => {
         const fixture = await createFixture();
-        const expiresAt = new Date(Date.now() + 50);
+        const expiresAt = new Date(Date.now() + 120);
         await db
             .update(consumptionProof)
             .set({ expiresAt })
             .where(eq(consumptionProof.id, fixture.quoteId));
 
-        await new Promise((resolve) => setTimeout(resolve, 80));
+        const lockClient = new Client({
+            connectionString: process.env.DATABASE_URL,
+            ssl: false,
+        });
+        await lockClient.connect();
+        await lockClient.query("begin");
+        await lockClient.query(
+            "select id from consumption_proof where id = $1 for update",
+            [fixture.quoteId],
+        );
 
-        await expect(
-            bridgeQuoteToOrder({
-                ...bridgeInput(fixture),
-                now: new Date(expiresAt.getTime() - 25),
-            }),
-        ).rejects.toThrow();
+        const pending = bridgeQuoteToOrder(bridgeInput(fixture));
+        const rejection = expect(pending).rejects.toThrow();
+        await new Promise((resolve) => setTimeout(resolve, 180));
+        await lockClient.query("commit");
+        await lockClient.end();
+
+        await rejection;
         expect(await countPurchaseOrdersForQuote(fixture.quoteId)).toBe(0);
     });
 

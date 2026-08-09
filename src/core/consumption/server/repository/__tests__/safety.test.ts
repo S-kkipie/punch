@@ -20,12 +20,7 @@ import {
     getBalance,
     incrementBalance,
 } from "@/core/punch/server/repository/balance";
-import {
-    bindProofSignatures,
-    createProof,
-    findProofByNonceOrReceipt,
-    type ProofRepositoryError,
-} from "../proofs";
+import { findProofByNonceOrReceipt } from "../proofs";
 import {
     createRedemptionRequest,
     decideRedemptionRequest,
@@ -130,39 +125,6 @@ describe("transaction-safe repository reads", () => {
 });
 
 describe("proof repository safety", () => {
-    it("executes proof inserts through the injected client", async () => {
-        const insertedRow = { id: "proof-1", nonce: "nonce-1" };
-        const values = vi.fn().mockReturnValue({
-            returning: async () => [insertedRow],
-        });
-        const insert = vi.fn().mockReturnValue({ values });
-        const client = { insert } as never;
-
-        await expect(
-            createProof(
-                {
-                    cafeId: "cafe-1",
-                    productId: "product-1",
-                    issuedByUserId: "barista-1",
-                    consumerUserId: null,
-                    amountCentimos: 100,
-                    yapeRef: "YAPE-1234",
-                    receiptHash: "receipt-1",
-                    nonce: "nonce-1",
-                    cafeSignature: "cafe-sig",
-                    consumerSignature: null,
-                    status: "issued",
-                    expiresAt: new Date("2026-01-01T00:00:00.000Z"),
-                },
-                client,
-            ),
-        ).resolves.toBe(insertedRow);
-
-        expect(insert).toHaveBeenCalledOnce();
-        expect(values).toHaveBeenCalledOnce();
-        expect(globalDb.insert).not.toHaveBeenCalled();
-    });
-
     it("rejects nonce and receipt matches that identify different proofs", async () => {
         const { client, predicates } = selectClient([
             [
@@ -185,40 +147,6 @@ describe("proof repository safety", () => {
         const lookupPredicate = predicateText(predicates[0]);
         expect(lookupPredicate).toContain("nonce");
         expect(lookupPredicate).toContain("receipt_hash");
-    });
-
-    it("reports an expired issued proof after the guarded update misses", async () => {
-        const selected = selectClient([[{ status: "issued", expired: true }]]);
-        let updatePredicate: unknown;
-        const client = {
-            update: () => ({
-                set: () => ({
-                    where: (predicate: unknown) => {
-                        updatePredicate = predicate;
-                        return { returning: async () => [] };
-                    },
-                }),
-            }),
-            ...selected.client,
-        } as never;
-        await expect(
-            bindProofSignatures(
-                "proof-1",
-                "user-1",
-                "cafe-sig",
-                "consumer-sig",
-                client,
-            ),
-        ).rejects.toMatchObject({
-            name: "ProofRepositoryError",
-            code: "PROOF_EXPIRED",
-        } satisfies Partial<ProofRepositoryError>);
-        const updateText = predicateText(updatePredicate);
-        expect(updateText).toContain("id");
-        expect(updateText).toContain("status");
-        expect(updateText).toContain("expires_at");
-        expect(updateText).toContain("now");
-        expect(selected.predicates).toHaveLength(1);
     });
 });
 

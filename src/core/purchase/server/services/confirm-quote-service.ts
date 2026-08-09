@@ -21,6 +21,7 @@ import {
     bridgeQuoteToOrder,
     findQuoteForBridge,
     getExistingBridge,
+    QuoteBridgeRepositoryError,
 } from "../repository/quote-bridge-repository";
 
 type ConfirmQuoteDeps = {
@@ -131,14 +132,21 @@ export async function confirmQuoteService(
             await d.bridgeQuoteToOrder({
                 quoteId: quote.id,
                 consumerUserId,
-                now: d.now(),
                 orderId,
                 proof,
                 cafeSignature,
                 userSignature,
             }),
         );
-    } catch {
+    } catch (cause) {
+        if (cause instanceof QuoteBridgeRepositoryError) {
+            if (cause.code === "QUOTE_BOUND_TO_OTHER_CONSUMER") {
+                return err(AppErrors.forbidden());
+            }
+            if (cause.code === "QUOTE_NOT_ISSUABLE") {
+                return err(AppErrors.conflict({ targets: ["status"] }));
+            }
+        }
         return err(
             AppErrors.unexpected(new Error("quote confirmation failed")),
         );

@@ -19,8 +19,6 @@ export async function createQuote(
     return row;
 }
 
-export const createProof = createQuote;
-
 export async function findProofById(
     id: string,
     client: DbClient = db,
@@ -85,48 +83,4 @@ export async function findProofByNonceOrReceipt(
         );
     }
     return nonceProof ?? receiptProof ?? null;
-}
-
-export async function bindProofSignatures(
-    id: string,
-    consumerUserId: string,
-    cafeSignature: string,
-    consumerSignature: string,
-    client: DbClient = db,
-): Promise<ConsumptionProofRow> {
-    const [row] = await client
-        .update(consumptionProof)
-        .set({
-            status: "confirmed",
-            consumerUserId,
-            cafeSignature,
-            consumerSignature,
-        })
-        .where(
-            and(
-                eq(consumptionProof.id, id),
-                eq(consumptionProof.status, "issued"),
-                sql`${consumptionProof.expiresAt} > now()`,
-            ),
-        )
-        .returning();
-    if (row) return row;
-
-    const [existing] = await client
-        .select({
-            status: consumptionProof.status,
-            expired: sql<boolean>`${consumptionProof.expiresAt} <= now()`,
-        })
-        .from(consumptionProof)
-        .where(eq(consumptionProof.id, id));
-    if (existing?.status === "issued" && existing.expired) {
-        throw new ProofRepositoryError(
-            "PROOF_EXPIRED",
-            `Proof ${id} has expired`,
-        );
-    }
-    throw new ProofRepositoryError(
-        "PROOF_NOT_ISSUED",
-        `Proof ${id} is not issued or does not exist`,
-    );
 }

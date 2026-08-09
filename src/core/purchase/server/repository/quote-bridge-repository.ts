@@ -78,10 +78,19 @@ export async function getExistingBridge(
     return loadExistingBridge(db, quote);
 }
 
+export class QuoteBridgeRepositoryError extends Error {
+    constructor(
+        public code: "QUOTE_BOUND_TO_OTHER_CONSUMER" | "QUOTE_NOT_ISSUABLE",
+        message: string,
+    ) {
+        super(message);
+        this.name = "QuoteBridgeRepositoryError";
+    }
+}
+
 export async function bridgeQuoteToOrder(input: {
     quoteId: string;
     consumerUserId: string;
-    now: Date;
     orderId: string;
     proof: ConsumptionProof;
     cafeSignature: `0x${string}`;
@@ -101,12 +110,17 @@ export async function bridgeQuoteToOrder(input: {
                     quote.consumerUserId &&
                     quote.consumerUserId !== input.consumerUserId
                 ) {
-                    throw new Error("quote already bound to another consumer");
+                    throw new QuoteBridgeRepositoryError(
+                        "QUOTE_BOUND_TO_OTHER_CONSUMER",
+                        "quote already bound to another consumer",
+                    );
                 }
                 return loadExistingBridge(tx, quote);
             }
 
-            const dbNowResult = await tx.execute(sql`select now() as now`);
+            const dbNowResult = await tx.execute(
+                sql`select clock_timestamp() as now`,
+            );
             const dbNowValue = (dbNowResult.rows[0] as { now: Date | string })
                 .now;
             const dbNow =
@@ -115,7 +129,10 @@ export async function bridgeQuoteToOrder(input: {
                 quote.status !== "issued" ||
                 quote.expiresAt.getTime() <= dbNow.getTime()
             ) {
-                throw new Error("quote is no longer issuable");
+                throw new QuoteBridgeRepositoryError(
+                    "QUOTE_NOT_ISSUABLE",
+                    "quote is no longer issuable",
+                );
             }
 
             const [order] = await tx

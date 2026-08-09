@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildReceiptHash } from "@/core/chain/server/proof/proof";
 import { AppErrors } from "@/server/common/responses";
+import { QuoteBridgeRepositoryError } from "../../repository/quote-bridge-repository";
 import { confirmQuoteService } from "../confirm-quote-service";
 
 const now = new Date("2026-08-09T12:00:00.000Z");
@@ -131,12 +132,28 @@ describe("confirmQuoteService", () => {
         expect(d.bridgeQuoteToOrder).toHaveBeenCalledWith({
             quoteId: quote.id,
             consumerUserId: "consumer-1",
-            now,
             orderId: "order-1",
             proof: expectedProof,
             cafeSignature: "0xcafe-signature",
             userSignature: "0xconsumer-signature",
         });
+    });
+
+    it("returns forbidden when the bridge lock reveals another consumer already owns the quote", async () => {
+        const d = deps({
+            bridgeQuoteToOrder: vi
+                .fn()
+                .mockRejectedValue(
+                    new QuoteBridgeRepositoryError(
+                        "QUOTE_BOUND_TO_OTHER_CONSUMER",
+                        "quote already bound to another consumer",
+                    ),
+                ),
+        });
+
+        const result = await confirmQuoteService("consumer-1", "quote-1", d);
+
+        expect(result).toEqual({ ok: false, error: AppErrors.forbidden() });
     });
 
     it("returns the existing bridge without resigning when the quote is already linked to an order", async () => {
