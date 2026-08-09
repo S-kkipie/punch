@@ -102,11 +102,8 @@ async function applyCreated(tx: IndexerTransaction, event: IndexerEvent) {
             lastTransactionIndex: transactionIndex(event),
             lastLogIndex: logIndex(event),
         })
-        .onConflictDoUpdate({
+        .onConflictDoNothing({
             target: projectionCampaign.chainCampaignId,
-            set: {
-                lastBlock: sql`GREATEST(${projectionCampaign.lastBlock}, ${block(event)})`,
-            },
         });
 }
 

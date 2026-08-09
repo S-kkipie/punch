@@ -9,7 +9,10 @@ function fakeTx() {
                 calls.push({ table: "insert", values: v });
                 return Promise.resolve();
             },
-            onConflictDoNothing: () => Promise.resolve(),
+            onConflictDoNothing: () => {
+                calls.push({ table: "insert", values: v });
+                return Promise.resolve();
+            },
             returning: () => Promise.resolve([]),
         }),
         set: () => ({
