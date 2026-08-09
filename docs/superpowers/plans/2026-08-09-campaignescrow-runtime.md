@@ -753,19 +753,18 @@ import { describe, expect, it } from "vitest";
 import { handlerFor } from "../handlers/registry";
 
 describe("handler registry", () => {
-    it("returns a handler for every job kind", () => {
-        const kinds = [
+    it("returns the handler registered for a kind", () => {
+        expect(handlerFor("consumption_record").kind).toBe(
             "consumption_record",
-            "campaign_create",
-            "campaign_fund_approve",
-            "campaign_fund",
-            "campaign_publish",
-            "voucher_unlock",
-            "voucher_redeem",
-        ] as const;
-        for (const kind of kinds) {
-            expect(handlerFor(kind).kind).toBe(kind);
-        }
+        );
+    });
+
+    it("throws for a kind with no handler yet", () => {
+        // Campaign kinds land in Tasks 9-13. Until then an unregistered kind
+        // must fail loudly rather than resolve to a stub.
+        expect(() => handlerFor("campaign_create")).toThrow(
+            /unsupported relayer job kind/,
+        );
     });
 
     it("signs consumption jobs with the relayer key", () => {
@@ -813,7 +812,7 @@ export function resolveSigner(signer: JobSigner): Account {
 
 `handlers/consumption-record.ts` moves today's behavior out of `relayer.ts` unchanged: `parseSubmission`, the `recordConsumption` call, the `replaySubmissionError` simulation, `hasRecordedProof` as the `nonce_used` idempotency check, and the purchase side effects from Task 4 wired into `onSubmitted` / `onConfirmed` / `onFailed`.
 
-`handlers/registry.ts` maps kind → handler and throws `new Error("unsupported relayer job kind " + kind)` on a miss. Register only `consumption_record` for now; the campaign handlers are added by later tasks, and this test's loop over all seven kinds stays red until Task 13. To keep the task independently green, register placeholder handlers for the six campaign kinds whose `call` throws `new Error("not implemented")` — later tasks replace them.
+`handlers/registry.ts` maps kind → handler and throws `new Error("unsupported relayer job kind " + kind)` on a miss. Register only `consumption_record`; each later task registers its own handler as it lands. Do not add placeholder or stub handlers for the campaign kinds — an unregistered kind must fail loudly.
 
 - [ ] **Step 4: Rewrite the drain**
 
