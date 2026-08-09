@@ -69,8 +69,31 @@ describe("applyConfirmedConsumptionProjection", () => {
         });
 
         expect(tx.update).toHaveBeenCalledWith(purchaseOrder);
+        expect(tx.update.mock.results[0].value.set).toHaveBeenCalledWith({
+            status: "confirmed",
+            txHash,
+        });
         expect(tx.update).toHaveBeenCalledWith(consumptionProof);
+        expect(tx.update.mock.results[1].value.set).toHaveBeenCalledWith({
+            status: "confirmed",
+            receiptHash: order.receiptHash,
+        });
         expect(tx.insert).toHaveBeenCalledWith(consumerTransaction);
+        expect(tx.insert.mock.results[0].value.values).toHaveBeenCalledWith(
+            expect.objectContaining({
+                operation: "emission",
+                consumerUserId: order.userId,
+                cafeId: order.cafeId,
+                proofId: quote.id,
+                chainTxId: txHash,
+                status: "confirmed",
+                idempotencyKey: `chain_emission:${order.id}`,
+                purchaseOrderId: order.id,
+                transactionHash: txHash,
+                logIndex: 3,
+                createdAt: expect.any(Date),
+            }),
+        );
         expect(applyChainPurchaseEffects).toHaveBeenCalledTimes(1);
         expect(applyChainPurchaseEffects).toHaveBeenCalledWith(
             tx,

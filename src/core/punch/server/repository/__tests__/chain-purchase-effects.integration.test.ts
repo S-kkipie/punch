@@ -8,7 +8,6 @@ import {
     consumerTransaction,
     consumptionProof,
 } from "@/server/drizzle/schemas/consumption-schema";
-import { purchaseOrder } from "@/server/drizzle/schemas/purchase-schema";
 import {
     campaign,
     chainPurchaseEffect,
@@ -18,13 +17,15 @@ import {
     consumerVoucher,
     punchBalanceProjection,
 } from "@/server/drizzle/schemas/punch-schema";
+import { purchaseOrder } from "@/server/drizzle/schemas/purchase-schema";
 import { installIntegrationDbMutex } from "@/test/integration-db-mutex";
 
 const runIntegration = process.env.PUNCH_RUN_INTEGRATION === "1";
 const describeIntegration = describe.skipIf(!runIntegration);
 installIntegrationDbMutex();
 
-const txHash = (n: number) => `0x${n.toString(16).padStart(64, "0")}` as `0x${string}`;
+const txHash = (n: number) =>
+    `0x${n.toString(16).padStart(64, "0")}` as `0x${string}`;
 
 type Fixture = {
     userId: string;
@@ -113,7 +114,12 @@ async function order(f: Fixture, index: number, suffix = "") {
     return { orderId, proofId };
 }
 
-async function project(f: Fixture, index: number, eventNumber: number, suffix = "") {
+async function project(
+    f: Fixture,
+    index: number,
+    eventNumber: number,
+    suffix = "",
+) {
     const created = await order(f, index, suffix);
     await db.transaction(async (tx) => {
         await applyConfirmedConsumptionProjection(tx, {
@@ -128,19 +134,38 @@ async function project(f: Fixture, index: number, eventNumber: number, suffix = 
 
 async function cleanup() {
     for (const f of fixtures.splice(0)) {
-        await db.delete(consumerCrawlProgress).where(eq(consumerCrawlProgress.consumerUserId, f.userId));
-        await db.delete(consumerVoucher).where(eq(consumerVoucher.consumerUserId, f.userId));
-        await db.delete(consumerTransaction).where(eq(consumerTransaction.consumerUserId, f.userId));
-        await db.delete(chainPurchaseEffect).where(inArray(chainPurchaseEffect.purchaseOrderId, f.orderIds));
-        await db.delete(consumptionProof).where(eq(consumptionProof.issuedByUserId, f.userId));
-        await db.delete(purchaseOrder).where(eq(purchaseOrder.userId, f.userId));
-        if (f.campaignId) await db.delete(campaign).where(eq(campaign.id, f.campaignId));
+        await db
+            .delete(consumerCrawlProgress)
+            .where(eq(consumerCrawlProgress.consumerUserId, f.userId));
+        await db
+            .delete(consumerVoucher)
+            .where(eq(consumerVoucher.consumerUserId, f.userId));
+        await db
+            .delete(consumerTransaction)
+            .where(eq(consumerTransaction.consumerUserId, f.userId));
+        await db
+            .delete(chainPurchaseEffect)
+            .where(inArray(chainPurchaseEffect.purchaseOrderId, f.orderIds));
+        await db
+            .delete(consumptionProof)
+            .where(eq(consumptionProof.issuedByUserId, f.userId));
+        await db
+            .delete(purchaseOrder)
+            .where(eq(purchaseOrder.userId, f.userId));
+        if (f.campaignId)
+            await db.delete(campaign).where(eq(campaign.id, f.campaignId));
         if (f.crawlId) {
-            await db.delete(coffeeCrawlStep).where(eq(coffeeCrawlStep.crawlId, f.crawlId));
+            await db
+                .delete(coffeeCrawlStep)
+                .where(eq(coffeeCrawlStep.crawlId, f.crawlId));
             await db.delete(coffeeCrawl).where(eq(coffeeCrawl.id, f.crawlId));
         }
-        await db.delete(punchBalanceProjection).where(eq(punchBalanceProjection.userId, f.userId));
-        await db.delete(cafeProduct).where(inArray(cafeProduct.id, f.productIds));
+        await db
+            .delete(punchBalanceProjection)
+            .where(eq(punchBalanceProjection.userId, f.userId));
+        await db
+            .delete(cafeProduct)
+            .where(inArray(cafeProduct.id, f.productIds));
         await db.delete(cafe).where(inArray(cafe.id, f.cafeIds));
         await db.delete(user).where(eq(user.id, f.userId));
     }
@@ -153,15 +178,18 @@ afterEach(async () => {
 describeIntegration("indexed purchase effects", () => {
     it("unlocks a qualifying acquisition voucher exactly once on replay", async () => {
         const f = await fixture(1);
-        const [createdCampaign] = await db.insert(campaign).values({
-            id: `effects-campaign-${f.userId}`,
-            kind: "verified_acquisition",
-            cafeId: f.cafeIds[0],
-            name: "Target Café Acquisition",
-            windowStart: new Date(Date.now() - 60_000),
-            windowEnd: new Date(Date.now() + 60_000),
-            active: true,
-        }).returning();
+        const [createdCampaign] = await db
+            .insert(campaign)
+            .values({
+                id: `effects-campaign-${f.userId}`,
+                kind: "verified_acquisition",
+                cafeId: f.cafeIds[0],
+                name: "Target Café Acquisition",
+                windowStart: new Date(Date.now() - 60_000),
+                windowEnd: new Date(Date.now() + 60_000),
+                active: true,
+            })
+            .returning();
         f.campaignId = createdCampaign.id;
         const created = await project(f, 0, 1);
         await db.transaction(async (tx) => {
@@ -172,57 +200,198 @@ describeIntegration("indexed purchase effects", () => {
                 blockNumber: 1n,
             });
         });
-        const vouchers = await db.select().from(consumerVoucher).where(eq(consumerVoucher.consumerUserId, f.userId));
-        const history = await db.select().from(consumerTransaction).where(eq(consumerTransaction.purchaseOrderId, created.orderId));
+        const vouchers = await db
+            .select()
+            .from(consumerVoucher)
+            .where(eq(consumerVoucher.consumerUserId, f.userId));
+        const history = await db
+            .select()
+            .from(consumerTransaction)
+            .where(eq(consumerTransaction.purchaseOrderId, created.orderId));
         expect(vouchers).toHaveLength(1);
         expect(history).toHaveLength(1);
         expect(vouchers[0].campaignId).toBe(f.campaignId);
     });
 
+    it("unlocks only one voucher when confirmations arrive out of submission order", async () => {
+        const f = await fixture(1);
+        const [campaignRow] = await db
+            .insert(campaign)
+            .values({
+                id: `effects-campaign-${f.userId}`,
+                kind: "verified_acquisition",
+                cafeId: f.cafeIds[0],
+                name: "Out of order",
+                windowStart: new Date(Date.now() - 60_000),
+                windowEnd: new Date(Date.now() + 60_000),
+                active: true,
+            })
+            .returning();
+        f.campaignId = campaignRow.id;
+        const submittedFirst = await order(f, 0, "submitted-first");
+        const confirmedFirst = await order(f, 0, "confirmed-first");
+        await db
+            .update(purchaseOrder)
+            .set({ updatedAt: new Date(Date.now() - 120_000) })
+            .where(eq(purchaseOrder.id, submittedFirst.orderId));
+        await db.transaction(async (tx) => {
+            await applyConfirmedConsumptionProjection(tx, {
+                orderId: confirmedFirst.orderId,
+                txHash: txHash(20),
+                logIndex: 20,
+                blockNumber: 20n,
+            });
+        });
+        await db.transaction(async (tx) => {
+            await applyConfirmedConsumptionProjection(tx, {
+                orderId: submittedFirst.orderId,
+                txHash: txHash(21),
+                logIndex: 21,
+                blockNumber: 21n,
+            });
+        });
+        const vouchers = await db
+            .select()
+            .from(consumerVoucher)
+            .where(eq(consumerVoucher.consumerUserId, f.userId));
+        expect(vouchers).toHaveLength(1);
+    });
+
     it("advances an ordered A to B to C crawl once per café and ignores repeats", async () => {
         const f = await fixture(3);
-        const [crawl] = await db.insert(coffeeCrawl).values({ id: `effects-crawl-${f.userId}`, name: "A B C", expiresAt: new Date(Date.now() + 60_000), active: true }).returning();
+        const [crawl] = await db
+            .insert(coffeeCrawl)
+            .values({
+                id: `effects-crawl-${f.userId}`,
+                name: "A B C",
+                expiresAt: new Date(Date.now() + 60_000),
+                active: true,
+            })
+            .returning();
         f.crawlId = crawl.id;
-        await db.insert(coffeeCrawlStep).values(f.cafeIds.map((cafeId, stepIndex) => ({ id: `effects-step-${f.userId}-${stepIndex}`, crawlId: crawl.id, stepIndex, cafeId })));
+        await db.insert(coffeeCrawlStep).values(
+            f.cafeIds.map((cafeId, stepIndex) => ({
+                id: `effects-step-${f.userId}-${stepIndex}`,
+                crawlId: crawl.id,
+                stepIndex,
+                cafeId,
+            })),
+        );
         await project(f, 0, 2, "a");
         await project(f, 1, 3, "b");
         await project(f, 1, 4, "repeat-b");
         await project(f, 2, 5, "c");
-        const [progress] = await db.select().from(consumerCrawlProgress).where(and(eq(consumerCrawlProgress.crawlId, crawl.id), eq(consumerCrawlProgress.consumerUserId, f.userId)));
-        const effects = await db.select().from(chainPurchaseEffect).where(and(eq(chainPurchaseEffect.kind, "crawl_step"), eq(chainPurchaseEffect.purchaseOrderId, f.orderIds[0])));
-        const allEffects = await db.select().from(chainPurchaseEffect).where(inArray(chainPurchaseEffect.purchaseOrderId, f.orderIds));
+        const [progress] = await db
+            .select()
+            .from(consumerCrawlProgress)
+            .where(
+                and(
+                    eq(consumerCrawlProgress.crawlId, crawl.id),
+                    eq(consumerCrawlProgress.consumerUserId, f.userId),
+                ),
+            );
+        const effects = await db
+            .select()
+            .from(chainPurchaseEffect)
+            .where(
+                and(
+                    eq(chainPurchaseEffect.kind, "crawl_step"),
+                    eq(chainPurchaseEffect.purchaseOrderId, f.orderIds[0]),
+                ),
+            );
+        const allEffects = await db
+            .select()
+            .from(chainPurchaseEffect)
+            .where(inArray(chainPurchaseEffect.purchaseOrderId, f.orderIds));
         expect(progress.completedCafeIds).toEqual(f.cafeIds);
-        expect(allEffects.filter((effect) => effect.kind === "crawl_step")).toHaveLength(3);
+        expect(
+            allEffects.filter((effect) => effect.kind === "crawl_step"),
+        ).toHaveLength(3);
         expect(effects).toHaveLength(1);
     });
 
     it("does not apply wrong-café, expired, or already-qualified purchases", async () => {
         const f = await fixture(2);
-        const [campaignRow] = await db.insert(campaign).values({ id: `effects-campaign-${f.userId}`, kind: "verified_acquisition", cafeId: f.cafeIds[0], name: "Expired", windowStart: new Date(Date.now() - 120_000), windowEnd: new Date(Date.now() - 60_000), active: true }).returning();
+        const [campaignRow] = await db
+            .insert(campaign)
+            .values({
+                id: `effects-campaign-${f.userId}`,
+                kind: "verified_acquisition",
+                cafeId: f.cafeIds[0],
+                name: "Expired",
+                windowStart: new Date(Date.now() - 120_000),
+                windowEnd: new Date(Date.now() - 60_000),
+                active: true,
+            })
+            .returning();
         f.campaignId = campaignRow.id;
         await project(f, 0, 6, "first");
         await project(f, 0, 7, "already");
         await project(f, 1, 8, "wrong");
-        const vouchers = await db.select().from(consumerVoucher).where(eq(consumerVoucher.consumerUserId, f.userId));
-        const effects = await db.select().from(chainPurchaseEffect).where(inArray(chainPurchaseEffect.purchaseOrderId, f.orderIds));
+        const vouchers = await db
+            .select()
+            .from(consumerVoucher)
+            .where(eq(consumerVoucher.consumerUserId, f.userId));
+        const effects = await db
+            .select()
+            .from(chainPurchaseEffect)
+            .where(inArray(chainPurchaseEffect.purchaseOrderId, f.orderIds));
         expect(vouchers).toHaveLength(0);
-        expect(effects.filter((effect) => effect.kind === "campaign_qualification")).toHaveLength(0);
+        expect(
+            effects.filter(
+                (effect) => effect.kind === "campaign_qualification",
+            ),
+        ).toHaveLength(0);
     });
 
     it("replaying from block zero preserves projections and vouchers without changing PUNCH", async () => {
         const f = await fixture(1);
-        const [campaignRow] = await db.insert(campaign).values({ id: `effects-campaign-${f.userId}`, kind: "verified_acquisition", cafeId: f.cafeIds[0], name: "Replay", windowStart: new Date(Date.now() - 60_000), windowEnd: new Date(Date.now() + 60_000), active: true }).returning();
+        const [campaignRow] = await db
+            .insert(campaign)
+            .values({
+                id: `effects-campaign-${f.userId}`,
+                kind: "verified_acquisition",
+                cafeId: f.cafeIds[0],
+                name: "Replay",
+                windowStart: new Date(Date.now() - 60_000),
+                windowEnd: new Date(Date.now() + 60_000),
+                active: true,
+            })
+            .returning();
         f.campaignId = campaignRow.id;
         const created = await project(f, 0, 9, "reindex");
-        const before = await db.select().from(consumerVoucher).where(eq(consumerVoucher.consumerUserId, f.userId));
-        const beforeHistory = await db.select().from(consumerTransaction).where(eq(consumerTransaction.purchaseOrderId, created.orderId));
-        const beforeBalance = await db.select().from(punchBalanceProjection).where(eq(punchBalanceProjection.userId, f.userId));
+        const before = await db
+            .select()
+            .from(consumerVoucher)
+            .where(eq(consumerVoucher.consumerUserId, f.userId));
+        const beforeHistory = await db
+            .select()
+            .from(consumerTransaction)
+            .where(eq(consumerTransaction.purchaseOrderId, created.orderId));
+        const beforeBalance = await db
+            .select()
+            .from(punchBalanceProjection)
+            .where(eq(punchBalanceProjection.userId, f.userId));
         await db.transaction(async (tx) => {
-            await applyConfirmedConsumptionProjection(tx, { orderId: created.orderId, txHash: txHash(9), logIndex: 9, blockNumber: 9n });
+            await applyConfirmedConsumptionProjection(tx, {
+                orderId: created.orderId,
+                txHash: txHash(9),
+                logIndex: 9,
+                blockNumber: 9n,
+            });
         });
-        const after = await db.select().from(consumerVoucher).where(eq(consumerVoucher.consumerUserId, f.userId));
-        const afterHistory = await db.select().from(consumerTransaction).where(eq(consumerTransaction.purchaseOrderId, created.orderId));
-        const afterBalance = await db.select().from(punchBalanceProjection).where(eq(punchBalanceProjection.userId, f.userId));
+        const after = await db
+            .select()
+            .from(consumerVoucher)
+            .where(eq(consumerVoucher.consumerUserId, f.userId));
+        const afterHistory = await db
+            .select()
+            .from(consumerTransaction)
+            .where(eq(consumerTransaction.purchaseOrderId, created.orderId));
+        const afterBalance = await db
+            .select()
+            .from(punchBalanceProjection)
+            .where(eq(punchBalanceProjection.userId, f.userId));
         expect(after).toHaveLength(before.length);
         expect(afterHistory).toHaveLength(beforeHistory.length);
         expect(afterBalance).toEqual(beforeBalance);

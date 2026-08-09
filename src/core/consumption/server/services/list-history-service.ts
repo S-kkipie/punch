@@ -25,6 +25,9 @@ export type HistoryEntry = {
     status: "pending" | "confirmed" | "rejected" | "failed";
     rejectionReason: string | null;
     createdAt: string;
+    purchaseOrderId: string | null;
+    transactionHash: string | null;
+    logIndex: number | null;
 };
 
 export async function listHistoryService(
@@ -42,6 +45,9 @@ export async function listHistoryService(
             status: consumerTransaction.status,
             rejectionReason: consumerTransaction.rejectionReason,
             createdAt: consumerTransaction.createdAt,
+            purchaseOrderId: consumerTransaction.purchaseOrderId,
+            transactionHash: consumerTransaction.transactionHash,
+            logIndex: consumerTransaction.logIndex,
         })
         .from(consumerTransaction)
         .leftJoin(
@@ -88,6 +94,9 @@ export async function listHistoryService(
             status: row.status,
             rejectionReason: row.rejectionReason,
             createdAt: row.createdAt.toISOString(),
+            purchaseOrderId: row.purchaseOrderId ?? null,
+            transactionHash: row.transactionHash ?? null,
+            logIndex: row.logIndex ?? null,
         })),
     );
 }

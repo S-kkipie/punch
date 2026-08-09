@@ -69,7 +69,7 @@ export async function applyChainPurchaseEffects(
             input.consumerUserId,
             input.cafeId,
             {
-                id: input.purchaseOrderId,
+                id: `chain_emission:${input.purchaseOrderId}`,
                 createdAt: input.confirmedAt,
             },
         )) &&

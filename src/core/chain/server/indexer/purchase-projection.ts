@@ -27,6 +27,7 @@ export async function applyConfirmedConsumptionProjection(
     if (!order || order.status === "failed" || order.status === "expired") {
         return;
     }
+    const confirmedAt = new Date();
 
     await tx
         .update(purchaseOrder)
@@ -52,6 +53,7 @@ export async function applyConfirmedConsumptionProjection(
     await tx
         .insert(consumerTransaction)
         .values({
+            id: `chain_emission:${order.id}`,
             operation: "emission",
             consumerUserId: order.userId,
             cafeId: order.cafeId,
@@ -62,6 +64,7 @@ export async function applyConfirmedConsumptionProjection(
             purchaseOrderId: order.id,
             transactionHash: input.txHash,
             logIndex: input.logIndex,
+            createdAt: confirmedAt,
         })
         .onConflictDoNothing({
             target: consumerTransaction.idempotencyKey,
@@ -74,6 +77,6 @@ export async function applyConfirmedConsumptionProjection(
         productId: order.productId,
         transactionHash: input.txHash,
         logIndex: input.logIndex,
-        confirmedAt: order.updatedAt,
+        confirmedAt,
     });
 }

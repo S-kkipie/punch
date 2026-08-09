@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, gte, lt, lte, or } from "drizzle-orm";
+import { and, eq, gte, lt, lte, ne, or } from "drizzle-orm";
 import type { DbClient } from "@/server/drizzle/db";
 import { consumerTransaction } from "@/server/drizzle/schemas/consumption-schema";
 import {
@@ -43,6 +43,7 @@ export async function hasPriorPaidPurchase(
                 eq(consumerTransaction.cafeId, cafeId),
                 eq(consumerTransaction.operation, "emission"),
                 eq(consumerTransaction.status, "confirmed"),
+                ne(consumerTransaction.id, currentTransaction.id),
                 or(
                     lt(
                         consumerTransaction.createdAt,
