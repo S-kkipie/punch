@@ -61,9 +61,21 @@ function sanitizeMessage(message: string): string {
         );
 }
 
-function normalizeError(error: unknown): { name: string; message: string } {
+function normalizeError(error: unknown): {
+    name: string;
+    message: string;
+    code?: string | number;
+} {
     if (error instanceof Error) {
-        return { name: error.name, message: sanitizeMessage(error.message) };
+        const code = (error as Error & { code?: unknown }).code;
+        const normalized = {
+            name: error.name,
+            message: sanitizeMessage(error.message),
+        };
+        if (typeof code === "string" || typeof code === "number") {
+            return { ...normalized, code };
+        }
+        return normalized;
     }
     return { name: "Error", message: "Unknown error" };
 }
