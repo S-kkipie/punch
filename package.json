@@ -21,7 +21,7 @@
         "db:migrate": "tsx --env-file=.env scripts/migrate.ts",
         "db:seed": "tsx --env-file=.env --conditions react-server scripts/seed.ts",
         "db:studio": "drizzle-kit studio",
-        "worker": "tsx --env-file=.env scripts/worker.ts"
+        "worker": "node --conditions=react-server --import tsx --env-file=.env scripts/worker.ts"
     },
     "dependencies": {
         "@base-ui/react": "^1.6.0",
