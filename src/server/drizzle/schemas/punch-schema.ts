@@ -11,6 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { user } from "./auth-schema";
 import { cafe } from "./cafe-schema";
+import { purchaseOrder } from "./purchase-schema";
 
 export const punchBalanceProjection = pgTable(
     "punch_balance_projection",
@@ -33,6 +34,32 @@ export const punchBalanceProjection = pgTable(
 );
 
 export const campaignKind = pgEnum("campaign_kind", ["verified_acquisition"]);
+export const chainPurchaseEffectKind = pgEnum("chain_purchase_effect_kind", [
+    "campaign_qualification",
+    "crawl_step",
+]);
+
+export const chainPurchaseEffect = pgTable(
+    "chain_purchase_effect",
+    {
+        id: text("id").primaryKey(),
+        purchaseOrderId: text("purchase_order_id")
+            .notNull()
+            .references(() => purchaseOrder.id, { onDelete: "cascade" }),
+        kind: chainPurchaseEffectKind("kind").notNull(),
+        targetId: text("target_id").notNull(),
+        transactionHash: text("transaction_hash").notNull(),
+        logIndex: integer("log_index").notNull(),
+        createdAt: timestamp("created_at").defaultNow().notNull(),
+    },
+    (table) => [
+        uniqueIndex("chain_purchase_effect_order_kind_target_uq").on(
+            table.purchaseOrderId,
+            table.kind,
+            table.targetId,
+        ),
+    ],
+);
 
 export const campaign = pgTable(
     "campaign",

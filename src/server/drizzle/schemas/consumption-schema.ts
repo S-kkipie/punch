@@ -111,6 +111,12 @@ export const consumerTransaction = pgTable(
         rejectionReason: text("rejection_reason"),
         modeledHostPayoutCentimos: integer("modeled_host_payout_centimos"),
         idempotencyKey: text("idempotency_key").notNull(),
+        purchaseOrderId: text("purchase_order_id").references(
+            () => purchaseOrder.id,
+            { onDelete: "restrict" },
+        ),
+        transactionHash: text("transaction_hash"),
+        logIndex: integer("log_index"),
         createdAt: timestamp("created_at").defaultNow().notNull(),
         updatedAt: timestamp("updated_at")
             .defaultNow()
@@ -124,6 +130,9 @@ export const consumerTransaction = pgTable(
         uniqueIndex("consumer_transaction_proof_id_uq")
             .on(table.proofId)
             .where(sql`${table.proofId} IS NOT NULL`),
+        uniqueIndex("consumer_transaction_purchase_order_uq")
+            .on(table.purchaseOrderId)
+            .where(sql`${table.purchaseOrderId} IS NOT NULL`),
         uniqueIndex("consumer_transaction_redemption_request_id_uq")
             .on(table.redemptionRequestId)
             .where(sql`${table.redemptionRequestId} IS NOT NULL`),
