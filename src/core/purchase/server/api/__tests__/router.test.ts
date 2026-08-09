@@ -20,7 +20,7 @@ vi.mock("../../services/get-purchase-service", () => ({
     getPurchaseService: vi.fn(),
 }));
 vi.mock("../../services/get-balance-service", () => ({
-    getBalanceService: vi.fn(),
+    getConsumerBalance: vi.fn(),
 }));
 vi.mock("../../services/list-purchases-service", () => ({
     listMyPurchasesService: vi.fn(),
@@ -32,7 +32,7 @@ import { err, ok } from "@/server/common/responses";
 import app from "@/server/router";
 import { confirmPurchaseService } from "../../services/confirm-purchase-service";
 import { createPurchaseService } from "../../services/create-purchase-service";
-import { getBalanceService } from "../../services/get-balance-service";
+import { getConsumerBalance } from "../../services/get-balance-service";
 import { getPurchaseService } from "../../services/get-purchase-service";
 import {
     listCafePurchasesService,
@@ -142,14 +142,14 @@ describe("purchase API routes", () => {
 
     it("requires auth and routes /balance statically, not /:id", async () => {
         expect((await request("/api/v1/purchases/balance")).status).toBe(401);
-        expect(getBalanceService).not.toHaveBeenCalled();
+        expect(getConsumerBalance).not.toHaveBeenCalled();
 
-        vi.mocked(getBalanceService).mockResolvedValue(
+        vi.mocked(getConsumerBalance).mockResolvedValue(
             ok({ punchBalance: 42, stale: true }),
         );
         const response = await authedRequest("/api/v1/purchases/balance");
         expect(response.status).toBe(200);
-        expect(getBalanceService).toHaveBeenCalledWith("user-1");
+        expect(getConsumerBalance).toHaveBeenCalledWith("user-1");
         expect(getPurchaseService).not.toHaveBeenCalled();
         expect(await response.json()).toEqual({
             response: { punchBalance: 42, stale: true },

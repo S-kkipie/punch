@@ -8,13 +8,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
     globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
-const { punchMutate, voucherMutate, useSearchParams, voucherStatus } =
-    vi.hoisted(() => ({
-        punchMutate: vi.fn(),
-        voucherMutate: vi.fn(),
-        useSearchParams: vi.fn(),
-        voucherStatus: { value: "redeemed" as string },
-    }));
+const {
+    punchMutate,
+    voucherMutate,
+    useSearchParams,
+    voucherStatus,
+    chainMode,
+    dashboardBalance,
+} = vi.hoisted(() => ({
+    punchMutate: vi.fn(),
+    voucherMutate: vi.fn(),
+    useSearchParams: vi.fn(),
+    voucherStatus: { value: "redeemed" as string },
+    chainMode: { value: "mock" as "mock" | "local" },
+    dashboardBalance: { value: 12 as number | null },
+}));
 vi.mock("next/navigation", () => ({
     useParams: () => ({ productId: "product-1" }),
     useSearchParams,
@@ -26,7 +34,14 @@ vi.mock("@/core/cafe/client/hooks", () => ({
     }),
 }));
 vi.mock("@/core/punch/client/hooks", () => ({
-    useDashboard: () => ({ isPending: false, data: { balance: 12 } }),
+    useDashboard: () => ({
+        isPending: false,
+        data: {
+            balance: dashboardBalance.value,
+            stale: dashboardBalance.value === null,
+            chainMode: chainMode.value,
+        },
+    }),
     useVouchers: () => ({
         isPending: false,
         data: [
@@ -81,7 +96,50 @@ describe("RedeemPage voucher safety", () => {
     afterEach(() => {
         document.body.innerHTML = "";
         voucherStatus.value = "redeemed";
+        chainMode.value = "mock";
+        dashboardBalance.value = 12;
         vi.clearAllMocks();
+    });
+
+    it("retains the last known balance when a refresh becomes unknown", async () => {
+        dashboardBalance.value = 11;
+        useSearchParams.mockReturnValue(new URLSearchParams("cafeId=cafe-1"));
+        const container = document.createElement("div");
+        document.body.append(container);
+        const root = createRoot(container);
+        await act(async () => root.render(<RedeemPage />));
+        dashboardBalance.value = null;
+        await act(async () => root.render(<RedeemPage />));
+        expect(container.textContent).toContain("11 / 12");
+        expect(container.textContent).toContain("Actualizando desde la cadena");
+        await act(async () => root.unmount());
+    });
+
+    it("does not present an unknown balance as zero", async () => {
+        dashboardBalance.value = null;
+        useSearchParams.mockReturnValue(new URLSearchParams("cafeId=cafe-1"));
+        const container = document.createElement("div");
+        document.body.append(container);
+        const root = createRoot(container);
+        await act(async () => root.render(<RedeemPage />));
+        expect(container.textContent).not.toContain("Tu progreso: 0 / 12");
+        await act(async () => root.unmount());
+    });
+
+    it("disables PUNCH redemption in local chain mode with an explanation", async () => {
+        chainMode.value = "local";
+        useSearchParams.mockReturnValue(new URLSearchParams("cafeId=cafe-1"));
+        const container = document.createElement("div");
+        document.body.append(container);
+        const root = createRoot(container);
+        await act(async () => root.render(<RedeemPage />));
+        expect(
+            (container.querySelector("button") as HTMLButtonElement).disabled,
+        ).toBe(true);
+        expect(container.textContent).toMatch(
+            /redención on-chain aún no disponible/i,
+        );
+        await act(async () => root.unmount());
     });
 
     it("rejects stale vouchers without showing PUNCH redemption or submitting", async () => {

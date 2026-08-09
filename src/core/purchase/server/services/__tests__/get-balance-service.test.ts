@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { getBalanceService } from "../get-balance-service";
+import {
+    getBalanceService,
+    getChainBackedBalance,
+    getConsumerBalance,
+} from "../get-balance-service";
 
 function deps(overrides: Record<string, unknown> = {}) {
     return {
@@ -12,6 +16,41 @@ function deps(overrides: Record<string, unknown> = {}) {
         ...overrides,
     };
 }
+
+describe("getConsumerBalance", () => {
+    it("uses only the explicit mock source in mock mode", async () => {
+        const mockBalance = vi.fn().mockResolvedValue(7);
+        const result = await getConsumerBalance("user-1", {
+            consumerChainMode: "mock",
+            mockBalance,
+        });
+        expect(result).toMatchObject({
+            ok: true,
+            data: { punchBalance: 7, stale: false },
+        });
+    });
+});
+
+describe("getChainBackedBalance", () => {
+    it("reads an exact projected integer and never consults mock balance", async () => {
+        const d = deps();
+        await expect(getChainBackedBalance("user-1", d)).resolves.toMatchObject(
+            {
+                ok: true,
+                data: { punchBalance: 42, stale: false },
+            },
+        );
+        expect(d.findBalance).toHaveBeenCalled();
+    });
+
+    it("treats missing projection status as stale", async () => {
+        const result = await getChainBackedBalance(
+            "user-1",
+            deps({ isStale: vi.fn().mockResolvedValue(true) }),
+        );
+        expect(result).toMatchObject({ ok: true, data: { stale: true } });
+    });
+});
 
 describe("getBalanceService", () => {
     it("returns the projected balance when fresh", async () => {
@@ -50,7 +89,7 @@ describe("getBalanceService", () => {
         expect(d.isStale).toHaveBeenCalled();
     });
 
-    it("returns zero and stale when the user has no wallet and the chain projection status is missing", async () => {
+    it("returns unknown balance when stale and wallet is missing", async () => {
         const d = deps({
             findUserWallet: vi.fn().mockResolvedValue(null),
             isStale: vi.fn().mockResolvedValue(true),
@@ -58,7 +97,44 @@ describe("getBalanceService", () => {
         const result = await getBalanceService("user-1", d);
         expect(result).toMatchObject({
             ok: true,
-            data: { punchBalance: 0, stale: true },
+            data: { punchBalance: null, stale: true },
+        });
+    });
+
+    it("returns unknown balance when stale and projection row is missing", async () => {
+        const result = await getBalanceService(
+            "user-1",
+            deps({
+                findBalance: vi.fn().mockResolvedValue(null),
+                isStale: vi.fn().mockResolvedValue(true),
+            }),
+        );
+        expect(result).toMatchObject({
+            ok: true,
+            data: { punchBalance: null, stale: true },
+        });
+    });
+
+    it("returns genuine zero only when projection is green", async () => {
+        const result = await getBalanceService(
+            "user-1",
+            deps({ findBalance: vi.fn().mockResolvedValue({ balance: 0n }) }),
+        );
+        expect(result).toMatchObject({
+            ok: true,
+            data: { punchBalance: 0, stale: false },
+        });
+    });
+
+    it("returns unknown and stale when the user has no wallet and the chain projection status is missing", async () => {
+        const d = deps({
+            findUserWallet: vi.fn().mockResolvedValue(null),
+            isStale: vi.fn().mockResolvedValue(true),
+        });
+        const result = await getBalanceService("user-1", d);
+        expect(result).toMatchObject({
+            ok: true,
+            data: { punchBalance: null, stale: true },
         });
         expect(d.findBalance).not.toHaveBeenCalled();
     });

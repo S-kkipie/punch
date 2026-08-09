@@ -1,4 +1,5 @@
 import type { z } from "zod";
+import type { PurchaseQuoteStatus } from "./quotes";
 import type {
     confirmPurchaseSchema,
     consumerTransactionSchema,
@@ -19,6 +20,18 @@ export type CreatePurchaseProof = z.infer<typeof createPurchaseProofSchema>;
 export type ConfirmPurchase = z.infer<typeof confirmPurchaseSchema>;
 export type PurchaseProofStatus = z.infer<typeof purchaseProofStatusSchema>;
 export type PurchaseProof = z.infer<typeof purchaseProofSchema>;
+export type PurchaseQuoteView = {
+    id: string;
+    cafeId: string;
+    productId: string;
+    amountCentimos: number;
+    expiresAt: string;
+    status: PurchaseQuoteStatus;
+    maskedYapeRef: string;
+    purchaseOrderId: string | null;
+    failureReason: string | null;
+    createdAt: string;
+};
 export type ConsumptionOperation = z.infer<typeof consumptionOperationSchema>;
 export type ConsumerTransactionStatus = z.infer<
     typeof consumerTransactionStatusSchema

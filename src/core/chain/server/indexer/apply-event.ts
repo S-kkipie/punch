@@ -1,7 +1,7 @@
 // biome-ignore-all lint/suspicious/noExplicitAny: Drizzle's generic transaction builder is intentionally abstract here
 import "server-only";
 
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { user } from "@/server/drizzle/schemas/auth-schema";
 import { cafe } from "@/server/drizzle/schemas/cafe-schema";
 import {
@@ -10,6 +10,7 @@ import {
     projectionPunchBalance,
 } from "@/server/drizzle/schemas/chain-schema";
 import { purchaseOrder } from "@/server/drizzle/schemas/purchase-schema";
+import { applyConfirmedConsumptionProjection } from "./purchase-projection";
 
 export const CREDITS_PER_PURCHASE = 100n;
 const MAX_SQL_INT = 2_147_483_647;
@@ -131,7 +132,7 @@ async function confirmMatchingOrder(
     chainCafeId: number,
     userAddress: string,
     hash: string,
-    txHash: string,
+    event: IndexerEvent,
 ) {
     const matches = await tx
         .select({ id: purchaseOrder.id, status: purchaseOrder.status })
@@ -146,28 +147,13 @@ async function confirmMatchingOrder(
             ),
         );
     const order = matches[0];
-    if (
-        !order ||
-        order.status === "confirmed" ||
-        order.status === "failed" ||
-        order.status === "expired"
-    ) {
-        return;
-    }
-    await tx
-        .update(purchaseOrder)
-        .set({ status: "confirmed", txHash })
-        .where(
-            and(
-                eq(purchaseOrder.id, order.id),
-                inArray(purchaseOrder.status, [
-                    "user_confirmed",
-                    "cafe_confirmed",
-                    "queued",
-                    "submitted",
-                ]),
-            ),
-        );
+    if (!order) return;
+    await applyConfirmedConsumptionProjection(tx, {
+        orderId: order.id,
+        txHash: event.transactionHash as `0x${string}`,
+        logIndex: event.logIndex,
+        blockNumber: event.blockNumber,
+    });
 }
 
 async function recordConsumption(tx: IndexerTransaction, event: IndexerEvent) {
@@ -190,13 +176,7 @@ async function recordConsumption(tx: IndexerTransaction, event: IndexerEvent) {
                 projectionConsumption.logIndex,
             ],
         });
-    await confirmMatchingOrder(
-        tx,
-        chainCafeId,
-        userAddress,
-        hash,
-        event.transactionHash,
-    );
+    await confirmMatchingOrder(tx, chainCafeId, userAddress, hash, event);
 }
 
 export async function applyEvent(

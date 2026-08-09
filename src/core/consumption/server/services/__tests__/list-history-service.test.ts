@@ -37,6 +37,9 @@ const rows = [
         status: "confirmed",
         rejectionReason: null,
         createdAt: new Date("2026-08-08T13:00:00Z"),
+        purchaseOrderId: null,
+        transactionHash: null,
+        logIndex: null,
     },
     {
         id: "tx-old",
@@ -46,6 +49,9 @@ const rows = [
         status: "confirmed",
         rejectionReason: null,
         createdAt: new Date("2026-08-08T11:00:00Z"),
+        purchaseOrderId: "order-chain",
+        transactionHash: "0xchain",
+        logIndex: 4,
     },
     {
         id: "tx-new",
@@ -100,6 +106,11 @@ describe("listHistoryService", () => {
                 }),
             );
             expect(result.data[0]).not.toHaveProperty("consumerUserId");
+            expect(result.data[1]).toMatchObject({
+                purchaseOrderId: "order-chain",
+                transactionHash: "0xchain",
+                logIndex: 4,
+            });
         }
     });
 });

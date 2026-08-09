@@ -45,6 +45,14 @@ import {
     projectionStatus,
 } from "@/server/drizzle/schemas/chain-schema";
 import {
+    consumerTransaction,
+    consumptionProof,
+} from "@/server/drizzle/schemas/consumption-schema";
+import {
+    campaign,
+    consumerVoucher,
+} from "@/server/drizzle/schemas/punch-schema";
+import {
     purchaseOrder,
     relayerJob,
 } from "@/server/drizzle/schemas/purchase-schema";
@@ -72,6 +80,7 @@ type Fixture = {
     chainProductId: number;
     userAddress: `0x${string}`;
     receiptHash?: `0x${string}`;
+    campaignId?: string;
 };
 
 type LiveSetup = {
@@ -192,6 +201,20 @@ async function cleanup() {
             .delete(projectionCafeCredit)
             .where(eq(projectionCafeCredit.chainCafeId, fixture.chainCafeId));
         await db
+            .delete(consumerVoucher)
+            .where(eq(consumerVoucher.consumerUserId, fixture.userId));
+        if (fixture.campaignId) {
+            await db
+                .delete(campaign)
+                .where(eq(campaign.id, fixture.campaignId));
+        }
+        await db
+            .delete(consumerTransaction)
+            .where(eq(consumerTransaction.consumerUserId, fixture.userId));
+        await db
+            .delete(consumptionProof)
+            .where(eq(consumptionProof.issuedByUserId, fixture.userId));
+        await db
             .delete(relayerJob)
             .where(eq(relayerJob.orderId, fixture.orderId));
         await db
@@ -259,6 +282,20 @@ async function createFixtureRecords(args: {
         nonce: args.proof.nonce.toString(),
         expiry: new Date(Number(args.proof.expiry) * 1000),
         status: "user_confirmed",
+    });
+    await db.insert(consumptionProof).values({
+        id: `indexer-proof-${args.fixture.orderId}`,
+        cafeId: args.fixture.cafeId,
+        productId: args.fixture.productId,
+        issuedByUserId: args.fixture.userId,
+        consumerUserId: args.fixture.userId,
+        amountCentimos: 800,
+        purchaseOrderId: args.fixture.orderId,
+        yapeRef: args.receiptTag,
+        receiptHash: args.proof.receiptHash,
+        nonce: args.proof.nonce.toString(),
+        status: "submitted",
+        expiresAt: new Date(Number(args.proof.expiry) * 1000),
     });
 }
 
@@ -454,6 +491,19 @@ describeIntegration("indexer live integration", () => {
 
     it("indexes one live relayer purchase, recovers order state, and stays idempotent", async () => {
         const setup = await setupLive();
+        const [campaignRow] = await db
+            .insert(campaign)
+            .values({
+                id: `indexer-campaign-${setup.fixture.orderId}`,
+                kind: "verified_acquisition",
+                cafeId: setup.fixture.cafeId,
+                name: "Indexer Acquisition",
+                windowStart: new Date(Date.now() - 60_000),
+                windowEnd: new Date(Date.now() + 60_000),
+                active: true,
+            })
+            .returning();
+        setup.fixture.campaignId = campaignRow.id;
         await runRelayerOnce(relayerDeps(setup));
         await db
             .update(purchaseOrder)
@@ -495,6 +545,20 @@ describeIntegration("indexer live integration", () => {
             .from(indexerCursor)
             .where(eq(indexerCursor.contract, "punch"));
         const order = await findOrder(setup.fixture.orderId);
+        const [quote] = await db
+            .select()
+            .from(consumptionProof)
+            .where(eq(consumptionProof.purchaseOrderId, setup.fixture.orderId));
+        const [history] = await db
+            .select()
+            .from(consumerTransaction)
+            .where(
+                eq(consumerTransaction.purchaseOrderId, setup.fixture.orderId),
+            );
+        const vouchers = await db
+            .select()
+            .from(consumerVoucher)
+            .where(eq(consumerVoucher.consumerUserId, setup.fixture.userId));
         const liveConsumption = (await consumptionLogs(setup))[0];
 
         expect(balance?.balance).toBe(1n);
@@ -504,6 +568,16 @@ describeIntegration("indexer live integration", () => {
             await setup.pub.getBlockNumber(),
         );
         expect(order?.status).toBe("confirmed");
+        expect(quote?.status).toBe("confirmed");
+        expect(vouchers).toHaveLength(1);
+        expect(vouchers[0].campaignId).toBe(setup.fixture.campaignId);
+        expect(history).toMatchObject({
+            operation: "emission",
+            status: "confirmed",
+            purchaseOrderId: setup.fixture.orderId,
+            transactionHash: liveConsumption?.transactionHash,
+            logIndex: liveConsumption?.logIndex,
+        });
         expect(consumptions[0]).toMatchObject({
             txHash: liveConsumption?.transactionHash,
             logIndex: liveConsumption?.logIndex,

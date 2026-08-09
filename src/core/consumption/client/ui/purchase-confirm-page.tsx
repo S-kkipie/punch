@@ -1,28 +1,64 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
     useConfirmPurchase,
+    usePurchaseOrder,
     usePurchaseProof,
-    useTransactionStatus,
 } from "@/core/consumption/client/hooks";
+import {
+    toUiPurchaseState,
+    type UiPurchaseState,
+} from "@/core/consumption/client/purchase-status";
 import { TransactionStatus } from "@/core/consumption/client/ui/transaction-status";
+import type { PurchaseOrderStatus } from "@/core/purchase/domain/types";
 import { Button } from "@/frontend/components/ui/button";
 import { Spinner } from "@/frontend/components/ui/spinner";
 
-export default function PurchaseConfirmPage() {
+type PurchaseOrder = {
+    id: string;
+    status: PurchaseOrderStatus;
+    failureReason?: string | null;
+    txHash?: string | null;
+};
+
+type PurchaseQuote = {
+    id: string;
+    cafeId: string;
+    productId: string;
+    amountCentimos: number;
+    expiresAt: string;
+    status: "issued" | "submitted" | "confirmed" | "failed" | "expired";
+    maskedYapeRef: string;
+    purchaseOrderId: string | null;
+    failureReason: string | null;
+};
+
+export function PurchaseConfirmPage() {
     const { proofId } = useParams<{ proofId: string }>();
     const router = useRouter();
     const proofQuery = usePurchaseProof(proofId);
     const confirmPurchase = useConfirmPurchase();
-    const [transactionId, setTransactionId] = useState<string>();
-    const [localStatus, setLocalStatus] = useState<{
-        status: "pending" | "confirmed" | "rejected" | "failed";
-        rejectionReason?: string;
-    }>();
-    const statusQuery = useTransactionStatus(transactionId);
+    const [orderId, setOrderId] = useState<string>();
+    const [localOrder, setLocalOrder] = useState<PurchaseOrder>();
+    const [hasSubmitted, setHasSubmitted] = useState(false);
+    const submissionStarted = useRef(false);
     const [isOnline, setIsOnline] = useState(true);
+    const orderQuery = usePurchaseOrder(orderId);
+
+    useEffect(() => {
+        const linkedOrderId = (proofQuery.data as PurchaseQuote | undefined)
+            ?.purchaseOrderId;
+        if (linkedOrderId) {
+            setOrderId(linkedOrderId);
+        } else {
+            setOrderId(undefined);
+            setLocalOrder(undefined);
+            setHasSubmitted(false);
+            submissionStarted.current = false;
+        }
+    }, [proofQuery.data]);
 
     useEffect(() => {
         setIsOnline(navigator.onLine);
@@ -45,13 +81,27 @@ export default function PurchaseConfirmPage() {
     if (proofQuery.isError || !proofQuery.data)
         return <p className="text-destructive">No se pudo cargar la compra.</p>;
 
-    const proof = proofQuery.data as {
-        id: string;
-        amountCentimos: number;
-        expiresAt: string;
-    };
+    const proof = proofQuery.data as PurchaseQuote;
+    const order = (orderQuery.data ?? localOrder) as PurchaseOrder | undefined;
     const expired = new Date(proof.expiresAt) < new Date();
+    const status: UiPurchaseState = order
+        ? toUiPurchaseState({
+              quoteStatus: proof.status,
+              orderStatus: order.status,
+          })
+        : expired
+          ? "expired"
+          : toUiPurchaseState({ quoteStatus: proof.status });
     const confirm = () => {
+        if (
+            !isOnline ||
+            !proof.id ||
+            (submissionStarted.current && !order) ||
+            (hasSubmitted && !order)
+        )
+            return;
+        if (!order) submissionStarted.current = true;
+        setHasSubmitted(true);
         confirmPurchase.mutate(
             { proofId: proof.id },
             {
@@ -59,33 +109,22 @@ export default function PurchaseConfirmPage() {
                     const response = (
                         result as {
                             response?: {
-                                transactionId?: string;
-                                status?:
-                                    | "pending"
-                                    | "confirmed"
-                                    | "rejected"
-                                    | "failed";
-                                rejectionReason?: string;
+                                order?: PurchaseOrder;
+                                quote?: PurchaseQuote;
                             };
                         }
                     ).response;
-                    if (response?.transactionId) {
-                        setTransactionId(response.transactionId);
-                        setLocalStatus({
-                            status: response.status ?? "pending",
-                            rejectionReason: response.rejectionReason,
-                        });
-                    }
+                    if (!response?.order) return;
+                    setOrderId(response.order.id);
+                    setLocalOrder(response.order);
+                },
+                onError: () => {
+                    setHasSubmitted(false);
+                    submissionStarted.current = false;
                 },
             },
         );
     };
-    const transaction = (statusQuery.data ?? localStatus) as
-        | {
-              status: "pending" | "confirmed" | "rejected" | "failed";
-              rejectionReason?: string;
-          }
-        | undefined;
 
     return (
         <div className="mx-auto grid w-full max-w-md gap-5">
@@ -96,45 +135,51 @@ export default function PurchaseConfirmPage() {
                 </h1>
             </section>
             <div className="consumer-panel grid gap-2 p-5">
+                <p className="font-semibold">Café: {proof.cafeId}</p>
+                <p className="font-semibold">Producto: {proof.productId}</p>
                 <p className="font-semibold">
                     S/ {(proof.amountCentimos / 100).toFixed(2)}
+                </p>
+                <p className="text-[var(--color-ink-2)] text-sm">
+                    Referencia Yape: {proof.maskedYapeRef}
                 </p>
                 <p className="text-[var(--color-ink-2)] text-sm">
                     Disponible hasta{" "}
                     {new Date(proof.expiresAt).toLocaleTimeString("es-PE")}.
                 </p>
             </div>
-            {expired && !transactionId && (
-                <p className="text-destructive text-sm">
-                    Este código venció. Pide al barista uno nuevo.
-                </p>
-            )}
-            {!isOnline && (
+            {!orderQuery.isError && status === "issued" && !isOnline && (
                 <p className="text-amber-700 text-sm">
                     Sin conexión. Reconéctate para confirmar la compra.
                 </p>
             )}
-            {statusQuery.isError ? (
+            {orderQuery.isError ? (
                 <div className="grid gap-3 text-destructive text-sm">
                     <p>No pudimos actualizar el estado de tu compra.</p>
                     <Button
                         variant="outline"
-                        onClick={() => statusQuery.refetch()}
+                        onClick={() => orderQuery.refetch()}
                     >
                         Reintentar estado
                     </Button>
                 </div>
-            ) : transaction ? (
+            ) : status !== "issued" ? (
                 <TransactionStatus
-                    status={transaction.status}
-                    rejectionReason={transaction.rejectionReason}
-                    onRetry={confirm}
+                    status={status}
+                    rejectionReason={
+                        order?.failureReason ?? proof.failureReason ?? undefined
+                    }
                 />
             ) : (
                 <Button
                     size="lg"
                     className="min-h-12 w-full"
-                    disabled={expired || !isOnline || confirmPurchase.isPending}
+                    disabled={
+                        expired ||
+                        !isOnline ||
+                        confirmPurchase.isPending ||
+                        hasSubmitted
+                    }
                     onClick={confirm}
                 >
                     {confirmPurchase.isPending
@@ -142,7 +187,13 @@ export default function PurchaseConfirmPage() {
                         : "Confirmar compra"}
                 </Button>
             )}
-            {transaction?.status === "confirmed" && (
+            {order?.txHash ? (
+                <p className="text-muted-foreground text-xs">
+                    Código de operación: {order.txHash.slice(0, 8)}…
+                    {order.txHash.slice(-6)}
+                </p>
+            ) : null}
+            {status === "confirmed" && (
                 <Button
                     variant="outline"
                     className="w-full"
@@ -154,3 +205,5 @@ export default function PurchaseConfirmPage() {
         </div>
     );
 }
+
+export default PurchaseConfirmPage;

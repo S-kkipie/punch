@@ -1,5 +1,9 @@
 import { Elysia, t } from "elysia";
-import { confirmPurchaseSchema } from "@/core/consumption/domain/schemas";
+import {
+    confirmPurchaseSchema,
+    purchaseProofStatusValues,
+} from "@/core/consumption/domain/schemas";
+import { purchaseOrderStatusValues } from "@/core/purchase/domain/schemas";
 import { authed } from "@/server/auth/middleware/authed";
 import {
     CommonResponse,
@@ -31,13 +35,37 @@ export const confirmPurchaseRoute = new Elysia().use(authed).post(
                 status: t.Literal(200),
                 code: t.Literal("OK"),
                 response: t.Object({
-                    transactionId: t.String(),
-                    status: t.String(),
+                    order: t.Object({
+                        id: t.String(),
+                        cafeId: t.String(),
+                        productId: t.String(),
+                        amountSoles: t.Number(),
+                        status: t.String({ enum: purchaseOrderStatusValues }),
+                        failureReason: t.Nullable(t.String()),
+                        txHash: t.Nullable(t.String()),
+                        expiry: t.String(),
+                        createdAt: t.String(),
+                    }),
+                    quote: t.Object({
+                        id: t.String(),
+                        cafeId: t.String(),
+                        productId: t.String(),
+                        amountCentimos: t.Number(),
+                        expiresAt: t.String(),
+                        status: t.String({ enum: purchaseProofStatusValues }),
+                        maskedYapeRef: t.String(),
+                        purchaseOrderId: t.Nullable(t.String()),
+                        failureReason: t.Nullable(t.String()),
+                        createdAt: t.String(),
+                    }),
+                    outcome: t.String({ enum: ["created", "existing"] }),
                 }),
             }),
             400: errorResponseSchema(400),
             401: errorResponseSchema(401),
+            403: errorResponseSchema(403),
             404: errorResponseSchema(404),
+            409: errorResponseSchema(409),
             422: errorResponseSchema(422),
             500: errorResponseSchema(500),
         },

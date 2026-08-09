@@ -1,8 +1,12 @@
 import type { ConsumerTransactionStatus } from "@/core/consumption/domain/types";
+import { purchaseStatusCopy } from "../purchase-status";
 
 export type UiTransactionState =
     | "loading"
     | "awaiting_signature"
+    | "queued"
+    | "submitted"
+    | "expired"
     | ConsumerTransactionStatus;
 
 export function transactionStatusCopy(status: UiTransactionState): {
@@ -20,6 +24,10 @@ export function transactionStatusCopy(status: UiTransactionState): {
                 label: "Esperando firma",
                 hint: "Confirma para autorizar.",
             };
+        case "queued":
+        case "submitted":
+        case "expired":
+            return purchaseStatusCopy(status);
         case "pending":
             return {
                 label: "Pendiente on-chain",

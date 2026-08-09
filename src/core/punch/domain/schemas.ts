@@ -7,11 +7,15 @@ export const campaignStatusSchema = z.enum([
 ]);
 
 export const dashboardSchema = z.object({
-    balance: z.number().int().nonnegative(),
-    progress: z.object({
-        numerator: z.number().int(),
-        denominator: z.literal(12),
-    }),
+    balance: z.number().int().nonnegative().nullable(),
+    stale: z.boolean(),
+    chainMode: z.enum(["mock", "local"]),
+    progress: z
+        .object({
+            numerator: z.number().int(),
+            denominator: z.literal(12),
+        })
+        .nullable(),
     activeCampaign: z
         .object({ id: z.string(), name: z.string(), cafeId: z.string() })
         .nullable(),

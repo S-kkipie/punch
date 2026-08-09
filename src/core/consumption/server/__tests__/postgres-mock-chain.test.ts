@@ -13,7 +13,6 @@ vi.mock("../repository/transactions", () => ({
 }));
 vi.mock("../repository/proofs", () => ({
     findProofById: vi.fn(),
-    bindProofSignatures: vi.fn(),
 }));
 vi.mock("../repository/redemption-requests", () => ({
     findRedemptionRequestById: vi.fn(),

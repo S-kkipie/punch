@@ -21,6 +21,7 @@ export const env = createEnv({
         CHAIN_ENV: z.enum(["local", "arbitrumSepolia"]).default("local"),
         CHAIN_RPC_URL: z.url().default("http://127.0.0.1:8545"),
         RELAYER_WALLET_INDEX: z.coerce.number().int().nonnegative().default(0),
+        CONSUMER_CHAIN_MODE: z.enum(["mock", "local"]).optional(),
     },
     client: {
         NEXT_PUBLIC_APP_URL: z.url(),
@@ -38,6 +39,7 @@ export const env = createEnv({
         CHAIN_ENV: process.env.CHAIN_ENV,
         CHAIN_RPC_URL: process.env.CHAIN_RPC_URL,
         RELAYER_WALLET_INDEX: process.env.RELAYER_WALLET_INDEX,
+        CONSUMER_CHAIN_MODE: process.env.CONSUMER_CHAIN_MODE,
         NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
         NEXT_PUBLIC_DEMO_MODE: process.env.NEXT_PUBLIC_DEMO_MODE,
         NEXT_PUBLIC_DEMO_PASSWORD: process.env.NEXT_PUBLIC_DEMO_PASSWORD,

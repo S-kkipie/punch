@@ -26,6 +26,7 @@ export default function CafeTerminalPage() {
     const productsQuery = useCafeProducts(cafeId);
     const createProof = useCreatePurchaseProof(cafeId);
     const [productId, setProductId] = useState("");
+    const [yapeRef, setYapeRef] = useState("");
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const products = (productsQuery.data ?? []) as Product[];
     const emissionProducts = products.filter(
@@ -45,10 +46,16 @@ export default function CafeTerminalPage() {
     }, [proof?.deepLink]);
 
     const generate = () => {
-        if (!productId) return;
-        const bytes = crypto.getRandomValues(new Uint8Array(32));
-        const receiptHash = `0x${Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
-        createProof.mutate({ productId, receiptHash });
+        if (
+            !productId ||
+            yapeRef.trim().length < 4 ||
+            yapeRef.trim().length > 120
+        )
+            return;
+        createProof.mutate(
+            { productId, yapeRef },
+            { onSuccess: () => setYapeRef("") },
+        );
     };
 
     return (
@@ -79,9 +86,22 @@ export default function CafeTerminalPage() {
                             </SelectContent>
                         </Select>
                     )}
+                    <input
+                        aria-label="Referencia Yape"
+                        className="min-h-11 w-full rounded-md border px-3 text-sm"
+                        placeholder="Referencia Yape"
+                        maxLength={120}
+                        value={yapeRef}
+                        onChange={(event) => setYapeRef(event.target.value)}
+                    />
                     <Button
                         className="min-h-11 w-full"
-                        disabled={!productId || createProof.isPending}
+                        disabled={
+                            !productId ||
+                            yapeRef.trim().length < 4 ||
+                            yapeRef.trim().length > 120 ||
+                            createProof.isPending
+                        }
                         onClick={generate}
                     >
                         {createProof.isPending ? "Generando…" : "Generar QR"}

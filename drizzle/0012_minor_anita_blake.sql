@@ -1,0 +1,1 @@
+ALTER TABLE "consumer_transaction" ADD COLUMN "chain_block_number" bigint;

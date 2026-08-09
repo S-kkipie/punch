@@ -15,6 +15,7 @@ export type ApprovedSeedCafe = {
     chainCafeId: number | null;
     ownerWalletIndex: number | null;
     ownerWalletAddress: string | null;
+    operatorWalletAddresses?: string[];
     products: BootstrapProduct[];
 };
 
@@ -53,10 +54,45 @@ export type BootstrapChain = {
         ownerAddress: `0x${string}`;
         eligibleProductIds: bigint[];
     }): Promise<void>;
+    authorizeOperator?(input: {
+        chainCafeId: bigint;
+        operatorAddress: `0x${string}`;
+    }): Promise<void>;
+    verifyOperator?(input: {
+        chainCafeId: bigint;
+        operatorAddress: `0x${string}`;
+    }): Promise<boolean>;
 };
 
 function sameAddress(a: string, b: string) {
     return a.toLowerCase() === b.toLowerCase();
+}
+
+async function authorizeOperators(input: {
+    chain: BootstrapChain;
+    chainCafeId: bigint;
+    addresses?: string[];
+}): Promise<void> {
+    for (const operatorAddress of input.addresses ?? []) {
+        if (!input.chain.authorizeOperator || !input.chain.verifyOperator) {
+            throw new Error("bootstrap operator authorization is unavailable");
+        }
+        const address = operatorAddress as `0x${string}`;
+        await input.chain.authorizeOperator({
+            chainCafeId: input.chainCafeId,
+            operatorAddress: address,
+        });
+        if (
+            !(await input.chain.verifyOperator({
+                chainCafeId: input.chainCafeId,
+                operatorAddress: address,
+            }))
+        ) {
+            throw new Error(
+                `bootstrap operator authorization failed for ${operatorAddress}`,
+            );
+        }
+    }
 }
 
 export async function bootstrapApprovedSeedCafes(input: {
@@ -134,6 +170,11 @@ export async function bootstrapApprovedSeedCafes(input: {
                     })),
                 });
             }
+            await authorizeOperators({
+                chain: input.chain,
+                chainCafeId,
+                addresses: cafe.operatorWalletAddresses,
+            });
             continue;
         }
 
@@ -174,6 +215,11 @@ export async function bootstrapApprovedSeedCafes(input: {
                 productId: product.id,
                 chainProductId: Number(chainProductIds[index]),
             })),
+        });
+        await authorizeOperators({
+            chain: input.chain,
+            chainCafeId,
+            addresses: cafe.operatorWalletAddresses,
         });
     }
 }

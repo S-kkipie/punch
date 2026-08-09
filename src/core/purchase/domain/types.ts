@@ -1,5 +1,10 @@
 import type { z } from "zod";
-import type { createPurchaseSchema, purchaseOrderSchema } from "./schemas";
+import type { PurchaseQuoteView } from "@/core/consumption/domain/types";
+import type {
+    createPurchaseSchema,
+    purchaseOrderSchema,
+    quoteBridgeOutcomeSchema,
+} from "./schemas";
 
 export type PurchaseOrderStatus =
     | "user_confirmed"
@@ -12,3 +17,9 @@ export type PurchaseOrderStatus =
 
 export type CreatePurchase = z.infer<typeof createPurchaseSchema>;
 export type PurchaseOrderView = z.infer<typeof purchaseOrderSchema>;
+export type QuoteBridgeOutcome = z.infer<typeof quoteBridgeOutcomeSchema>;
+export type QuoteBridgeResult = {
+    order: PurchaseOrderView;
+    quote: PurchaseQuoteView;
+    outcome: QuoteBridgeOutcome;
+};

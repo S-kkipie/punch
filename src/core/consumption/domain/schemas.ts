@@ -1,12 +1,8 @@
 import { z } from "zod";
 
-const bytes32Hex = z
-    .string()
-    .regex(/^0x[0-9a-fA-F]{64}$/, "Hash inválido (bytes32)");
-
 export const createPurchaseProofSchema = z.object({
-    productId: z.string().min(1, "Selecciona un producto"),
-    receiptHash: bytes32Hex,
+    productId: z.string().uuid(),
+    yapeRef: z.string().trim().min(4).max(120),
 });
 
 export const confirmPurchaseSchema = z.object({
@@ -34,7 +30,15 @@ export const fulfillmentRequestStatusSchema = z.enum([
 
 export const redemptionRequestKindSchema = z.enum(["punch_reward", "voucher"]);
 
-export const purchaseProofStatusSchema = z.enum(["issued", "confirmed"]);
+export const purchaseProofStatusValues = [
+    "issued",
+    "submitted",
+    "confirmed",
+    "failed",
+    "expired",
+] as const;
+
+export const purchaseProofStatusSchema = z.enum(purchaseProofStatusValues);
 
 export const purchaseProofSchema = z.object({
     id: z.string(),
@@ -43,6 +47,9 @@ export const purchaseProofSchema = z.object({
     amountCentimos: z.number().int().positive(),
     expiresAt: z.string(),
     status: purchaseProofStatusSchema,
+    maskedYapeRef: z.string(),
+    purchaseOrderId: z.string().nullable(),
+    failureReason: z.string().nullable(),
     createdAt: z.string(),
 });
 

@@ -7,7 +7,7 @@ import {
     type NewConsumptionProofRow,
 } from "@/server/drizzle/schemas/consumption-schema";
 
-export async function createProof(
+export async function createQuote(
     input: Omit<NewConsumptionProofRow, "id" | "createdAt" | "updatedAt">,
     client: DbClient = db,
 ): Promise<ConsumptionProofRow> {
@@ -15,7 +15,7 @@ export async function createProof(
         .insert(consumptionProof)
         .values(input)
         .returning();
-    if (!row) throw new Error("createProof: insert returned no row");
+    if (!row) throw new Error("createQuote: insert returned no row");
     return row;
 }
 
@@ -27,6 +27,24 @@ export async function findProofById(
         .select()
         .from(consumptionProof)
         .where(eq(consumptionProof.id, id));
+    return row ?? null;
+}
+
+export async function expireQuote(
+    id: string,
+    client: DbClient = db,
+): Promise<ConsumptionProofRow | null> {
+    const [row] = await client
+        .update(consumptionProof)
+        .set({ status: "expired" })
+        .where(
+            and(
+                eq(consumptionProof.id, id),
+                eq(consumptionProof.status, "issued"),
+                sql`${consumptionProof.expiresAt} <= now()`,
+            ),
+        )
+        .returning();
     return row ?? null;
 }
 
@@ -65,48 +83,4 @@ export async function findProofByNonceOrReceipt(
         );
     }
     return nonceProof ?? receiptProof ?? null;
-}
-
-export async function bindProofSignatures(
-    id: string,
-    consumerUserId: string,
-    cafeSignature: string,
-    consumerSignature: string,
-    client: DbClient = db,
-): Promise<ConsumptionProofRow> {
-    const [row] = await client
-        .update(consumptionProof)
-        .set({
-            status: "confirmed",
-            consumerUserId,
-            cafeSignature,
-            consumerSignature,
-        })
-        .where(
-            and(
-                eq(consumptionProof.id, id),
-                eq(consumptionProof.status, "issued"),
-                sql`${consumptionProof.expiresAt} > now()`,
-            ),
-        )
-        .returning();
-    if (row) return row;
-
-    const [existing] = await client
-        .select({
-            status: consumptionProof.status,
-            expired: sql<boolean>`${consumptionProof.expiresAt} <= now()`,
-        })
-        .from(consumptionProof)
-        .where(eq(consumptionProof.id, id));
-    if (existing?.status === "issued" && existing.expired) {
-        throw new ProofRepositoryError(
-            "PROOF_EXPIRED",
-            `Proof ${id} has expired`,
-        );
-    }
-    throw new ProofRepositoryError(
-        "PROOF_NOT_ISSUED",
-        `Proof ${id} is not issued or does not exist`,
-    );
 }

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { maskYapeRef } from "../quotes";
 import {
     confirmPurchaseSchema,
     createPurchaseProofSchema,
@@ -7,33 +8,33 @@ import {
 } from "../schemas";
 
 describe("createPurchaseProofSchema", () => {
-    it("requires a productId and a receiptHash", () => {
-        expect(() =>
+    it("accepts a product and server-side Yape reference", () => {
+        expect(
             createPurchaseProofSchema.parse({
-                productId: "p1",
-                receiptHash: `0x${"ab".repeat(32)}`,
+                productId: "550e8400-e29b-41d4-a716-446655440000",
+                yapeRef: "YAPE-1234",
             }),
-        ).not.toThrow();
+        ).toEqual({
+            productId: "550e8400-e29b-41d4-a716-446655440000",
+            yapeRef: "YAPE-1234",
+        });
     });
-    it("rejects a malformed receiptHash", () => {
+    it("rejects a Yape reference shorter than four characters", () => {
         expect(() =>
             createPurchaseProofSchema.parse({
-                productId: "p1",
-                receiptHash: "not-a-hash",
+                productId: "550e8400-e29b-41d4-a716-446655440000",
+                yapeRef: "123",
             }),
         ).toThrow();
     });
-    it("explains how to provide a product", () => {
-        const result = createPurchaseProofSchema.safeParse({
-            productId: "",
-            receiptHash: `0x${"ab".repeat(32)}`,
-        });
-        expect(result.success).toBe(false);
-        if (!result.success) {
-            expect(result.error.issues[0]?.message).toBe(
-                "Selecciona un producto",
-            );
-        }
+});
+
+describe("maskYapeRef", () => {
+    it.each([
+        ["1234", "••34"],
+        ["YAPE-987654", "•••••••••54"],
+    ])("masks every Yape reference except its final two characters", (raw, masked) => {
+        expect(maskYapeRef(raw)).toBe(masked);
     });
 });
 
@@ -78,6 +79,9 @@ describe("purchaseProofSchema", () => {
                 amountCentimos: 800,
                 expiresAt: new Date().toISOString(),
                 status: "issued",
+                maskedYapeRef: "••34",
+                purchaseOrderId: null,
+                failureReason: null,
                 createdAt: new Date().toISOString(),
             }),
         ).not.toThrow();
