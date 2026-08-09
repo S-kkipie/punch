@@ -2,7 +2,7 @@
 
 ## Status
 
-BLOCKED
+PART A IMPLEMENTED; live-chain verification remains pending.
 
 ## Implemented before block
 
@@ -12,18 +12,19 @@ BLOCKED
 - Added operator wallet address collection to the bootstrap repository and idempotent authorization/verification seams to bootstrap service.
 - Added a serial child-process demo runner in `scripts/demo-local.ts` and package entries for `demo:local` and `chain:seed-history`.
 - Added a phase-ordering test for the demo runner.
+- Implemented `seedHistoricalConsumptions` using real typed-data signatures from the consumer and café owner custodial accounts, `ConsumptionLog.recordConsumption`, receipt status checks, Anvil daily time advancement, credit and reserve preconditions, target-café `PunchIssued` event exclusion, and final `PunchVault.balanceOf === 11` verification.
+- Wired `scripts/bootstrap-local.ts --seed-history` to bootstrap cafés and then seed the demo consumer against `esquina-sur`.
+- Added a gated live-chain test that checks eleven returned receipts and refuses a second seed.
 
 ## Verification
 
 Passing:
 
-- `pnpm vitest run src/core/chain/server/bootstrap-local/__tests__ src/core/worker/__tests__/worker.test.ts` — 19 tests passed.
-- `pnpm vitest run src/core/worker/__tests__/error-redaction.test.ts` — 2 tests passed.
+- `pnpm vitest run src/core/chain/server/bootstrap-local/__tests__ src/core/worker/__tests__/worker.test.ts` — 19 passed, 1 gated live test skipped without `PUNCH_RUN_LIVE_CHAIN=1`.
 - `pnpm typecheck`
-- `pnpm biome check scripts/demo-local.ts scripts/bootstrap-local.ts src/core/chain/server/bootstrap-local package.json`
+- `pnpm biome check --write scripts/bootstrap-local.ts src/core/chain/server/bootstrap-local/historical-consumptions.ts`
+- `pnpm chain:deploy` completed against the available local RPC and deployed all contracts; generated addresses were restored afterward.
 
-## Exact block
+## Concern
 
-The honest historical seeding path required by the brief is not complete. `seedHistoricalConsumptions` has not been implemented, `scripts/bootstrap-local.ts --seed-history` still executes ordinary café bootstrap, and the demo runner does not yet perform real database reachability checking, Anvil `eth_chainId` polling, block-zero indexing, reconciliation, or final on-chain balance verification. I did not substitute a mint shortcut, direct projection write, or contract bypass.
-
-Therefore I did not claim the eleven real historical PUNCH demo state, did not run `pnpm demo:local`, and the correct status is BLOCKED.
+A complete live seed was not run in this pass because the required isolated PostgreSQL URL (`punch_task2_integration`) was not provisioned in this environment. The implementation refuses non-31337 or production-mode execution and does not use mint/projection shortcuts. Part B demo orchestration remains intentionally untouched.

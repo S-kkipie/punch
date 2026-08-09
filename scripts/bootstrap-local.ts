@@ -1,14 +1,22 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { eq } from "drizzle-orm";
 import { createPublicClient, http } from "viem";
 import { foundry } from "viem/chains";
 import { abis } from "../src/core/chain/abis";
+import {
+    assertLocalChain31337,
+    seedHistoricalConsumptions,
+} from "../src/core/chain/server/bootstrap-local/historical-consumptions";
 import { bootstrapRepository } from "../src/core/chain/server/bootstrap-local/repository";
 import {
     type BootstrapChain,
     bootstrapApprovedSeedCafes,
     type LiveCafe,
 } from "../src/core/chain/server/bootstrap-local/service";
+import { db } from "../src/server/drizzle/db";
+import { user } from "../src/server/drizzle/schemas/auth-schema";
+import { cafe } from "../src/server/drizzle/schemas/cafe-schema";
 import { type AddressMap, ownerAddressForIndex, seedCafe } from "./dev-chain";
 
 const rpcUrl = process.env.CHAIN_RPC_URL ?? "http://127.0.0.1:8545";
@@ -154,12 +162,43 @@ async function thisInspect(
     };
 }
 
-bootstrapApprovedSeedCafes({
-    repository: bootstrapRepository,
-    chain: liveChain(),
-})
-    .then(() => console.log("local bootstrap complete"))
-    .catch((error) => {
-        console.error(error instanceof Error ? error.message : error);
-        process.exitCode = 1;
+async function main() {
+    const publicClient = createPublicClient({
+        chain: foundry,
+        transport: http(rpcUrl),
     });
+    await assertLocalChain31337(publicClient);
+    await bootstrapApprovedSeedCafes({
+        repository: bootstrapRepository,
+        chain: liveChain(),
+    });
+
+    if (process.argv.includes("--seed-history")) {
+        const [consumer] = await db
+            .select({ id: user.id })
+            .from(user)
+            .where(eq(user.email, "demo-consumer@punch.pe"));
+        const [targetCafe] = await db
+            .select({ id: cafe.id })
+            .from(cafe)
+            .where(eq(cafe.slug, "esquina-sur"));
+        if (!consumer || !targetCafe) {
+            throw new Error(
+                "historical seeding demo consumer or target café is missing",
+            );
+        }
+        const hashes = await seedHistoricalConsumptions({
+            consumerUserId: consumer.id,
+            count: 11,
+            targetCafeId: targetCafe.id,
+        });
+        console.log(`historical seeding complete: ${hashes.length} receipts`);
+    } else {
+        console.log("local bootstrap complete");
+    }
+}
+
+main().catch((error) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exitCode = 1;
+});
