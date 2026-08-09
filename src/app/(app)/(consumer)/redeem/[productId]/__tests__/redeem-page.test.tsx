@@ -126,7 +126,7 @@ describe("RedeemPage voucher safety", () => {
         await act(async () => root.unmount());
     });
 
-    it("disables PUNCH redemption in local chain mode with an explanation", async () => {
+    it("enables PUNCH redemption in local chain mode", async () => {
         chainMode.value = "local";
         useSearchParams.mockReturnValue(new URLSearchParams("cafeId=cafe-1"));
         const container = document.createElement("div");
@@ -135,8 +135,8 @@ describe("RedeemPage voucher safety", () => {
         await act(async () => root.render(<RedeemPage />));
         expect(
             (container.querySelector("button") as HTMLButtonElement).disabled,
-        ).toBe(true);
-        expect(container.textContent).toMatch(
+        ).toBe(false);
+        expect(container.textContent).not.toMatch(
             /redención on-chain aún no disponible/i,
         );
         await act(async () => root.unmount());

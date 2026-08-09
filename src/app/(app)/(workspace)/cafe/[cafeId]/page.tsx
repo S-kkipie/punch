@@ -19,6 +19,7 @@ import { ProductList } from "@/core/cafe/client/ui/product-list";
 import { StatusBadge } from "@/core/cafe/client/ui/status-badge";
 import { submissionGaps } from "@/core/cafe/domain/transitions";
 import type { CafeAdmin, ProductAdmin } from "@/core/cafe/domain/types";
+import { useCafePayouts } from "@/core/consumption/client/hooks";
 import { Button } from "@/frontend/components/ui/button";
 import {
     Card,
@@ -27,6 +28,36 @@ import {
     CardTitle,
 } from "@/frontend/components/ui/card";
 import { Spinner } from "@/frontend/components/ui/spinner";
+
+function PayoutSummaryCard({ payouts }: { payouts?: unknown }) {
+    const data = payouts as
+        | {
+              totalCentimos: number;
+              redemptionCount: number;
+              ownerMpenCentimos: number | null;
+          }
+        | undefined;
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Pagos por canjes PUNCH</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-1 text-sm">
+                <p>
+                    Total confirmado: S/
+                    {((data?.totalCentimos ?? 0) / 100).toFixed(2)}
+                </p>
+                <p>Canjes confirmados: {data?.redemptionCount ?? 0}</p>
+                <p>
+                    Saldo mPEN del propietario:{" "}
+                    {data?.ownerMpenCentimos == null
+                        ? "—"
+                        : `${(data.ownerMpenCentimos / 100).toFixed(2)} mPEN`}
+                </p>
+            </CardContent>
+        </Card>
+    );
+}
 
 function responseTargets(error: unknown): string[] {
     const value = error as {
@@ -40,6 +71,7 @@ export default function CafePanelPage() {
     const { cafeId } = useParams<{ cafeId: string }>();
     const cafeQuery = useCafe(cafeId);
     const productsQuery = useCafeProducts(cafeId);
+    const payoutsQuery = useCafePayouts(cafeId);
     const updateCafe = useUpdateCafe(cafeId);
     const createProduct = useCreateProduct(cafeId);
     const submitCafe = useSubmitCafe(cafeId);
@@ -149,6 +181,7 @@ export default function CafePanelPage() {
                     Motivo del rechazo: {cafe.reviewNote}
                 </p>
             )}
+            <PayoutSummaryCard payouts={payoutsQuery.data} />
             <Card>
                 <CardHeader>
                     <CardTitle>Perfil del café</CardTitle>

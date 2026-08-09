@@ -83,9 +83,6 @@ export default function RedeemPage() {
     const eligible =
         balance !== null && balance !== undefined && canRedeem(balance);
     const isVoucherFlow = Boolean(voucherId);
-    const isLocalChain =
-        (dashboard.data as { chainMode?: "mock" | "local" } | undefined)
-            ?.chainMode === "local";
     const isUnknownBalance =
         currentBalance === null || currentBalance === undefined;
     const redeem = () => {
@@ -126,12 +123,7 @@ export default function RedeemPage() {
                         Actualizando desde la cadena
                     </p>
                 )}
-                {!isVoucherFlow && isLocalChain && (
-                    <p className="text-amber-700 text-sm">
-                        La redención on-chain aún no disponible.
-                    </p>
-                )}
-                {!isVoucherFlow && !isLocalChain && !eligible && (
+                {!isVoucherFlow && !eligible && (
                     <p className="text-amber-700 text-sm">
                         Necesitas 12 PUNCH para canjear.
                     </p>
@@ -152,7 +144,7 @@ export default function RedeemPage() {
                     !isOnline ||
                     (isVoucherFlow
                         ? !voucher
-                        : isLocalChain || isUnknownBalance || !eligible) ||
+                        : isUnknownBalance || !eligible) ||
                     punchRedemption.isPending ||
                     voucherRedemption.isPending
                 }

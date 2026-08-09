@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, inArray, or } from "drizzle-orm";
+import { and, desc, eq, or } from "drizzle-orm";
 import { type DbClient, db } from "@/server/drizzle/db";
 import {
     consumerTransaction,
@@ -171,18 +171,6 @@ export async function listFulfillmentRequestsForCafe(cafeId: string) {
             consumerTransaction,
             eq(consumerTransaction.redemptionRequestId, redemptionRequest.id),
         )
-        .where(
-            and(
-                eq(redemptionRequest.cafeId, cafeId),
-                or(
-                    eq(redemptionRequest.status, "pending"),
-                    inArray(consumerTransaction.status, [
-                        "pending",
-                        "failed",
-                        "rejected",
-                    ]),
-                ),
-            ),
-        )
+        .where(eq(redemptionRequest.cafeId, cafeId))
         .orderBy(desc(redemptionRequest.createdAt));
 }

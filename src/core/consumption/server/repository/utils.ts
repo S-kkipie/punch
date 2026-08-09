@@ -13,6 +13,7 @@ export function toRedemptionRequest(
         voucherId: row.voucherId,
         status: row.status,
         rejectionReason: row.rejectionReason,
+        failureReason: row.failureReason,
         createdAt: row.createdAt.toISOString(),
     };
 }
