@@ -1294,6 +1294,98 @@ git commit -m "feat(campaign): add campaign domain and repository"
 
 ---
 
+### Task 8b: At-most-once sending for non-idempotent calls
+
+Four of the six escrow operations are safe to resend: `publishCampaign` reverts `NotDraft`, `unlockVoucher` reverts `VoucherAlreadyUnlocked`, `redeemVoucher` reverts `VoucherAlreadyRedeemed`, and `approve` sets an allowance rather than adding to it. Two are not. `createCampaign` does not revert on a resend — it creates a second campaign. `fundCampaign` does not revert either — it transfers the café's mPEN a second time.
+
+There are two independent doors to the double send, and both must close.
+
+The first is a crash between `writeContract` broadcasting and `markJobSubmitted` persisting the hash. The job is left `pending` with no hash, and the next drain re-signs with a fresh nonce, producing a genuinely different transaction that executes again.
+
+The second needs no crash at all. In `recoverStuckJobs`, a missing receipt requeues the job to `pending` (`relayer.ts`, the `isMissingReceiptError` branch), and `runRelayerOnce` then re-signs and re-broadcasts it. A slow network is enough. This one is invisible today because the only kind on the rail is `consumption_record`, whose replay reverts on its proof nonce.
+
+`idempotentCodes` cannot help with either: there is no revert to classify.
+
+**Files:**
+- Modify: `src/server/drizzle/schemas/purchase-schema.ts` (add `signedTx text` to `relayer_job`)
+- Modify: `src/core/chain/server/relayer/handlers/types.ts` (add `idempotentOnChain?: boolean` to `JobHandler`)
+- Modify: `src/core/chain/server/relayer/job-repository.ts` (persist the signed payload)
+- Modify: `src/core/chain/server/relayer/relayer.ts` (sign → persist → broadcast; rebroadcast on recovery)
+- Create: migration under `drizzle/` (generated)
+- Test: `src/core/chain/server/relayer/__tests__/at-most-once.test.ts`
+
+**Interfaces:**
+- Produces: `JobHandler.idempotentOnChain?: boolean` — omitted or `true` keeps today's broadcast-then-persist path; `false` selects the persisted-payload path.
+- Produces: `markJobSigned(id: string, txHash: string, signedTx: string): Promise<RelayerJobRow | null>`
+
+- [ ] **Step 1: Write the failing test**
+
+The test drives a handler declaring `idempotentOnChain: false` through a simulated crash: sign and persist succeed, the broadcast throws, and the job is left `pending` with a hash and payload recorded. Then the recovery path runs and must rebroadcast the **same bytes**, not re-sign.
+
+```ts
+    it("rebroadcasts the persisted bytes instead of re-signing", async () => {
+        const signCalls: unknown[] = [];
+        const sent: string[] = [];
+        const deps = depsFor({
+            handler: { ...nonIdempotentHandler },
+            signTransaction: async (args: unknown) => {
+                signCalls.push(args);
+                return "0xdeadbeef";
+            },
+            sendRawTransaction: async ({ serializedTransaction }: { serializedTransaction: string }) => {
+                sent.push(serializedTransaction);
+                if (sent.length === 1) throw new Error("connection reset");
+                return "0xhash";
+            },
+        });
+
+        await runRelayerOnce(deps);
+        await recoverStuckJobs(deps);
+
+        expect(signCalls).toHaveLength(1);
+        expect(sent).toEqual(["0xdeadbeef", "0xdeadbeef"]);
+    });
+
+    it("never persists a signed payload for an idempotent handler", async () => {
+        const deps = depsFor({ handler: consumptionRecordHandler });
+        await runRelayerOnce(deps);
+        const [job] = await db.select().from(relayerJob).where(eq(relayerJob.id, jobId));
+        expect(job.signedTx).toBeNull();
+    });
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `pnpm vitest run src/core/chain/server/relayer/__tests__/at-most-once.test.ts`
+Expected: FAIL — `signedTx` does not exist, and the drain always re-signs
+
+- [ ] **Step 3: Add the column**
+
+Add `signedTx: text("signed_tx")` to `relayerJob`, generate the migration with `pnpm db:generate`, and apply it to a freshly created database.
+
+- [ ] **Step 4: Split the send path**
+
+In `submitJob`, when `handler.idempotentOnChain === false`: build the request with `wallet.prepareTransactionRequest`, sign it with `wallet.signTransaction`, persist hash and serialized payload via `markJobSigned`, and only then `pub.sendRawTransaction`. When the flag is absent or true, keep today's `writeContract` path unchanged so the purchase flow is untouched.
+
+In `recoverStuckJobs`, a job carrying `signedTx` rebroadcasts those exact bytes and never re-signs. A job with no hash and no payload requeues as today.
+
+Close the second door too: for a handler with `idempotentOnChain === false`, `submitJob` must never sign a job that already carries a `signedTx` — it rebroadcasts the stored bytes instead. Otherwise the missing-receipt requeue in `recoverStuckJobs` hands the job straight back to `submitJob`, which signs again. Add a test that requeues a non-idempotent job through the missing-receipt path, runs the drain, and asserts the signing function was called exactly once across both passes.
+
+- [ ] **Step 5: Handle the nonce hazard explicitly**
+
+The persisted payload pins the relayer's account nonce. If another job consumes that nonce meanwhile, the rebroadcast fails with "nonce too low". Never re-sign with a fresh nonce on that path — that is exactly the double-send this task prevents. Instead classify it as a distinct permanent code `superseded`, and have the handler's `onFailed` record a reason the UI can render as "no se pudo enviar, volvé a intentar". Add a test asserting a "nonce too low" rebroadcast lands as `superseded` and not as a retry.
+
+- [ ] **Step 6: Run tests and commit**
+
+Run: `pnpm check && pnpm typecheck && pnpm test`, then the serial integration command.
+
+```bash
+git add src/core/chain/server/relayer/ src/server/drizzle/schemas/purchase-schema.ts drizzle/
+git commit -m "feat(chain): send non-idempotent calls at most once"
+```
+
+---
+
 ### Task 9: Create campaign — service and handler
 
 The escrow's `CampaignCreated` event carries only `campaignId` and `sourceCafeId`, neither of which identifies the Postgres row. The job correlates them from its own transaction receipt.
