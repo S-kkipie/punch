@@ -66,8 +66,11 @@ describe("worker entrypoint", () => {
             workerDeps({
                 logger,
                 runRelayerOnce: async () => {
-                    throw new Error(
-                        "request failed postgres://db-user:db-password@example.test/db?token=url-token with bearer bearer-secret password=pass-123 mnemonic: seed words private_key=key-123",
+                    throw Object.assign(
+                        new Error(
+                            "request failed postgres://db-user:db-password@example.test/db?token=url-token with bearer bearer-secret password=pass-123 mnemonic: seed words private_key=key-123",
+                        ),
+                        { code: "ECONNREFUSED" },
                     );
                 },
             }),
@@ -77,8 +80,10 @@ describe("worker entrypoint", () => {
         const logged = logger.error.mock.calls[0]?.[1]?.error as {
             name: string;
             message: string;
+            code?: string;
         };
         expect(logged.name).toBe("Error");
+        expect(logged.code).toBe("ECONNREFUSED");
         expect(logged.message).not.toContain("db-password");
         expect(logged.message).not.toContain("url-token");
         expect(logged.message).not.toContain("bearer-secret");
