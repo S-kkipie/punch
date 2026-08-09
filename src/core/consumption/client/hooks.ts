@@ -61,10 +61,18 @@ const terminalQuoteStatuses = new Set(["confirmed", "failed", "expired"]);
 
 const quotePollingInterval = (query: { state: { data: unknown } }) => {
     const data = query.state.data as
-        | { status?: string; response?: { status?: string } }
+        | {
+              status?: string;
+              purchaseOrderId?: string | null;
+              response?: { status?: string; purchaseOrderId?: string | null };
+          }
         | undefined;
     const status = data?.response?.status ?? data?.status;
-    return status && terminalQuoteStatuses.has(status) ? false : 3000;
+    const purchaseOrderId =
+        data?.response?.purchaseOrderId ?? data?.purchaseOrderId;
+    return purchaseOrderId || (status && terminalQuoteStatuses.has(status))
+        ? false
+        : 3000;
 };
 
 export const usePurchaseProof = (proofId: string) => {
@@ -140,10 +148,7 @@ export const useConfirmPurchase = () => {
                         queryKey: ["consumption", "history"],
                     });
                     void queryClient.invalidateQueries({
-                        queryKey: ["punch", "campaigns"],
-                    });
-                    void queryClient.invalidateQueries({
-                        queryKey: ["punch", "crawls"],
+                        queryKey: purchaseQuoteQueryKey(response.quote.id),
                     });
                 }
             },

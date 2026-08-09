@@ -146,6 +146,30 @@ describe("CafeTerminalPage", () => {
         await act(async () => root.unmount());
     });
 
+    it("rejects a Yape reference longer than 120 characters before submitting", async () => {
+        const root = createRoot(document.body);
+        await act(async () => root.render(<CafeTerminalPage />));
+        const select = document.querySelector("select") as HTMLSelectElement;
+        const input = document.querySelector(
+            'input[aria-label="Referencia Yape"]',
+        ) as HTMLInputElement;
+        const valueSetter = Object.getOwnPropertyDescriptor(
+            HTMLInputElement.prototype,
+            "value",
+        )?.set;
+        await act(async () => {
+            select.value = "product-1";
+            select.dispatchEvent(new Event("change", { bubbles: true }));
+            valueSetter?.call(input, "x".repeat(121));
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+        expect(document.querySelector("button")?.hasAttribute("disabled")).toBe(
+            true,
+        );
+        expect(input.maxLength).toBe(120);
+        await act(async () => root.unmount());
+    });
+
     it("unwraps the raw Eden response and renders an absolute QR link", async () => {
         const root = createRoot(document.body);
         await act(async () => root.render(<CafeTerminalPage />));

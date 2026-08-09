@@ -46,7 +46,12 @@ export default function CafeTerminalPage() {
     }, [proof?.deepLink]);
 
     const generate = () => {
-        if (!productId || yapeRef.trim().length < 4) return;
+        if (
+            !productId ||
+            yapeRef.trim().length < 4 ||
+            yapeRef.trim().length > 120
+        )
+            return;
         createProof.mutate(
             { productId, yapeRef },
             { onSuccess: () => setYapeRef("") },
@@ -85,6 +90,7 @@ export default function CafeTerminalPage() {
                         aria-label="Referencia Yape"
                         className="min-h-11 w-full rounded-md border px-3 text-sm"
                         placeholder="Referencia Yape"
+                        maxLength={120}
                         value={yapeRef}
                         onChange={(event) => setYapeRef(event.target.value)}
                     />
@@ -93,6 +99,7 @@ export default function CafeTerminalPage() {
                         disabled={
                             !productId ||
                             yapeRef.trim().length < 4 ||
+                            yapeRef.trim().length > 120 ||
                             createProof.isPending
                         }
                         onClick={generate}

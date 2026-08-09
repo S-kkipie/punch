@@ -84,6 +84,20 @@ beforeEach(() => {
 });
 
 describe("PurchaseConfirmPage rendered behavior", () => {
+    it("resumes polling an order linked by the safe quote after a reload", async () => {
+        usePurchaseProof.mockReturnValue({
+            isPending: false,
+            isError: false,
+            data: {
+                ...proof,
+                status: "submitted",
+                purchaseOrderId: "order-123",
+            },
+        });
+        await renderPage();
+        expect(usePurchaseOrder).toHaveBeenCalledWith("order-123");
+    });
+
     it("shows only the masked Yape reference and disables repeated confirmation", async () => {
         const { container, root } = await renderPage();
         expect(container.textContent).toContain("•••••••34");

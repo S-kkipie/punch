@@ -70,6 +70,27 @@ describe("useTransactionStatus polling", () => {
         );
     });
 
+    it("stops quote polling once an order is linked", () => {
+        usePurchaseProof("quote-linked");
+        const options = useQuery.mock.calls.at(-1)?.[0] as {
+            refetchInterval: (query: {
+                state: { data: unknown };
+            }) => number | false;
+        };
+        expect(
+            options.refetchInterval({
+                state: {
+                    data: {
+                        response: {
+                            status: "submitted",
+                            purchaseOrderId: "order-1",
+                        },
+                    },
+                },
+            }),
+        ).toBe(false);
+    });
+
     it("polls quote only while it is non-terminal", () => {
         usePurchaseProof("quote-1");
         const options = useQuery.mock.calls.at(-1)?.[0] as {
@@ -115,6 +136,9 @@ describe("useTransactionStatus polling", () => {
         );
         expect(invalidateQueries).toHaveBeenCalledWith({
             queryKey: ["punch", "dashboard"],
+        });
+        expect(invalidateQueries).toHaveBeenCalledWith({
+            queryKey: purchaseQuoteQueryKey("quote-2"),
         });
     });
 

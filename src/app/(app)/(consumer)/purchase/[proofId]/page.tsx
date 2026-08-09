@@ -8,7 +8,6 @@ import {
     usePurchaseProof,
 } from "@/core/consumption/client/hooks";
 import {
-    purchaseStatusCopy,
     toUiPurchaseState,
     type UiPurchaseState,
 } from "@/core/consumption/client/purchase-status";
@@ -49,6 +48,12 @@ export default function PurchaseConfirmPage() {
     const orderQuery = usePurchaseOrder(orderId);
 
     useEffect(() => {
+        const linkedOrderId = (proofQuery.data as PurchaseQuote | undefined)
+            ?.purchaseOrderId;
+        if (linkedOrderId) setOrderId(linkedOrderId);
+    }, [proofQuery.data]);
+
+    useEffect(() => {
         setIsOnline(navigator.onLine);
         const goOnline = () => setIsOnline(true);
         const goOffline = () => setIsOnline(false);
@@ -80,8 +85,6 @@ export default function PurchaseConfirmPage() {
         : expired
           ? "expired"
           : toUiPurchaseState({ quoteStatus: proof.status });
-    const copy = purchaseStatusCopy(status);
-
     const confirm = () => {
         if (
             !isOnline ||
@@ -189,9 +192,6 @@ export default function PurchaseConfirmPage() {
                     Volver a Inicio
                 </Button>
             )}
-            {copy.label === "Código vencido" && !order ? (
-                <p className="text-destructive text-sm">{copy.hint}</p>
-            ) : null}
         </div>
     );
 }
