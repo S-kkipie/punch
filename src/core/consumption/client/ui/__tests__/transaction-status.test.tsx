@@ -6,6 +6,20 @@ import {
 } from "../transaction-status";
 
 describe("transactionStatusCopy", () => {
+    it("maps purchase lifecycle states to Spanish copy", () => {
+        expect(transactionStatusCopy("queued")).toEqual({
+            label: "Confirmación en cola",
+            hint: "Estamos registrando tu compra.",
+        });
+        expect(transactionStatusCopy("submitted")).toEqual({
+            label: "Procesando compra",
+            hint: "Estamos esperando la confirmación.",
+        });
+        expect(transactionStatusCopy("expired")).toEqual({
+            label: "Código vencido",
+            hint: "Pide al barista uno nuevo.",
+        });
+    });
     it("maps pre-submit states to mandated Spanish labels", () => {
         expect(transactionStatusCopy("loading").label).toBe("Cargando");
         expect(transactionStatusCopy("awaiting_signature")).toEqual({

@@ -9,12 +9,12 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mutate, usePurchaseProof, useConfirmPurchase, useTransactionStatus } =
+const { mutate, usePurchaseProof, useConfirmPurchase, usePurchaseOrder } =
     vi.hoisted(() => ({
         mutate: vi.fn(),
         usePurchaseProof: vi.fn(),
         useConfirmPurchase: vi.fn(),
-        useTransactionStatus: vi.fn(),
+        usePurchaseOrder: vi.fn(),
     }));
 const push = vi.hoisted(() => vi.fn());
 vi.mock("next/navigation", () => ({
@@ -24,7 +24,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/core/consumption/client/hooks", () => ({
     usePurchaseProof,
     useConfirmPurchase,
-    useTransactionStatus,
+    usePurchaseOrder,
 }));
 vi.mock("@/frontend/components/ui/button", () => ({
     Button: ({
@@ -49,8 +49,15 @@ import PurchaseConfirmPage from "../page";
 
 const proof = {
     id: "proof-123",
+    cafeId: "cafe-1",
+    productId: "product-1",
     amountCentimos: 1200,
     expiresAt: "2099-08-08T12:00:00.000Z",
+    status: "issued",
+    maskedYapeRef: "•••••••34",
+    purchaseOrderId: null,
+    failureReason: null,
+    createdAt: "2099-08-08T11:00:00.000Z",
 };
 
 const renderPage = async () => {
@@ -72,11 +79,25 @@ beforeEach(() => {
         isError: false,
         data: proof,
     });
-    useTransactionStatus.mockReturnValue({ data: undefined });
+    usePurchaseOrder.mockReturnValue({ data: undefined, isError: false });
     useConfirmPurchase.mockReturnValue({ isPending: false, mutate });
 });
 
 describe("PurchaseConfirmPage rendered behavior", () => {
+    it("shows only the masked Yape reference and disables repeated confirmation", async () => {
+        const { container, root } = await renderPage();
+        expect(container.textContent).toContain("•••••••34");
+        expect(container.textContent).not.toContain("YAPE-1234");
+        const button = Array.from(container.querySelectorAll("button")).find(
+            (candidate) => candidate.textContent === "Confirmar compra",
+        ) as HTMLButtonElement;
+        await act(async () => {
+            button.click();
+            button.click();
+        });
+        expect(mutate).toHaveBeenCalledTimes(1);
+        await act(async () => root.unmount());
+    });
     it("shows immediate pending status and removes confirm action before polling", async () => {
         mutate.mockImplementation(
             (
@@ -84,7 +105,15 @@ describe("PurchaseConfirmPage rendered behavior", () => {
                 options: { onSuccess: (result: unknown) => void },
             ) => {
                 options.onSuccess({
-                    response: { transactionId: "tx-123", status: "pending" },
+                    response: {
+                        order: { id: "order-123", status: "queued" },
+                        quote: {
+                            ...proof,
+                            status: "submitted",
+                            purchaseOrderId: "order-123",
+                        },
+                        outcome: "created",
+                    },
                 });
             },
         );
@@ -92,14 +121,14 @@ describe("PurchaseConfirmPage rendered behavior", () => {
 
         await act(async () => container.querySelector("button")?.click());
 
-        expect(container.textContent).toContain("Pendiente on-chain");
+        expect(container.textContent).toContain("Confirmación en cola");
         expect(container.textContent).not.toContain("Confirmar compra");
         await act(async () => root.unmount());
     });
 
     it("offers recovery when status polling errors", async () => {
         const refetch = vi.fn();
-        useTransactionStatus.mockReturnValue({
+        usePurchaseOrder.mockReturnValue({
             isError: true,
             refetch,
             data: undefined,
@@ -125,9 +154,17 @@ describe("PurchaseConfirmPage rendered behavior", () => {
             ) => {
                 options.onSuccess({
                     response: {
-                        transactionId: "tx-123",
-                        status: "failed",
-                        rejectionReason: "No se pudo completar",
+                        order: {
+                            id: "order-123",
+                            status: "failed",
+                            failureReason: "No se pudo completar",
+                        },
+                        quote: {
+                            ...proof,
+                            status: "submitted",
+                            purchaseOrderId: "order-123",
+                        },
+                        outcome: "existing",
                     },
                 });
             },

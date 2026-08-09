@@ -47,7 +47,10 @@ export default function CafeTerminalPage() {
 
     const generate = () => {
         if (!productId || yapeRef.trim().length < 4) return;
-        createProof.mutate({ productId, yapeRef });
+        createProof.mutate(
+            { productId, yapeRef },
+            { onSuccess: () => setYapeRef("") },
+        );
     };
 
     return (

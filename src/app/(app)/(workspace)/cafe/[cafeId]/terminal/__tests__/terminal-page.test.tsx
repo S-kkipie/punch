@@ -65,8 +65,22 @@ vi.mock("@/frontend/components/ui/card", () => ({
     ),
 }));
 vi.mock("@/frontend/components/ui/select", () => ({
-    Select: ({ children }: { children: React.ReactNode }) => (
-        <div>{children}</div>
+    Select: ({
+        children,
+        onValueChange,
+        value,
+    }: {
+        children: React.ReactNode;
+        onValueChange?: (value: string) => void;
+        value?: string;
+    }) => (
+        <select
+            aria-label="Producto de emisión"
+            value={value}
+            onChange={(event) => onValueChange?.(event.target.value)}
+        >
+            {children}
+        </select>
     ),
     SelectTrigger: ({ children }: { children: React.ReactNode }) => (
         <div>{children}</div>
@@ -77,9 +91,13 @@ vi.mock("@/frontend/components/ui/select", () => ({
     SelectContent: ({ children }: { children: React.ReactNode }) => (
         <div>{children}</div>
     ),
-    SelectItem: ({ children }: { children: React.ReactNode }) => (
-        <div>{children}</div>
-    ),
+    SelectItem: ({
+        children,
+        value,
+    }: {
+        children: React.ReactNode;
+        value: string;
+    }) => <option value={value}>{children}</option>,
 }));
 
 import CafeTerminalPage from "../page";
@@ -96,6 +114,36 @@ describe("CafeTerminalPage", () => {
             "utf8",
         );
         expect(source).not.toContain("UI_PENDING");
+    });
+
+    it("submits the reference and clears it after issuing the QR", async () => {
+        mutate.mockImplementation(
+            (_input: unknown, options?: { onSuccess?: () => void }) =>
+                options?.onSuccess?.(),
+        );
+        const root = createRoot(document.body);
+        await act(async () => root.render(<CafeTerminalPage />));
+        const select = document.querySelector("select") as HTMLSelectElement;
+        const input = document.querySelector(
+            'input[aria-label="Referencia Yape"]',
+        ) as HTMLInputElement;
+        await act(async () => {
+            select.value = "product-1";
+            select.dispatchEvent(new Event("change", { bubbles: true }));
+            const valueSetter = Object.getOwnPropertyDescriptor(
+                HTMLInputElement.prototype,
+                "value",
+            )?.set;
+            valueSetter?.call(input, "YAPE-1234");
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+        await act(async () => document.querySelector("button")?.click());
+        expect(mutate).toHaveBeenCalledWith(
+            { productId: "product-1", yapeRef: "YAPE-1234" },
+            expect.anything(),
+        );
+        expect(document.body.textContent).not.toContain("YAPE-1234");
+        await act(async () => root.unmount());
     });
 
     it("unwraps the raw Eden response and renders an absolute QR link", async () => {

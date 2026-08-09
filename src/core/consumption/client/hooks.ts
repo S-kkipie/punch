@@ -1,7 +1,12 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import type { PurchaseOrderStatus } from "@/core/purchase/domain/types";
 import { useElysia } from "@/frontend/lib/eden";
+import {
+    purchaseOrderQueryKey,
+    purchaseQuoteQueryKey,
+} from "./purchase-status";
 
 export const punchDashboardQueryKey = ["punch", "dashboard"] as const;
 export const punchVouchersQueryKey = ["punch", "vouchers"] as const;
@@ -52,17 +57,50 @@ export const useCreatePurchaseProof = (cafeId: string) => {
         }),
     );
 };
+const terminalQuoteStatuses = new Set(["confirmed", "failed", "expired"]);
+
+const quotePollingInterval = (query: { state: { data: unknown } }) => {
+    const data = query.state.data as
+        | { status?: string; response?: { status?: string } }
+        | undefined;
+    const status = data?.response?.status ?? data?.status;
+    return status && terminalQuoteStatuses.has(status) ? false : 3000;
+};
+
 export const usePurchaseProof = (proofId: string) => {
     const client = useElysia().consumption;
     return useQuery({
         ...(client["purchase-proofs"]({
             proofId,
         }).get.queryOptions() as unknown as Record<string, unknown>),
-        queryKey: ["consumption", "proofs", proofId],
+        queryKey: purchaseQuoteQueryKey(proofId),
         select: unwrap,
-        refetchInterval: 3000,
+        refetchInterval: quotePollingInterval,
     });
 };
+
+export const usePurchaseOrder = (orderId: string | undefined) => {
+    const client = useElysia();
+    return useQuery({
+        ...(client
+            .purchases({ id: orderId ?? "" })
+            .get.queryOptions() as unknown as Record<string, unknown>),
+        queryKey: purchaseOrderQueryKey(orderId ?? ""),
+        select: unwrap,
+        enabled: Boolean(orderId),
+        refetchInterval: (query: { state: { data: unknown } }) => {
+            const data = query.state.data as
+                | {
+                      status?: PurchaseOrderStatus;
+                      response?: { status?: PurchaseOrderStatus };
+                  }
+                | undefined;
+            const status = data?.response?.status ?? data?.status;
+            return status === "queued" || status === "submitted" ? 2000 : false;
+        },
+    });
+};
+
 export const useConfirmPurchase = () => {
     const client = useElysia().consumption;
     const queryClient = useQueryClient();
@@ -70,26 +108,43 @@ export const useConfirmPurchase = () => {
         withError({
             ...client.purchases.confirm.post.mutationOptions(),
             onSuccess: (result: unknown) => {
-                void queryClient.invalidateQueries({
-                    queryKey: punchDashboardQueryKey,
-                });
-                void queryClient.invalidateQueries({
-                    queryKey: punchVouchersQueryKey,
-                });
                 const response = (
                     result as {
                         response?: {
-                            transactionId?: string;
-                            status?: string;
-                            rejectionReason?: string;
+                            order?: { id: string; status: PurchaseOrderStatus };
+                            quote?: { id: string };
                         };
                     }
                 ).response;
-                if (response?.transactionId && response.status) {
-                    queryClient.setQueryData(
-                        consumptionTransactionQueryKey(response.transactionId),
-                        { response },
-                    );
+                if (!response?.order || !response.quote) return;
+                queryClient.setQueryData(
+                    purchaseOrderQueryKey(response.order.id),
+                    { response: response.order },
+                );
+                queryClient.setQueryData(
+                    purchaseQuoteQueryKey(response.quote.id),
+                    { response: response.quote },
+                );
+                if (
+                    ["confirmed", "failed", "expired"].includes(
+                        response.order.status,
+                    )
+                ) {
+                    void queryClient.invalidateQueries({
+                        queryKey: punchDashboardQueryKey,
+                    });
+                    void queryClient.invalidateQueries({
+                        queryKey: punchVouchersQueryKey,
+                    });
+                    void queryClient.invalidateQueries({
+                        queryKey: ["consumption", "history"],
+                    });
+                    void queryClient.invalidateQueries({
+                        queryKey: ["punch", "campaigns"],
+                    });
+                    void queryClient.invalidateQueries({
+                        queryKey: ["punch", "crawls"],
+                    });
                 }
             },
         }),
