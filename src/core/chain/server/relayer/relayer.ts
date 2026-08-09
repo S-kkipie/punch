@@ -19,16 +19,19 @@ import {
     type ConsumptionProof,
     deserializeProof,
 } from "@/core/chain/server/proof/proof";
-import { deriveUserAccount } from "@/core/chain/server/wallet/derive";
 import {
     claimSubmittedJobs,
     findJobsToRun,
     markJobConfirmed,
     markJobFailed,
     markJobPending,
-    markJobRetry,
     markJobSubmitted,
     RELAYER_CLAIM_LEASE_MS,
+} from "@/core/chain/server/relayer/job-repository";
+import { deriveUserAccount } from "@/core/chain/server/wallet/derive";
+import {
+    markJobRetry as markPurchaseJobRetry,
+    purchaseJobSideEffects,
 } from "@/core/purchase/server/repository/purchase-repository";
 import {
     type ParsedRevert,
@@ -104,11 +107,25 @@ function defaultDeps(): RelayerDeps {
     const repository = {
         findJobsToRun,
         claimSubmittedJobs,
-        markJobSubmitted,
-        markJobConfirmed,
-        markJobRetry,
-        markJobFailed,
-        markJobPending,
+        markJobSubmitted: (id: string, txHash: Hex, nextRetryAt: Date) =>
+            markJobSubmitted(
+                id,
+                txHash,
+                nextRetryAt,
+                purchaseJobSideEffects.submitted(txHash),
+            ),
+        markJobConfirmed: (id: string) =>
+            markJobConfirmed(id, purchaseJobSideEffects.confirmed),
+        markJobRetry: markPurchaseJobRetry,
+        markJobFailed: (id: string, error: string, failureReason: string) =>
+            markJobFailed(
+                id,
+                error,
+                failureReason,
+                purchaseJobSideEffects.failed(failureReason),
+            ),
+        markJobPending: (id: string, nextRetryAt: Date) =>
+            markJobPending(id, nextRetryAt, purchaseJobSideEffects.pending),
     };
     return {
         ...repository,

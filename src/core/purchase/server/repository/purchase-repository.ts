@@ -1,6 +1,16 @@
 import "server-only";
 
 import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
+import {
+    claimSubmittedJobs,
+    findJobsToRun,
+    type JobSideEffect,
+    type JobTransaction,
+    markJobConfirmed as markGenericJobConfirmed,
+    markJobFailed as markGenericJobFailed,
+    markJobPending as markGenericJobPending,
+    markJobSubmitted as markGenericJobSubmitted,
+} from "@/core/chain/server/relayer/job-repository";
 import type { PurchaseOrderStatus } from "@/core/purchase/domain/types";
 import { db } from "@/server/drizzle/db";
 import { user } from "@/server/drizzle/schemas/auth-schema";
@@ -305,125 +315,29 @@ export async function expirePurchases(): Promise<number> {
     return rows.length;
 }
 
-export const RELAYER_CLAIM_LEASE_MS = 60_000;
+export { claimSubmittedJobs, findJobsToRun };
 
-async function claimJobsByStatus(
-    status: RelayerJobRow["status"],
-    limit: number,
-    leaseMs = RELAYER_CLAIM_LEASE_MS,
-): Promise<RelayerJobRow[]> {
-    if (limit <= 0) return [];
-    return db.transaction(async (tx) => {
-        const due = await tx
-            .select()
-            .from(relayerJob)
-            .where(
-                and(
-                    eq(relayerJob.status, status),
-                    lte(relayerJob.nextRetryAt, new Date()),
-                ),
-            )
-            .limit(limit)
-            .for("update", { skipLocked: true });
-        if (due.length === 0) return [];
-        const leaseUntil = new Date(Date.now() + leaseMs);
-        return tx
-            .update(relayerJob)
-            .set({ nextRetryAt: leaseUntil })
-            .where(
-                inArray(
-                    relayerJob.id,
-                    due.map((job) => job.id),
-                ),
-            )
-            .returning();
-    });
-}
-
-export async function findJobsToRun(
-    limit: number,
-    leaseMs = RELAYER_CLAIM_LEASE_MS,
-): Promise<RelayerJobRow[]> {
-    return claimJobsByStatus("pending", limit, leaseMs);
-}
-
-export async function claimSubmittedJobs(
-    limit: number,
-    leaseMs = RELAYER_CLAIM_LEASE_MS,
-): Promise<RelayerJobRow[]> {
-    return claimJobsByStatus("submitted", limit, leaseMs);
-}
-
-export async function markJobSubmitted(
-    id: string,
-    txHash: string,
-    nextRetryAt: Date,
-) {
-    return db.transaction(async (tx) => {
-        const [job] = await tx
-            .update(relayerJob)
-            .set({
-                status: "submitted",
-                txHash,
-                lastError: null,
-                nextRetryAt,
-            })
-            .where(and(eq(relayerJob.id, id), eq(relayerJob.status, "pending")))
-            .returning({ orderId: relayerJob.orderId });
-        if (!job) return null;
-        if (!job.orderId) throw new Error("relayer job missing purchase order");
-        const [order] = await tx
-            .update(purchaseOrder)
-            .set({ status: "submitted", txHash, failureReason: null })
-            .where(
-                and(
-                    eq(purchaseOrder.id, job.orderId),
-                    eq(purchaseOrder.status, "queued"),
-                ),
-            )
-            .returning({ id: purchaseOrder.id });
-        if (!order)
-            throw new Error("relayer submitted order transition rejected");
-        return job;
-    });
-}
-
-export async function markJobConfirmed(id: string) {
-    return db.transaction(async (tx) => {
-        const [job] = await tx
-            .update(relayerJob)
-            .set({ status: "confirmed", lastError: null })
-            .where(
-                and(
-                    eq(relayerJob.id, id),
-                    inArray(relayerJob.status, ["pending", "submitted"]),
-                ),
-            )
-            .returning({ orderId: relayerJob.orderId });
-
-        if (!job) {
-            const [current] = await tx
-                .select({
-                    jobStatus: relayerJob.status,
-                    orderStatus: purchaseOrder.status,
-                })
-                .from(relayerJob)
-                .innerJoin(
-                    purchaseOrder,
-                    eq(purchaseOrder.id, relayerJob.orderId),
+export const purchaseJobSideEffects = {
+    submitted:
+        (txHash: string): JobSideEffect =>
+        async (tx, job) => {
+            if (!job.orderId)
+                throw new Error("relayer job missing purchase order");
+            const [order] = await tx
+                .update(purchaseOrder)
+                .set({ status: "submitted", txHash, failureReason: null })
+                .where(
+                    and(
+                        eq(purchaseOrder.id, job.orderId),
+                        eq(purchaseOrder.status, "queued"),
+                    ),
                 )
-                .where(eq(relayerJob.id, id));
-            if (
-                current?.jobStatus === "confirmed" &&
-                current.orderStatus === "confirmed"
-            ) {
-                return null;
-            }
-            if (!current) return null;
-            throw new Error("relayer confirmed order transition rejected");
-        }
+                .returning({ id: purchaseOrder.id });
+            if (!order)
+                throw new Error("relayer submitted order transition rejected");
+        },
+    confirmed: async (tx: JobTransaction, job: RelayerJobRow) => {
         if (!job.orderId) throw new Error("relayer job missing purchase order");
-
         const [order] = await tx
             .update(purchaseOrder)
             .set({ status: "confirmed", failureReason: null })
@@ -434,18 +348,71 @@ export async function markJobConfirmed(id: string) {
                 ),
             )
             .returning({ id: purchaseOrder.id });
-        if (order) return job;
-
+        if (order) return;
         const [currentOrder] = await tx
             .select({ status: purchaseOrder.status })
             .from(purchaseOrder)
             .where(eq(purchaseOrder.id, job.orderId));
-        if (currentOrder?.status === "confirmed") return job;
-
+        if (currentOrder?.status === "confirmed") return;
         throw new Error("relayer confirmed order transition rejected");
-    });
-}
+    },
+    failed:
+        (failureReason: string): JobSideEffect =>
+        async (tx, job) => {
+            if (!job.orderId)
+                throw new Error("relayer job missing purchase order");
+            const [order] = await tx
+                .update(purchaseOrder)
+                .set({ status: "failed", failureReason })
+                .where(
+                    and(
+                        eq(purchaseOrder.id, job.orderId),
+                        inArray(purchaseOrder.status, ["queued", "submitted"]),
+                    ),
+                )
+                .returning({ id: purchaseOrder.id });
+            if (!order)
+                throw new Error("relayer failed order transition rejected");
+            await tx
+                .update(consumptionProof)
+                .set({ status: "failed", failureReason })
+                .where(
+                    and(
+                        eq(consumptionProof.purchaseOrderId, job.orderId),
+                        eq(consumptionProof.status, "submitted"),
+                    ),
+                );
+        },
+    pending: async (tx: JobTransaction, job: RelayerJobRow) => {
+        if (!job.orderId) throw new Error("relayer job missing purchase order");
+        const [order] = await tx
+            .update(purchaseOrder)
+            .set({ status: "queued" })
+            .where(
+                and(
+                    eq(purchaseOrder.id, job.orderId),
+                    eq(purchaseOrder.status, "submitted"),
+                ),
+            )
+            .returning({ id: purchaseOrder.id });
+        if (!order)
+            throw new Error("relayer pending order transition rejected");
+    },
+};
 
+export const markJobSubmitted = (
+    id: string,
+    txHash: string,
+    nextRetryAt: Date,
+) =>
+    markGenericJobSubmitted(
+        id,
+        txHash,
+        nextRetryAt,
+        purchaseJobSideEffects.submitted(txHash),
+    );
+export const markJobConfirmed = (id: string) =>
+    markGenericJobConfirmed(id, purchaseJobSideEffects.confirmed);
 export async function markJobRetry(
     id: string,
     error: string,
@@ -484,75 +451,19 @@ export async function markJobRetry(
         return job;
     });
 }
-
-export async function markJobPending(id: string, nextRetryAt: Date) {
-    return db.transaction(async (tx) => {
-        const [job] = await tx
-            .update(relayerJob)
-            .set({ status: "pending", nextRetryAt, lastError: null })
-            .where(
-                and(eq(relayerJob.id, id), eq(relayerJob.status, "submitted")),
-            )
-            .returning({ orderId: relayerJob.orderId });
-        if (!job) return null;
-        if (!job.orderId) throw new Error("relayer job missing purchase order");
-        const [order] = await tx
-            .update(purchaseOrder)
-            .set({ status: "queued" })
-            .where(
-                and(
-                    eq(purchaseOrder.id, job.orderId),
-                    eq(purchaseOrder.status, "submitted"),
-                ),
-            )
-            .returning({ id: purchaseOrder.id });
-        if (!order)
-            throw new Error("relayer pending order transition rejected");
-        return job;
-    });
-}
-
-export async function markJobFailed(
+export const markJobPending = (id: string, nextRetryAt: Date) =>
+    markGenericJobPending(id, nextRetryAt, purchaseJobSideEffects.pending);
+export const markJobFailed = (
     id: string,
     error: string,
     failureReason: string,
-) {
-    return db.transaction(async (tx) => {
-        const [job] = await tx
-            .update(relayerJob)
-            .set({ status: "failed", lastError: error })
-            .where(
-                and(
-                    eq(relayerJob.id, id),
-                    inArray(relayerJob.status, ["pending", "submitted"]),
-                ),
-            )
-            .returning({ orderId: relayerJob.orderId });
-        if (!job) return null;
-        if (!job.orderId) throw new Error("relayer job missing purchase order");
-        const [order] = await tx
-            .update(purchaseOrder)
-            .set({ status: "failed", failureReason })
-            .where(
-                and(
-                    eq(purchaseOrder.id, job.orderId),
-                    inArray(purchaseOrder.status, ["queued", "submitted"]),
-                ),
-            )
-            .returning({ id: purchaseOrder.id });
-        if (!order) throw new Error("relayer failed order transition rejected");
-        await tx
-            .update(consumptionProof)
-            .set({ status: "failed", failureReason })
-            .where(
-                and(
-                    eq(consumptionProof.purchaseOrderId, job.orderId),
-                    eq(consumptionProof.status, "submitted"),
-                ),
-            );
-        return job;
-    });
-}
+) =>
+    markGenericJobFailed(
+        id,
+        error,
+        failureReason,
+        purchaseJobSideEffects.failed(failureReason),
+    );
 
 export async function setOrderStatus(
     orderId: string,
@@ -578,12 +489,5 @@ export const purchaseRepository = {
     listByCafe,
     updateOrderAndQueue,
     expirePurchases,
-    findJobsToRun,
-    claimSubmittedJobs,
-    markJobSubmitted,
-    markJobConfirmed,
-    markJobRetry,
-    markJobPending,
-    markJobFailed,
     setOrderStatus,
 };
