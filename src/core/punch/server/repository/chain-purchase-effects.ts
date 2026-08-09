@@ -22,6 +22,7 @@ export type ChainPurchaseEffectsInput = {
     productId: string;
     transactionHash: string;
     logIndex: number;
+    blockNumber: bigint;
     confirmedAt: Date;
 };
 
@@ -71,6 +72,8 @@ export async function applyChainPurchaseEffects(
             {
                 id: `chain_emission:${input.purchaseOrderId}`,
                 createdAt: input.confirmedAt,
+                chainBlockNumber: input.blockNumber,
+                logIndex: input.logIndex,
             },
         )) &&
         (await recordEffect(tx, input, "campaign_qualification", campaign.id))

@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+    bigint,
     check,
     index,
     integer,
@@ -116,6 +117,7 @@ export const consumerTransaction = pgTable(
             { onDelete: "restrict" },
         ),
         transactionHash: text("transaction_hash"),
+        chainBlockNumber: bigint("chain_block_number", { mode: "bigint" }),
         logIndex: integer("log_index"),
         createdAt: timestamp("created_at").defaultNow().notNull(),
         updatedAt: timestamp("updated_at")

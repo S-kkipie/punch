@@ -14,6 +14,7 @@ export type ConfirmedConsumptionProjectionInput = {
     txHash: `0x${string}`;
     logIndex: number;
     blockNumber: bigint;
+    confirmedAt?: Date;
 };
 
 export async function applyConfirmedConsumptionProjection(
@@ -27,7 +28,7 @@ export async function applyConfirmedConsumptionProjection(
     if (!order || order.status === "failed" || order.status === "expired") {
         return;
     }
-    const confirmedAt = new Date();
+    const confirmedAt = input.confirmedAt ?? new Date();
 
     await tx
         .update(purchaseOrder)
@@ -63,6 +64,7 @@ export async function applyConfirmedConsumptionProjection(
             idempotencyKey: `chain_emission:${order.id}`,
             purchaseOrderId: order.id,
             transactionHash: input.txHash,
+            chainBlockNumber: input.blockNumber,
             logIndex: input.logIndex,
             createdAt: confirmedAt,
         })
@@ -77,6 +79,7 @@ export async function applyConfirmedConsumptionProjection(
         productId: order.productId,
         transactionHash: input.txHash,
         logIndex: input.logIndex,
+        blockNumber: input.blockNumber,
         confirmedAt,
     });
 }

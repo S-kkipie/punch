@@ -114,6 +114,22 @@ async function order(f: Fixture, index: number, suffix = "") {
     return { orderId, proofId };
 }
 
+async function projectWithOptions(
+    orderId: string,
+    eventNumber: number,
+    confirmedAt?: Date,
+) {
+    await db.transaction(async (tx) => {
+        await applyConfirmedConsumptionProjection(tx, {
+            orderId,
+            txHash: txHash(eventNumber),
+            logIndex: eventNumber,
+            blockNumber: BigInt(eventNumber),
+            confirmedAt,
+        });
+    });
+}
+
 async function project(
     f: Fixture,
     index: number,
@@ -255,6 +271,34 @@ describeIntegration("indexed purchase effects", () => {
             .from(consumerVoucher)
             .where(eq(consumerVoucher.consumerUserId, f.userId));
         expect(vouchers).toHaveLength(1);
+    });
+
+    it("uses chain order when same-millisecond confirmations disagree with ids", async () => {
+        const f = await fixture(1);
+        const [campaignRow] = await db
+            .insert(campaign)
+            .values({
+                id: `effects-campaign-${f.userId}`,
+                kind: "verified_acquisition",
+                cafeId: f.cafeIds[0],
+                name: "Chain order",
+                windowStart: new Date(Date.now() - 60_000),
+                windowEnd: new Date(Date.now() + 60_000),
+                active: true,
+            })
+            .returning();
+        f.campaignId = campaignRow.id;
+        const firstOnChain = await order(f, 0, "a");
+        const secondOnChain = await order(f, 0, "b");
+        const confirmedAt = new Date();
+        await projectWithOptions(firstOnChain.orderId, 200, confirmedAt);
+        await projectWithOptions(secondOnChain.orderId, 201, confirmedAt);
+        const effects = await db
+            .select()
+            .from(chainPurchaseEffect)
+            .where(eq(chainPurchaseEffect.kind, "campaign_qualification"));
+        expect(effects).toHaveLength(1);
+        expect(effects[0].purchaseOrderId).toBe(firstOnChain.orderId);
     });
 
     it("advances an ordered A to B to C crawl once per café and ignores repeats", async () => {

@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, gte, lt, lte, ne, or } from "drizzle-orm";
+import { and, eq, gte, isNotNull, isNull, lt, lte, ne, or } from "drizzle-orm";
 import type { DbClient } from "@/server/drizzle/db";
 import { consumerTransaction } from "@/server/drizzle/schemas/consumption-schema";
 import {
@@ -32,7 +32,12 @@ export async function hasPriorPaidPurchase(
     client: DbClient,
     consumerUserId: string,
     cafeId: string,
-    currentTransaction: { id: string; createdAt: Date },
+    currentTransaction: {
+        id: string;
+        createdAt: Date;
+        chainBlockNumber?: bigint;
+        logIndex?: number;
+    },
 ): Promise<boolean> {
     const rows = await client
         .select({ id: consumerTransaction.id })
@@ -45,16 +50,47 @@ export async function hasPriorPaidPurchase(
                 eq(consumerTransaction.status, "confirmed"),
                 ne(consumerTransaction.id, currentTransaction.id),
                 or(
-                    lt(
-                        consumerTransaction.createdAt,
-                        currentTransaction.createdAt,
-                    ),
+                    currentTransaction.chainBlockNumber !== undefined &&
+                        currentTransaction.logIndex !== undefined
+                        ? and(
+                              isNotNull(consumerTransaction.chainBlockNumber),
+                              isNotNull(consumerTransaction.logIndex),
+                              or(
+                                  lt(
+                                      consumerTransaction.chainBlockNumber,
+                                      currentTransaction.chainBlockNumber,
+                                  ),
+                                  and(
+                                      eq(
+                                          consumerTransaction.chainBlockNumber,
+                                          currentTransaction.chainBlockNumber,
+                                      ),
+                                      lt(
+                                          consumerTransaction.logIndex,
+                                          currentTransaction.logIndex,
+                                      ),
+                                  ),
+                              ),
+                          )
+                        : undefined,
                     and(
-                        eq(
-                            consumerTransaction.createdAt,
-                            currentTransaction.createdAt,
+                        isNull(consumerTransaction.chainBlockNumber),
+                        or(
+                            lt(
+                                consumerTransaction.createdAt,
+                                currentTransaction.createdAt,
+                            ),
+                            and(
+                                eq(
+                                    consumerTransaction.createdAt,
+                                    currentTransaction.createdAt,
+                                ),
+                                lt(
+                                    consumerTransaction.id,
+                                    currentTransaction.id,
+                                ),
+                            ),
                         ),
-                        lt(consumerTransaction.id, currentTransaction.id),
                     ),
                 ),
             ),

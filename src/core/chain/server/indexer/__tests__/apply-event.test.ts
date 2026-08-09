@@ -278,6 +278,13 @@ describe("applyEvent", () => {
         await applyEvent(tx, consumption);
 
         expect(tx.state.consumptions.size).toBe(1);
+        expect(
+            tx.state.consumptions.get(`${consumption.transactionHash}:0`),
+        ).toMatchObject({
+            txHash: consumption.transactionHash,
+            logIndex: consumption.logIndex,
+            block: consumption.blockNumber,
+        });
         expect(tx.state.orders[0]).toMatchObject({
             status: "confirmed",
             txHash: consumption.transactionHash,
