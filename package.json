@@ -19,6 +19,8 @@
         "chain:seed-history": "node --conditions=react-server --import tsx --env-file=.env scripts/bootstrap-local.ts --seed-history",
         "chain:index": "node --conditions=react-server --import tsx --env-file=.env scripts/index-local.ts",
         "chain:reconcile": "node --conditions=react-server --import tsx --env-file=.env scripts/reconcile-local.ts",
+        "chain:fund-epoch": "node --conditions=react-server --import tsx --env-file=.env scripts/fund-epoch.ts",
+        "chain:close-epoch": "node --conditions=react-server --import tsx --env-file=.env scripts/close-epoch.ts",
         "demo:local": "node --conditions=react-server --import tsx --env-file=.env scripts/demo-local.ts",
         "contracts:test": "pnpm --dir packages/contracts test",
         "db:generate": "drizzle-kit generate",
