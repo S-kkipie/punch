@@ -1,6 +1,6 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import net from "node:net";
-import { eq } from "drizzle-orm";
+import { eq, like } from "drizzle-orm";
 import {
     createPublicClient,
     http,
@@ -205,6 +205,16 @@ async function cleanup() {
         await db
             .delete(consumerVoucher)
             .where(eq(consumerVoucher.consumerUserId, fixture.userId));
+        if (fixture.campaignChainId) {
+            await db
+                .delete(relayerJob)
+                .where(
+                    like(
+                        relayerJob.idempotencyKey,
+                        `voucher_unlock:${fixture.campaignChainId}:%`,
+                    ),
+                );
+        }
         if (fixture.campaignId) {
             await db
                 .delete(campaign)

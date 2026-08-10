@@ -1,4 +1,4 @@
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, like } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import { applyConfirmedConsumptionProjection } from "@/core/chain/server/indexer/purchase-projection";
 import { applyRewardRedeemedProjection } from "@/core/chain/server/indexer/redemption-projection";
@@ -48,6 +48,7 @@ async function seedMinimalCase(options?: {
         productId: `rebuild-product-${suffix}`,
         campaignId: `rebuild-campaign-${suffix}`,
         chainCampaignId: 980000 + Math.floor(Math.random() * 9000),
+        walletAddress: `0x${suffix.replaceAll("-", "").padStart(40, "0")}`,
         orderId: `rebuild-order-${suffix}`,
         proofId: `rebuild-proof-${suffix}`,
         crawlId: `rebuild-crawl-${suffix}`,
@@ -59,6 +60,7 @@ async function seedMinimalCase(options?: {
         id: ids.userId,
         name: "Rebuild User",
         email: `${suffix}@rebuild.invalid`,
+        walletAddress: ids.walletAddress,
     });
     await db.insert(cafe).values({
         id: ids.cafeId,
@@ -447,6 +449,7 @@ describeIntegration("clearChainDerivedPurchaseProjections", () => {
             id: userId,
             name: "Rebuild User",
             email: `${suffix}@rebuild.invalid`,
+            walletAddress: `0x${suffix.replaceAll("-", "").padStart(40, "0")}`,
         });
         await db.insert(cafe).values({
             id: cafeId,
@@ -1041,6 +1044,14 @@ afterEach(async () => {
             );
         for (const row of campaignRows) {
             if (row.chainCampaignId !== null) {
+                await db
+                    .delete(relayerJob)
+                    .where(
+                        like(
+                            relayerJob.idempotencyKey,
+                            `voucher_unlock:${row.chainCampaignId}:%`,
+                        ),
+                    );
                 await db
                     .delete(projectionCampaign)
                     .where(
