@@ -7,6 +7,7 @@ import { user } from "@/server/drizzle/schemas/auth-schema";
 import { cafe, cafeProduct } from "@/server/drizzle/schemas/cafe-schema";
 import {
     projectionCafePayout,
+    projectionCampaign,
     projectionPunchBalance,
 } from "@/server/drizzle/schemas/chain-schema";
 import {
@@ -46,6 +47,7 @@ async function seedMinimalCase(options?: {
         cafeId: `rebuild-cafe-${suffix}`,
         productId: `rebuild-product-${suffix}`,
         campaignId: `rebuild-campaign-${suffix}`,
+        chainCampaignId: 980000 + Math.floor(Math.random() * 9000),
         orderId: `rebuild-order-${suffix}`,
         proofId: `rebuild-proof-${suffix}`,
         crawlId: `rebuild-crawl-${suffix}`,
@@ -83,6 +85,18 @@ async function seedMinimalCase(options?: {
         windowStart: new Date(Date.now() - 60_000),
         windowEnd: new Date(Date.now() + 60_000),
         active: true,
+        chainCampaignId: ids.chainCampaignId,
+    });
+    await db.insert(projectionCampaign).values({
+        chainCampaignId: ids.chainCampaignId,
+        status: "published",
+        budget: 100n,
+        voucherPayout: 10n,
+        maxVouchers: 10,
+        expiry: new Date(Date.now() + 60_000),
+        unlockedCount: 0,
+        redeemedCount: 0,
+        lastBlock: 0n,
     });
     await db.insert(purchaseOrder).values({
         id: ids.orderId,
@@ -420,6 +434,7 @@ describeIntegration("clearChainDerivedPurchaseProjections", () => {
         const cafeId = `rebuild-cafe-${suffix}`;
         const productId = `rebuild-product-${suffix}`;
         const campaignId = `rebuild-campaign-${suffix}`;
+        const campaignChainId = 985000 + Math.floor(Math.random() * 9000);
         const manualCampaignId = `rebuild-manual-campaign-${suffix}`;
         const orderId = `rebuild-order-${suffix}`;
         const proofId = `rebuild-proof-${suffix}`;
@@ -459,6 +474,7 @@ describeIntegration("clearChainDerivedPurchaseProjections", () => {
                 windowStart: new Date(Date.now() - 60_000),
                 windowEnd: new Date(Date.now() + 60_000),
                 active: true,
+                chainCampaignId: campaignChainId,
             },
             {
                 id: manualCampaignId,
@@ -470,6 +486,17 @@ describeIntegration("clearChainDerivedPurchaseProjections", () => {
                 active: true,
             },
         ]);
+        await db.insert(projectionCampaign).values({
+            chainCampaignId: campaignChainId,
+            status: "published",
+            budget: 100n,
+            voucherPayout: 10n,
+            maxVouchers: 10,
+            expiry: new Date(Date.now() + 60_000),
+            unlockedCount: 0,
+            redeemedCount: 0,
+            lastBlock: 0n,
+        });
         const crawlId = `rebuild-crawl-${suffix}`;
         await db.insert(coffeeCrawl).values({
             id: crawlId,
@@ -1004,6 +1031,26 @@ afterEach(async () => {
                     `rebuild-cafe-${userId.slice("rebuild-user-".length)}`,
                 ),
             );
+        const campaignRows = await db
+            .select({ chainCampaignId: campaign.chainCampaignId })
+            .from(campaign)
+            .where(
+                inArray(campaign.cafeId, [
+                    `rebuild-cafe-${userId.slice("rebuild-user-".length)}`,
+                ]),
+            );
+        for (const row of campaignRows) {
+            if (row.chainCampaignId !== null) {
+                await db
+                    .delete(projectionCampaign)
+                    .where(
+                        eq(
+                            projectionCampaign.chainCampaignId,
+                            row.chainCampaignId,
+                        ),
+                    );
+            }
+        }
         await db
             .delete(campaign)
             .where(

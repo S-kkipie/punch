@@ -40,6 +40,7 @@ import { cafe, cafeProduct } from "@/server/drizzle/schemas/cafe-schema";
 import {
     indexerCursor,
     projectionCafeCredit,
+    projectionCampaign,
     projectionConsumption,
     projectionPunchBalance,
     projectionStatus,
@@ -81,6 +82,7 @@ type Fixture = {
     userAddress: `0x${string}`;
     receiptHash?: `0x${string}`;
     campaignId?: string;
+    campaignChainId?: number;
 };
 
 type LiveSetup = {
@@ -207,6 +209,16 @@ async function cleanup() {
             await db
                 .delete(campaign)
                 .where(eq(campaign.id, fixture.campaignId));
+        }
+        if (fixture.campaignChainId) {
+            await db
+                .delete(projectionCampaign)
+                .where(
+                    eq(
+                        projectionCampaign.chainCampaignId,
+                        fixture.campaignChainId,
+                    ),
+                );
         }
         await db
             .delete(consumerTransaction)
@@ -491,6 +503,7 @@ describeIntegration("indexer live integration", () => {
 
     it("indexes one live relayer purchase, recovers order state, and stays idempotent", async () => {
         const setup = await setupLive();
+        const campaignChainId = setup.fixture.chainCafeId + 100_000;
         const [campaignRow] = await db
             .insert(campaign)
             .values({
@@ -501,9 +514,22 @@ describeIntegration("indexer live integration", () => {
                 windowStart: new Date(Date.now() - 60_000),
                 windowEnd: new Date(Date.now() + 60_000),
                 active: true,
+                chainCampaignId: campaignChainId,
             })
             .returning();
+        await db.insert(projectionCampaign).values({
+            chainCampaignId: campaignChainId,
+            status: "published",
+            budget: 100n,
+            voucherPayout: 10n,
+            maxVouchers: 10,
+            expiry: new Date(Date.now() + 60_000),
+            unlockedCount: 0,
+            redeemedCount: 0,
+            lastBlock: 0n,
+        });
         setup.fixture.campaignId = campaignRow.id;
+        setup.fixture.campaignChainId = campaignChainId;
         await runRelayerOnce(relayerDeps(setup));
         await db
             .update(purchaseOrder)
