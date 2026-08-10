@@ -92,4 +92,5 @@ export const redemptionRequestSchema = z.object({
     createdAt: z.string(),
     transactionId: z.string().nullable().optional(),
     transactionStatus: consumerTransactionStatusSchema.nullable().optional(),
+    transactionFailureReason: z.string().nullable().optional(),
 });

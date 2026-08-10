@@ -28,10 +28,16 @@ export const listCafeRedemptionInboxRoute = new Elysia().use(authed).get(
             200,
             CommonResponse.successful({
                 response: rows.map(
-                    ({ request, transactionId, transactionStatus }) => ({
+                    ({
+                        request,
+                        transactionId,
+                        transactionStatus,
+                        transactionFailureReason,
+                    }) => ({
                         ...toRedemptionRequest(request),
                         transactionId,
                         transactionStatus,
+                        transactionFailureReason,
                     }),
                 ),
             }),

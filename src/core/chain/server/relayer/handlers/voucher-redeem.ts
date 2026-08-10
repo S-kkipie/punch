@@ -1,3 +1,4 @@
+import { isAddress } from "viem";
 import { abis } from "@/core/chain/abis";
 import type { JobHandler } from "./types";
 
@@ -22,6 +23,8 @@ function payloadOf(job: { payload: unknown }): Payload {
     if (
         !validChainId ||
         typeof value.userAddress !== "string" ||
+        !isAddress(value.userAddress) ||
+        value.userAddress !== value.userAddress.toLowerCase() ||
         typeof value.redemptionRequestId !== "string" ||
         typeof value.voucherId !== "string"
     ) {

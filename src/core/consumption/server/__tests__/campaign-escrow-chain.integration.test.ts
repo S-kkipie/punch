@@ -13,6 +13,8 @@ import { relayerJob } from "@/server/drizzle/schemas/purchase-schema";
 import { installIntegrationDbMutex } from "@/test/integration-db-mutex";
 import { CampaignEscrowChain } from "../campaign-escrow-chain";
 import { ConsumerChainError } from "../chain-port";
+import { listFulfillmentRequestsForCafe } from "../repository/redemption-requests";
+import { getTransactionStatusService } from "../services/get-transaction-status-service";
 
 const runIntegration = process.env.PUNCH_RUN_INTEGRATION === "1";
 const describeIntegration = describe.skipIf(!runIntegration);
@@ -207,6 +209,114 @@ describeIntegration("CampaignEscrowChain", () => {
         expect(await jobsFor(f)).toHaveLength(1);
     });
 
+    it("returns the persisted status for an existing job", async () => {
+        const f = await seedFixture();
+        const requestId = await request(f, await voucher(f));
+        const key = `voucher_redeem:${requestId}`;
+        f.jobKeys.push(key);
+        const [job] = await db
+            .insert(relayerJob)
+            .values({
+                kind: "voucher_redeem",
+                idempotencyKey: key,
+                payload: {
+                    chainCampaignId: 7,
+                    userAddress: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+                    redemptionRequestId: requestId,
+                    voucherId: f.voucherIds[0],
+                    campaignId: f.campaignIds[0],
+                },
+                status: "submitted",
+            })
+            .returning();
+        await expect(
+            new CampaignEscrowChain().submitVoucherRedemption({
+                redemptionRequestId: requestId,
+                idempotencyKey: "ignored",
+            }),
+        ).resolves.toEqual({ transactionId: job.id, status: "pending" });
+        await db
+            .update(relayerJob)
+            .set({ status: "confirmed" })
+            .where(eq(relayerJob.id, job.id));
+        await expect(
+            new CampaignEscrowChain().submitVoucherRedemption({
+                redemptionRequestId: requestId,
+                idempotencyKey: "ignored",
+            }),
+        ).resolves.toEqual({ transactionId: job.id, status: "confirmed" });
+        await db
+            .update(relayerJob)
+            .set({ status: "failed", lastError: "chain reverted" })
+            .where(eq(relayerJob.id, job.id));
+        await expect(
+            new CampaignEscrowChain().submitVoucherRedemption({
+                redemptionRequestId: requestId,
+                idempotencyKey: "ignored",
+            }),
+        ).resolves.toEqual({ transactionId: job.id, status: "failed" });
+    });
+
+    it("keeps relayer settlements visible through inbox lifecycle", async () => {
+        const f = await seedFixture();
+        const requestId = await request(f, await voucher(f));
+        const key = `voucher_redeem:${requestId}`;
+        f.jobKeys.push(key);
+        const submission =
+            await new CampaignEscrowChain().submitVoucherRedemption({
+                redemptionRequestId: requestId,
+                idempotencyKey: "ignored",
+            });
+        await expect(
+            getTransactionStatusService(f.userIds[0], submission.transactionId),
+        ).resolves.toMatchObject({
+            ok: true,
+            data: {
+                transactionId: submission.transactionId,
+                status: "pending",
+            },
+        });
+        expect(await listFulfillmentRequestsForCafe(f.cafeId)).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    transactionId: expect.any(String),
+                    transactionStatus: "pending",
+                    transactionFailureReason: null,
+                }),
+            ]),
+        );
+        await db
+            .update(relayerJob)
+            .set({ status: "submitted" })
+            .where(eq(relayerJob.idempotencyKey, key));
+        expect(
+            (await listFulfillmentRequestsForCafe(f.cafeId)).some(
+                (row) => row.transactionStatus === "pending",
+            ),
+        ).toBe(true);
+        await db
+            .update(relayerJob)
+            .set({ status: "confirmed" })
+            .where(eq(relayerJob.idempotencyKey, key));
+        expect(
+            (await listFulfillmentRequestsForCafe(f.cafeId)).some(
+                (row) => row.transactionId !== null,
+            ),
+        ).toBe(false);
+        await db
+            .update(relayerJob)
+            .set({ status: "failed", lastError: "chain reverted" })
+            .where(eq(relayerJob.idempotencyKey, key));
+        expect(await listFulfillmentRequestsForCafe(f.cafeId)).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    transactionStatus: "failed",
+                    transactionFailureReason: "chain reverted",
+                }),
+            ]),
+        );
+    });
+
     it.each([
         ["missing request", async (_f: Fixture) => "missing"],
         [
@@ -237,6 +347,16 @@ describeIntegration("CampaignEscrowChain", () => {
                     "approved",
                     f.userIds[1],
                 ),
+        ],
+        [
+            "invalid wallet",
+            async (f: Fixture) => {
+                await db
+                    .update(user)
+                    .set({ walletAddress: "not-an-address" })
+                    .where(eq(user.id, f.userIds[0]));
+                return request(f, await voucher(f));
+            },
         ],
     ])("rejects %s without enqueue", async (_name, makeRequest) => {
         const f = await seedFixture();

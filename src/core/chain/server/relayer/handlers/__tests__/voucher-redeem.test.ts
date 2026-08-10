@@ -7,7 +7,7 @@ const job = (payload: unknown) => ({ payload }) as never;
 
 const payload = {
     chainCampaignId: 9007199254740991,
-    userAddress: "0xAbC",
+    userAddress: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
     redemptionRequestId: "request-1",
     voucherId: "voucher-1",
 };
@@ -38,12 +38,19 @@ describe("voucherRedeemHandler", () => {
         expect(voucherRedeemHandler.idempotentOnChain).not.toBe(false);
     });
 
-    it("rejects malformed payloads", async () => {
+    it.each([
+        { chainCampaignId: "3", userAddress: "0xAbC" },
+        {
+            chainCampaignId: 3,
+            userAddress: "0xABCDEFabcdefABCDEFabcdefABCDEFabcdefABCD",
+            redemptionRequestId: "request-1",
+            voucherId: "voucher-1",
+        },
+    ])("rejects malformed or non-normalized payloads", async (invalid) => {
         await expect(
-            voucherRedeemHandler.call(
-                job({ chainCampaignId: "3", userAddress: "0xAbC" }),
-                { addresses: { campaignEscrow: address } } as never,
-            ),
+            voucherRedeemHandler.call(job(invalid), {
+                addresses: { campaignEscrow: address },
+            } as never),
         ).rejects.toThrow("invalid payload");
     });
 });

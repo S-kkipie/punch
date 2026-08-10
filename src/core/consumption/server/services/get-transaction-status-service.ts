@@ -1,4 +1,5 @@
 import "server-only";
+import { env } from "@/config/env";
 import { requireCafeRole } from "@/server/auth/membership/require-cafe-role";
 import {
     AppErrors,
@@ -9,6 +10,7 @@ import {
 import type { ChainTransactionStatus } from "../chain-port";
 import { ConsumerChainError } from "../chain-port";
 import { PostgresMockConsumerChain } from "../postgres-mock-chain";
+import { findRedemptionSettlementById } from "../repository/redemption-requests";
 import {
     findTransactionById,
     findTransactionByIdForConsumer,
@@ -23,22 +25,45 @@ export async function getTransactionStatusService(
         transactionId,
         requestingUserId,
     );
+    const settlement =
+        env.CONSUMER_CHAIN_MODE === "local"
+            ? await findRedemptionSettlementById(transactionId)
+            : null;
+    const legacyTransaction =
+        env.CONSUMER_CHAIN_MODE === "local"
+            ? null
+            : await findTransactionById(transactionId);
     let authorized = Boolean(owned);
-    if (!authorized && cafeId) {
-        const transaction = await findTransactionById(transactionId);
-        const isRedemption =
-            transaction?.operation === "punch_redemption" ||
-            transaction?.operation === "voucher_redemption";
-        if (transaction && isRedemption && transaction.cafeId === cafeId) {
-            const membership = await requireCafeRole(requestingUserId, cafeId, [
-                "owner",
-                "barista",
-            ]);
-            authorized = membership.ok;
-        }
+    if (!authorized && settlement?.consumerUserId === requestingUserId) {
+        authorized = true;
+    }
+    const cafeSettlement = settlement ?? legacyTransaction;
+    if (
+        !authorized &&
+        cafeId &&
+        cafeSettlement &&
+        cafeSettlement.cafeId === cafeId &&
+        (settlement ||
+            legacyTransaction?.operation === "punch_redemption" ||
+            legacyTransaction?.operation === "voucher_redemption")
+    ) {
+        const membership = await requireCafeRole(requestingUserId, cafeId, [
+            "owner",
+            "barista",
+        ]);
+        authorized = membership.ok;
     }
     if (!authorized) {
         return err(AppErrors.notFound({ targets: ["transactionId"] }));
+    }
+    if (settlement?.source === "relayer_job") {
+        return ok({
+            transactionId: settlement.id,
+            status: settlement.status,
+            ...(settlement.rejectionReason
+                ? { rejectionReason: settlement.rejectionReason }
+                : {}),
+        });
     }
     try {
         return ok(
