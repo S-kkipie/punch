@@ -150,6 +150,18 @@ describeLive("live purchase journey and projection recovery", () => {
             await runRelayerOnce();
             await runIndexerOnce();
 
+            // Consumption confirmation enqueues voucher_unlock after the first
+            // relayer pass. Drain the resulting unlock projection separately.
+            for (let attempt = 0; attempt < 5; attempt += 1) {
+                const voucherRows = await db
+                    .select({ id: consumerVoucher.id })
+                    .from(consumerVoucher)
+                    .where(eq(consumerVoucher.consumerUserId, consumerId));
+                if (voucherRows.length >= 2) break;
+                await runRelayerOnce();
+                await runIndexerOnce();
+            }
+
             const confirmed = await db
                 .select({ status: purchaseOrder.status })
                 .from(purchaseOrder)
