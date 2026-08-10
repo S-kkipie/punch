@@ -22,30 +22,11 @@ import {
 } from "@/server/drizzle/schemas/punch-schema";
 import { purchaseOrder } from "@/server/drizzle/schemas/purchase-schema";
 
-type CampaignEffect = { createdVoucherId: string | null };
 type CrawlEffect = {
     targetId: string;
     progressId: string | null;
     createdVoucherId: string | null;
 };
-
-async function reverseCampaignEffects(
-    tx: DbClient,
-    effects: CampaignEffect[],
-): Promise<void> {
-    for (const effect of effects) {
-        if (!effect.createdVoucherId) continue;
-        await tx
-            .delete(consumerVoucher)
-            .where(
-                and(
-                    eq(consumerVoucher.id, effect.createdVoucherId),
-                    eq(consumerVoucher.source, "campaign"),
-                    eq(consumerVoucher.status, "available"),
-                ),
-            );
-    }
-}
 
 async function reverseCrawlEffects(
     tx: DbClient,
@@ -99,14 +80,6 @@ export async function clearChainDerivedPurchaseProjections(
                 createdVoucherId: chainPurchaseEffect.createdVoucherId,
             })
             .from(chainPurchaseEffect);
-        await reverseCampaignEffects(
-            tx,
-            effects
-                .filter((effect) => effect.kind === "campaign_qualification")
-                .map((effect) => ({
-                    createdVoucherId: effect.createdVoucherId,
-                })),
-        );
         await reverseCrawlEffects(
             tx,
             effects

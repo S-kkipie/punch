@@ -285,7 +285,16 @@ export async function listFulfillmentRequestsForCafe(
         .from(redemptionRequest)
         .leftJoin(
             consumerTransaction,
-            eq(consumerTransaction.redemptionRequestId, redemptionRequest.id),
+            and(
+                eq(
+                    consumerTransaction.redemptionRequestId,
+                    redemptionRequest.id,
+                ),
+                inArray(consumerTransaction.operation, [
+                    "punch_redemption",
+                    "voucher_redemption",
+                ]),
+            ),
         )
         .leftJoin(
             relayerJob,

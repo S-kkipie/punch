@@ -6,10 +6,8 @@ import { user } from "@/server/drizzle/schemas/auth-schema";
 import { projectionCampaign } from "@/server/drizzle/schemas/chain-schema";
 import {
     campaign,
-    chainPurchaseEffect,
     consumerVoucher,
 } from "@/server/drizzle/schemas/punch-schema";
-import { purchaseOrder } from "@/server/drizzle/schemas/purchase-schema";
 import type { IndexerEvent, IndexerTransaction } from "./apply-event";
 
 const MAX_SQL_INT = 2_147_483_647n;
@@ -249,27 +247,6 @@ async function applyUnlocked(tx: IndexerTransaction, event: IndexerEvent) {
         );
     const voucher = vouchers[0];
     if (!voucher) return;
-
-    const effects = await tx
-        .select({ id: chainPurchaseEffect.id })
-        .from(chainPurchaseEffect)
-        .innerJoin(
-            purchaseOrder,
-            eq(purchaseOrder.id, chainPurchaseEffect.purchaseOrderId),
-        )
-        .where(
-            and(
-                eq(chainPurchaseEffect.kind, "campaign_qualification"),
-                eq(chainPurchaseEffect.targetId, appCampaign.id),
-                eq(purchaseOrder.userId, appUser.id),
-            ),
-        );
-    for (const effect of effects) {
-        await tx
-            .update(chainPurchaseEffect)
-            .set({ createdVoucherId: voucher.id })
-            .where(eq(chainPurchaseEffect.id, effect.id));
-    }
 }
 
 async function applyRedeemed(tx: IndexerTransaction, event: IndexerEvent) {

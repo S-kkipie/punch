@@ -559,6 +559,10 @@ describeIntegration("indexer live integration", () => {
             .select()
             .from(consumerVoucher)
             .where(eq(consumerVoucher.consumerUserId, setup.fixture.userId));
+        const unlockJobs = await db
+            .select()
+            .from(relayerJob)
+            .where(eq(relayerJob.kind, "voucher_unlock"));
         const liveConsumption = (await consumptionLogs(setup))[0];
 
         expect(balance?.balance).toBe(1n);
@@ -569,8 +573,15 @@ describeIntegration("indexer live integration", () => {
         );
         expect(order?.status).toBe("confirmed");
         expect(quote?.status).toBe("confirmed");
-        expect(vouchers).toHaveLength(1);
-        expect(vouchers[0].campaignId).toBe(setup.fixture.campaignId);
+        expect(vouchers).toHaveLength(0);
+        expect(unlockJobs).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    kind: "voucher_unlock",
+                    status: "pending",
+                }),
+            ]),
+        );
         expect(history).toMatchObject({
             operation: "emission",
             status: "confirmed",
@@ -681,6 +692,31 @@ describeIntegration("indexer live integration", () => {
     it("rolls back projections and cursor atomically when apply fails", async () => {
         const setup = await setupLive();
         await runRelayerOnce(relayerDeps(setup));
+        const beforeCursor = await db
+            .select()
+            .from(indexerCursor)
+            .where(eq(indexerCursor.contract, "punch"));
+        const beforeBalance = await db
+            .select()
+            .from(projectionPunchBalance)
+            .where(
+                eq(
+                    projectionPunchBalance.userAddress,
+                    setup.userAccount.address.toLowerCase(),
+                ),
+            );
+        const beforeCredit = await db
+            .select()
+            .from(projectionCafeCredit)
+            .where(
+                eq(projectionCafeCredit.chainCafeId, setup.fixture.chainCafeId),
+            );
+        const beforeConsumptions = await db
+            .select()
+            .from(projectionConsumption)
+            .where(
+                eq(projectionConsumption.receiptHash, setup.proof.receiptHash),
+            );
         let seen = 0;
 
         await expect(
@@ -722,9 +758,9 @@ describeIntegration("indexer live integration", () => {
             .from(indexerCursor)
             .where(eq(indexerCursor.contract, "punch"));
 
-        expect(balance).toBeUndefined();
-        expect(credit).toBeUndefined();
-        expect(consumptions).toHaveLength(0);
-        expect(cursorRows).toHaveLength(0);
+        expect(balance ? [balance] : []).toEqual(beforeBalance);
+        expect(credit ? [credit] : []).toEqual(beforeCredit);
+        expect(consumptions).toEqual(beforeConsumptions);
+        expect(cursorRows).toEqual(beforeCursor);
     });
 });
