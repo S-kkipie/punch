@@ -3,6 +3,20 @@ import type { JobHandler } from "../handlers/types";
 import type { RelayerDeps } from "../relayer";
 import { recoverStuckJobs, runRelayerOnce } from "../relayer";
 
+const consumptionMocks = vi.hoisted(() => ({
+    parseSubmission: vi.fn().mockReturnValue({
+        proof: {},
+        cafeSignature: "0xcafe",
+        userSignature: "0xuser",
+    }),
+    replaySubmissionError: vi
+        .fn()
+        .mockResolvedValue(new Error("consumption reverted")),
+    hasRecordedProof: vi.fn(),
+}));
+
+vi.mock("../handlers/consumption-record", () => consumptionMocks);
+
 const handler: JobHandler = {
     kind: "campaign_create",
     idempotentOnChain: false,
@@ -27,7 +41,7 @@ vi.mock("../handlers/registry", () => ({ handlerFor: () => handler }));
 
 type JobFixture = {
     id: string;
-    kind: "campaign_create";
+    kind: "campaign_create" | "consumption";
     orderId: null;
     payload: Record<string, never>;
     attempts: number;
@@ -164,6 +178,29 @@ describe("non-idempotent relayer sends", () => {
 
         expect(d.wallet.signTransaction).toHaveBeenCalledTimes(1);
         expect(send).toHaveBeenCalledTimes(2);
+    });
+
+    it("replays reverted legacy consumption submissions during recovery", async () => {
+        const { d, current } = deps();
+        current.kind = "consumption";
+        current.status = "submitted";
+        current.txHash = "0xhash";
+        current.signedTx = "0xdeadbeef";
+        d.claimSubmittedJobs = vi.fn().mockResolvedValue([current]);
+        d.pub.getTransactionReceipt = vi.fn().mockResolvedValue({
+            status: "reverted",
+            blockNumber: 7n,
+        });
+
+        await recoverStuckJobs(d);
+
+        expect(consumptionMocks.parseSubmission).toHaveBeenCalledWith(current);
+        expect(consumptionMocks.replaySubmissionError).toHaveBeenCalledWith(
+            expect.objectContaining({ addresses: {} }),
+            expect.anything(),
+            7n,
+        );
+        expect(d.markJobRetry).toHaveBeenCalled();
     });
 
     it("classifies nonce-too-low rebroadcasts as superseded", async () => {

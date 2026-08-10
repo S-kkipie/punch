@@ -76,6 +76,14 @@ const PERMANENT_CODES = new Set<RevertCode | "nonce_conflict" | "superseded">([
 type Job = Awaited<ReturnType<typeof findJobsToRun>>[number];
 type RelayerWallet = WalletClient;
 
+function isConsumptionJobKind(kind: Job["kind"] | undefined): boolean {
+    return (
+        kind === "consumption" ||
+        kind === "consumption_record" ||
+        kind === undefined
+    );
+}
+
 export type RelayerDeps = {
     findJobsToRun: (limit: number) => Promise<Job[]>;
     claimSubmittedJobs: (limit: number, leaseMs?: number) => Promise<Job[]>;
@@ -567,12 +575,7 @@ async function submitJob(deps: RelayerDeps, job: Job) {
     let hash: Hex;
     let send: () => Promise<Hex>;
     try {
-        if (
-            job.kind === "consumption" ||
-            job.kind === "consumption_record" ||
-            job.kind === undefined
-        )
-            submission = parseSubmission(job);
+        if (isConsumptionJobKind(job.kind)) submission = parseSubmission(job);
         const signer = resolveSigner(handler.signer(job));
         const wallet = deps.walletForSigner?.(signer) ?? deps.wallet;
         if (handler.idempotentOnChain === false && job.signedTx) {
@@ -724,7 +727,7 @@ export async function recoverStuckJobs(
         }
         let submission: ReturnType<typeof parseSubmission> | undefined;
         try {
-            if (job.kind === "consumption_record" || job.kind === undefined)
+            if (isConsumptionJobKind(job.kind))
                 submission = parseSubmission(job);
         } catch (error) {
             await handleFailure(deps, job, error);
