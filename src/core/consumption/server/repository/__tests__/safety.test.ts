@@ -181,19 +181,13 @@ describe("redemption request safety", () => {
         expect(globalDb.insert).not.toHaveBeenCalled();
     });
 
-    it("limits the café inbox to recent actionable and settled statuses", async () => {
+    it("queries actionable and settled café inbox statuses", async () => {
         let predicate: unknown;
-        let limitValue: number | undefined;
         const leftJoinCalls: unknown[][] = [];
         const where = (value: unknown) => {
             predicate = value;
             return {
-                orderBy: () => ({
-                    limit: (value: number) => {
-                        limitValue = value;
-                        return Promise.resolve([]);
-                    },
-                }),
+                orderBy: () => Promise.resolve([]),
             };
         };
         const client = {
@@ -221,7 +215,12 @@ describe("redemption request safety", () => {
         expect(text).toContain("confirmed");
         expect(text).toContain("failed");
         expect(text).not.toContain("rejected");
-        expect(limitValue).toBe(100);
+        expect(
+            leftJoinCalls
+                .flat()
+                .map((value) => predicateText(value))
+                .join(" "),
+        ).toContain("voucher_redeem");
     });
 
     it("throws REQUEST_NOT_FOUND through the injected client when the request is absent", async () => {
