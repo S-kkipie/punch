@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("../../repository/redemption-requests", () => ({
+    findRedemptionSettlementById: vi.fn(),
+}));
 vi.mock("../../repository/transactions", () => ({
     findTransactionById: vi.fn(),
     findTransactionByIdForConsumer: vi.fn(),
@@ -15,6 +18,7 @@ vi.mock("../../postgres-mock-chain", () => ({
     })),
 }));
 
+import { findRedemptionSettlementById } from "../../repository/redemption-requests";
 import {
     findTransactionById,
     findTransactionByIdForConsumer,
@@ -24,11 +28,36 @@ import { getTransactionStatusService } from "../get-transaction-status-service";
 describe("getTransactionStatusService", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        vi.mocked(findRedemptionSettlementById).mockResolvedValue(null);
         vi.mocked(findTransactionById).mockResolvedValue(null);
         requireCafeRole.mockResolvedValue({
             ok: false,
             error: { status: 403 },
         });
+    });
+
+    it("returns a redemption settlement without depending on chain mode", async () => {
+        vi.mocked(findRedemptionSettlementById).mockResolvedValue({
+            id: "job-1",
+            operation: "voucher_redemption",
+            consumerUserId: "user-1",
+            cafeId: "cafe-1",
+            status: "failed",
+            rejectionReason: "chain reverted",
+            createdAt: new Date(),
+            source: "relayer_job",
+        });
+        await expect(
+            getTransactionStatusService("user-1", "job-1"),
+        ).resolves.toMatchObject({
+            ok: true,
+            data: {
+                transactionId: "job-1",
+                status: "failed",
+                rejectionReason: "chain reverted",
+            },
+        });
+        expect(getTransactionStatus).not.toHaveBeenCalled();
     });
 
     it("allows the owner to poll", async () => {
