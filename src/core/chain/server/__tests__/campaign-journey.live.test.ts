@@ -13,6 +13,7 @@ import {
     recoverStuckJobs,
     runRelayerOnce,
 } from "@/core/chain/server/relayer/relayer";
+import { assignWallet } from "@/core/chain/server/wallet/assign-wallet";
 import { createPurchaseProofService } from "@/core/consumption/server/services/create-purchase-proof-service";
 import { decideVoucherRedemptionService } from "@/core/consumption/server/services/decide-voucher-redemption-service";
 import { requestVoucherRedemptionService } from "@/core/consumption/server/services/request-voucher-redemption-service";
@@ -80,10 +81,20 @@ async function drainRelayerAndIndexer() {
 }
 
 async function findFixture() {
-    const [consumer] = await db
-        .select({ id: user.id, walletAddress: user.walletAddress })
-        .from(user)
-        .where(eq(user.email, "demo-consumer@punch.pe"));
+    // The acquisition condition requires a consumer with no prior paid
+    // purchase at the target café, which seeded demo consumers cannot
+    // guarantee (chain:seed-history gives them history at esquina-sur).
+    const consumerUserId = `live-campaign-consumer-${suffix}`;
+    await db.insert(user).values({
+        id: consumerUserId,
+        name: "Live Campaign Consumer",
+        email: `live-campaign-${suffix}@punch.pe`,
+    });
+    const consumerWallet = await assignWallet(consumerUserId);
+    const consumer = {
+        id: consumerUserId,
+        walletAddress: consumerWallet.address,
+    };
     const [owner] = await db
         .select({ id: user.id, walletAddress: user.walletAddress })
         .from(user)
@@ -394,23 +405,16 @@ describeLive("live campaign journey and chain projections", () => {
             await db
                 .delete(redemptionRequest)
                 .where(eq(redemptionRequest.voucherId, voucherId));
-        if (campaignId) {
+        // The campaign, its projection, its vouchers, and the fixture
+        // consumer stay in the database: their events are already on chain,
+        // and a later projection rebuild must be able to re-link them.
+        // Deleting them makes any full replay fail with "campaign N is not
+        // linked to an app campaign". Rows are unique per run suffix.
+        if (campaignId)
             await db
-                .delete(consumerVoucher)
-                .where(eq(consumerVoucher.campaignId, campaignId));
-            await db
-                .delete(relayerJob)
-                .where(
-                    sql`${relayerJob.payload}->>'campaignId' = ${campaignId} OR ${relayerJob.payload}->>'chainCampaignId' = ${chainCampaignId}`,
-                );
-            if (chainCampaignId > 0)
-                await db
-                    .delete(projectionCampaign)
-                    .where(
-                        eq(projectionCampaign.chainCampaignId, chainCampaignId),
-                    );
-            await db.delete(campaign).where(eq(campaign.id, campaignId));
-        }
+                .update(campaign)
+                .set({ active: false })
+                .where(eq(campaign.id, campaignId));
         for (const state of demoCampaignStates) {
             await db
                 .update(campaign)
