@@ -47,6 +47,19 @@ export const useCafe = (id: string) => {
     });
 };
 
+export const useCafeFund = (cafeId: string) => {
+    const client = useElysia();
+    return useQuery({
+        ...(client
+            .cafe({ cafeId })
+            .fund.get.queryOptions() as unknown as Record<string, unknown>),
+        queryKey: ["cafe-fund", cafeId],
+        select: unwrapResponse,
+        refetchInterval: 5000,
+        enabled: Boolean(cafeId),
+    });
+};
+
 export const useCreateCafe = () => {
     const client = useElysia().cafes;
     const queryClient = useQueryClient();

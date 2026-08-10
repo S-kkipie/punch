@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useMemo } from "react";
 import {
     useCafe,
+    useCafeFund,
     useCafeProducts,
     useCreateProduct,
     useSubmitCafe,
@@ -55,6 +56,82 @@ function PayoutSummaryCard({ payouts }: { payouts?: CafePayouts }) {
     );
 }
 
+type CafeFundView = {
+    epoch: number;
+    referrals: number;
+    pendingCreditMpen: string;
+    estimated: boolean;
+    buckets: {
+        origin: string;
+        acquisition: string;
+        crawl: string;
+        contingency: string;
+    };
+};
+
+const formatMpen = (value: string) =>
+    `S/${(Number(value) / 1_000_000).toFixed(2)}`;
+
+function CafeFundCard({
+    fund,
+    isPending,
+    isError,
+}: {
+    fund?: CafeFundView;
+    isPending: boolean;
+    isError: boolean;
+}) {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Fondo común</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+                {isPending ? (
+                    <p className="text-muted-foreground">
+                        Cargando fondo común…
+                    </p>
+                ) : isError ? (
+                    <p className="text-destructive">
+                        No se pudo cargar el fondo común.
+                    </p>
+                ) : !fund ? (
+                    <p className="text-muted-foreground">
+                        Aún no hay datos del fondo este mes.
+                    </p>
+                ) : (
+                    <>
+                        <div className="space-y-1">
+                            <p>
+                                {fund.referrals === 0
+                                    ? "Aún sin referencias este mes"
+                                    : `${fund.referrals} referencias este mes`}
+                            </p>
+                            <p>
+                                Crédito de origen:{" "}
+                                {formatMpen(fund.pendingCreditMpen)}
+                                {fund.estimated ? " (estimado)" : ""}
+                            </p>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                            <p>Origen: {formatMpen(fund.buckets.origin)}</p>
+                            <p>
+                                Adquisición:{" "}
+                                {formatMpen(fund.buckets.acquisition)}
+                            </p>
+                            <p>Rastreo: {formatMpen(fund.buckets.crawl)}</p>
+                            <p>
+                                Contingencia:{" "}
+                                {formatMpen(fund.buckets.contingency)}
+                            </p>
+                        </div>
+                    </>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
 function responseTargets(error: unknown): string[] {
     const value = error as {
         value?: { targets?: string[] };
@@ -68,6 +145,7 @@ export default function CafePanelPage() {
     const cafeQuery = useCafe(cafeId);
     const productsQuery = useCafeProducts(cafeId);
     const payoutsQuery = useCafePayouts(cafeId);
+    const fundQuery = useCafeFund(cafeId);
     const updateCafe = useUpdateCafe(cafeId);
     const createProduct = useCreateProduct(cafeId);
     const submitCafe = useSubmitCafe(cafeId);
@@ -186,6 +264,11 @@ export default function CafePanelPage() {
             )}
             <PayoutSummaryCard
                 payouts={payoutsQuery.data as CafePayouts | undefined}
+            />
+            <CafeFundCard
+                fund={fundQuery.data as CafeFundView | undefined}
+                isPending={fundQuery.isPending}
+                isError={fundQuery.isError}
             />
             <Card>
                 <CardHeader>
