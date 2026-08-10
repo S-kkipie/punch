@@ -152,10 +152,10 @@ export async function deployAll(rpcUrl = RPC): Promise<AddressMap> {
         }),
         "set consumption log",
     );
-    const relayerIndex = Number(process.env.RELAYER_WALLET_INDEX ?? 0);
-    const redeemerAddress = mnemonicToAccount(appMnemonic, {
-        addressIndex: relayerIndex,
-    }).address;
+    const relayerAccount = mnemonicToAccount(appMnemonic, {
+        addressIndex: Number(process.env.RELAYER_WALLET_INDEX ?? 0),
+    });
+    const redeemerAddress = relayerAccount.address;
     await waitForWrite(
         pub,
         await wallet.writeContract({
@@ -177,10 +177,18 @@ export async function deployAll(rpcUrl = RPC): Promise<AddressMap> {
         "set campaign escrow",
     );
 
+    await waitForWrite(
+        pub,
+        await wallet.writeContract({
+            address: networkFund,
+            abi: fundAbi,
+            functionName: "setReferralRecorder",
+            args: [relayerAccount.address],
+        }),
+        "set referral recorder",
+    );
+
     const escrowAbi = abis.campaignEscrow;
-    const relayerAccount = mnemonicToAccount(appMnemonic, {
-        addressIndex: Number(process.env.RELAYER_WALLET_INDEX ?? 0),
-    });
     const opsAccount = mnemonicToAccount(appMnemonic, {
         addressIndex: Number(process.env.OPS_WALLET_INDEX ?? 9000),
     });

@@ -41,8 +41,42 @@ const addresses = JSON.parse(
 ) as AddressMap;
 function liveChain(): BootstrapChain {
     const pub = createPublicClient({ chain: foundry, transport: http(rpcUrl) });
+    const relayer = mnemonicToAccount(
+        process.env.WALLET_MASTER_MNEMONIC ??
+            "test test test test test test test test test test test junk",
+        { addressIndex: Number(process.env.RELAYER_WALLET_INDEX ?? 0) },
+    );
+    const deployer = mnemonicToAccount(
+        "test test test test test test test test test test test junk",
+        { addressIndex: 0 },
+    );
     return {
         ownerAddressForIndex: (index) => ownerAddressForIndex(index),
+        relayerAddress: relayer.address,
+        referralRecorder: () =>
+            pub.readContract({
+                address: addresses.networkFund,
+                abi: abis.networkFund,
+                functionName: "referralRecorder",
+            }) as Promise<`0x${string}`>,
+        setReferralRecorder: async ({ recorder }) => {
+            const wallet = createWalletClient({
+                account: deployer,
+                chain: foundry,
+                transport: http(rpcUrl),
+            });
+            const hash = await wallet.writeContract({
+                address: addresses.networkFund,
+                abi: abis.networkFund,
+                functionName: "setReferralRecorder",
+                args: [recorder],
+            });
+            const receipt = await pub.waitForTransactionReceipt({ hash });
+            if (receipt.status !== "success")
+                throw new Error(
+                    `bootstrap setReferralRecorder reverted: ${hash}`,
+                );
+        },
         countCafes: () =>
             pub.readContract({
                 address: addresses.cafeRegistry,

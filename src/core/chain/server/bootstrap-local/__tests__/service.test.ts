@@ -46,11 +46,33 @@ function fixture() {
             eligibleProducts,
         })),
         verifyCafe: vi.fn(async () => undefined),
+        relayerAddress: address("relayer"),
+        referralRecorder: vi.fn(async () => address("relayer")),
+        setReferralRecorder: vi.fn(async () => undefined),
     };
     return { cafes, repository, chain };
 }
 
 describe("bootstrapApprovedSeedCafes", () => {
+    it("repairs a NetworkFund referral recorder that differs from the relayer", async () => {
+        const { repository, chain } = fixture();
+        vi.mocked(chain.referralRecorder).mockResolvedValue(address("wrong"));
+
+        await bootstrapApprovedSeedCafes({ repository, chain });
+
+        expect(chain.setReferralRecorder).toHaveBeenCalledWith({
+            recorder: address("relayer"),
+        });
+    });
+
+    it("does not rewrite a matching NetworkFund referral recorder", async () => {
+        const { repository, chain } = fixture();
+
+        await bootstrapApprovedSeedCafes({ repository, chain });
+
+        expect(chain.setReferralRecorder).not.toHaveBeenCalled();
+    });
+
     it("seeds four approved cafes and persists eligible mappings after verification", async () => {
         const { repository, chain } = fixture();
 

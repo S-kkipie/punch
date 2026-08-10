@@ -87,8 +87,14 @@ describeIntegration("development chain escrow wiring", () => {
             abi: abis.campaignEscrow,
             functionName: "owner",
         });
+        const referralRecorder = await pub.readContract({
+            address: addresses.networkFund,
+            abi: abis.networkFund,
+            functionName: "referralRecorder",
+        });
 
         expect(operator).toBe(relayerAddress());
+        expect(referralRecorder).toBe(relayerAddress());
         expect(owner).toBe(opsAddress());
         expect(operator).not.toBe(owner);
     });

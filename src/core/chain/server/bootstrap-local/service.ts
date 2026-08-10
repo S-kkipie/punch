@@ -135,6 +135,9 @@ export type DemoCampaignChain = {
 
 export type BootstrapChain = {
     ownerAddressForIndex(index: number): `0x${string}`;
+    relayerAddress: `0x${string}`;
+    referralRecorder(): Promise<`0x${string}`>;
+    setReferralRecorder(input: { recorder: `0x${string}` }): Promise<void>;
     countCafes(): Promise<bigint>;
     inspectCafe(chainCafeId: bigint): Promise<LiveCafe | null>;
     ensureEligibleProducts(input: {
@@ -363,6 +366,15 @@ export async function bootstrapApprovedSeedCafes(input: {
     const cafes = (await input.repository.listApprovedSeedCafes()).sort(
         (a, b) => a.slug.localeCompare(b.slug),
     );
+    const referralRecorder = await input.chain.referralRecorder();
+    if (!sameAddress(referralRecorder, input.chain.relayerAddress)) {
+        await input.chain.setReferralRecorder({
+            recorder: input.chain.relayerAddress,
+        });
+        console.info(
+            `bootstrap: repaired NetworkFund referral recorder to ${input.chain.relayerAddress}`,
+        );
+    }
     const cafeCount = await input.chain.countCafes();
 
     for (const cafe of cafes) {
