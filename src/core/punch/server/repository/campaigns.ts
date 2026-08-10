@@ -1,6 +1,11 @@
 import "server-only";
 import { and, eq, gte, isNotNull, isNull, lt, lte, ne, or } from "drizzle-orm";
+import {
+    enqueueJob,
+    type JobTransaction,
+} from "@/core/chain/server/relayer/job-repository";
 import type { DbClient } from "@/server/drizzle/db";
+import { projectionCampaign } from "@/server/drizzle/schemas/chain-schema";
 import { consumerTransaction } from "@/server/drizzle/schemas/consumption-schema";
 import {
     type CampaignRow,
@@ -15,17 +20,26 @@ export async function findActiveCampaignForCafe(
 ): Promise<CampaignRow | null> {
     const now = new Date();
     const [row] = await client
-        .select()
+        .select({ campaign })
         .from(campaign)
+        .innerJoin(
+            projectionCampaign,
+            eq(campaign.chainCampaignId, projectionCampaign.chainCampaignId),
+        )
         .where(
             and(
                 eq(campaign.cafeId, cafeId),
                 eq(campaign.active, true),
+                eq(projectionCampaign.status, "published"),
                 lte(campaign.windowStart, now),
                 gte(campaign.windowEnd, now),
+                lt(
+                    projectionCampaign.unlockedCount,
+                    projectionCampaign.maxVouchers,
+                ),
             ),
         );
-    return row ?? null;
+    return row?.campaign ?? null;
 }
 
 export async function hasPriorPaidPurchase(
@@ -98,6 +112,7 @@ export async function hasPriorPaidPurchase(
     return rows.length > 0;
 }
 
+/** Legacy mock-chain path; production chain projections use enqueueCampaignUnlock. */
 export async function unlockCampaignVoucher(
     client: DbClient,
     input: {
@@ -134,4 +149,24 @@ export async function unlockCampaignVoucher(
             ),
         );
     return existing ?? null;
+}
+
+export async function enqueueCampaignUnlock(
+    tx: JobTransaction,
+    input: {
+        chainCampaignId: number;
+        userAddress: string;
+        effectId: string;
+    },
+): Promise<void> {
+    const userAddress = input.userAddress.toLowerCase();
+    await enqueueJob(tx, {
+        kind: "voucher_unlock",
+        idempotencyKey: `voucher_unlock:${input.chainCampaignId}:${userAddress}`,
+        payload: {
+            chainCampaignId: input.chainCampaignId,
+            userAddress,
+            effectId: input.effectId,
+        },
+    });
 }

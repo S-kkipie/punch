@@ -49,6 +49,18 @@ const PERMANENT_CODES = new Set<RevertCode | "nonce_conflict" | "superseded">([
     "product_not_eligible",
     "invalid_signature",
     "not_draft",
+    "not_published",
+    "campaign_not_found",
+    "campaign_expired",
+    "max_vouchers_reached",
+    "insufficient_budget",
+    "insufficient_free_balance",
+    "expiry_in_past",
+    "zero_amount",
+    "cafe_not_operational",
+    "voucher_not_unlocked",
+    "not_campaign_operator",
+    "not_owner",
     "nonce_conflict",
     "superseded",
 ]);
@@ -97,6 +109,7 @@ export type RelayerDeps = {
         waitForTransactionReceipt: PublicClient["waitForTransactionReceipt"];
         getTransactionReceipt: PublicClient["getTransactionReceipt"];
         getLogs: PublicClient["getLogs"];
+        getBlock: PublicClient["getBlock"];
         simulateContract: (...args: never[]) => Promise<unknown>;
 
         readContract?: PublicClient["readContract"];

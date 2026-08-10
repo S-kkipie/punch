@@ -11,6 +11,21 @@ export type RevertCode =
     | "product_not_eligible"
     | "invalid_signature"
     | "not_draft"
+    | "not_published"
+    | "campaign_not_found"
+    | "campaign_expired"
+    | "max_vouchers_reached"
+    | "insufficient_budget"
+    | "insufficient_free_balance"
+    | "expiry_in_past"
+    | "zero_amount"
+    | "cafe_not_operational"
+    | "voucher_not_unlocked"
+    | "voucher_already_unlocked"
+    | "voucher_already_redeemed"
+    | "not_campaign_operator"
+    | "not_owner"
+    | "paused"
     | "unknown";
 
 export type ParsedRevert = { code: RevertCode; message: string };
@@ -31,6 +46,21 @@ const errorNames: Record<string, RevertCode> = {
     InvalidCafeSignature: "invalid_signature",
     InvalidUserSignature: "invalid_signature",
     NotDraft: "not_draft",
+    NotPublished: "not_published",
+    CampaignNotFound: "campaign_not_found",
+    CampaignExpired: "campaign_expired",
+    MaxVouchersReached: "max_vouchers_reached",
+    InsufficientBudget: "insufficient_budget",
+    InsufficientFreeBalance: "insufficient_free_balance",
+    ExpiryInPast: "expiry_in_past",
+    ZeroAmount: "zero_amount",
+    CafeNotOperational: "cafe_not_operational",
+    VoucherNotUnlocked: "voucher_not_unlocked",
+    VoucherAlreadyUnlocked: "voucher_already_unlocked",
+    VoucherAlreadyRedeemed: "voucher_already_redeemed",
+    NotCampaignOperator: "not_campaign_operator",
+    OwnableUnauthorizedAccount: "not_owner",
+    EnforcedPause: "paused",
 };
 
 function findData(error: unknown): Hex | undefined {

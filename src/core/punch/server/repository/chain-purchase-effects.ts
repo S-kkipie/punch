@@ -2,12 +2,13 @@ import "server-only";
 
 import { and, eq } from "drizzle-orm";
 import type { DbClient } from "@/server/drizzle/db";
+import { user } from "@/server/drizzle/schemas/auth-schema";
 import { chainPurchaseEffect } from "@/server/drizzle/schemas/punch-schema";
 import { purchaseOrder } from "@/server/drizzle/schemas/purchase-schema";
 import {
+    enqueueCampaignUnlock,
     findActiveCampaignForCafe,
     hasPriorPaidPurchase,
-    unlockCampaignVoucher,
 } from "./campaigns";
 import {
     advanceCrawlProgress,
@@ -87,23 +88,21 @@ export async function applyChainPurchaseEffects(
             "campaign_qualification",
             campaign.id,
         );
-        if (effect) {
-            const voucher = await unlockCampaignVoucher(tx as DbClient, {
-                campaignId: campaign.id,
-                consumerUserId: input.consumerUserId,
-                cafeId: input.cafeId,
-                expiresAt: campaign.windowEnd,
-            });
-            // The (campaignId, consumerUserId) slot admits one voucher, and every
-            // production voucher comes from these unlock paths, so an existing
-            // available voucher converges to chain provenance here. Redeemed
-            // vouchers stay out of reach: reversal only deletes 'available' rows.
-            if (voucher) {
-                await tx
-                    .update(chainPurchaseEffect)
-                    .set({ createdVoucherId: voucher.id })
-                    .where(eq(chainPurchaseEffect.id, effect.id));
+        if (effect && campaign.chainCampaignId !== null) {
+            const [consumer] = await tx
+                .select({ walletAddress: user.walletAddress })
+                .from(user)
+                .where(eq(user.id, input.consumerUserId));
+            if (!consumer?.walletAddress) {
+                throw new Error(
+                    "consumer wallet address is required for campaign unlock",
+                );
             }
+            await enqueueCampaignUnlock(tx, {
+                chainCampaignId: campaign.chainCampaignId,
+                userAddress: consumer.walletAddress,
+                effectId: effect.id,
+            });
         }
     }
 
