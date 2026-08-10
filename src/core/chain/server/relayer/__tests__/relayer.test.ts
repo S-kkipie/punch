@@ -19,7 +19,8 @@ const proof = {
 const signature = `0x${"aa".repeat(65)}` as `0x${string}`;
 const addresses = {
     consumptionLog: `0x${"33".repeat(20)}`,
-} as { consumptionLog: `0x${string}` };
+    campaignEscrow: `0x${"66".repeat(20)}`,
+} as { consumptionLog: `0x${string}`; campaignEscrow: `0x${string}` };
 function recordedLog(
     overrides: {
         cafeId?: bigint;
@@ -72,6 +73,8 @@ function deps(job = baseJob(), receipt: "success" | "reverted" = "success") {
             writeContract: vi.fn().mockResolvedValue(`0x${"44".repeat(32)}`),
         },
         pub: {
+            readContract: vi.fn(),
+            getBlock: vi.fn(),
             waitForTransactionReceipt: vi
                 .fn()
                 .mockResolvedValue({ status: receipt }),
@@ -111,6 +114,30 @@ function revert(errorName: string) {
 }
 
 describe("relayer loop", () => {
+    it("retries a paused voucher unlock preflight", async () => {
+        const d = deps(
+            baseJob({
+                kind: "voucher_unlock",
+                payload: {
+                    chainCampaignId: 3,
+                    userAddress: proof.user,
+                    effectId: "effect-1",
+                },
+            }),
+        );
+        vi.mocked(
+            d.pub.readContract as NonNullable<typeof d.pub.readContract>,
+        ).mockResolvedValue(true as never);
+        await runRelayerOnce(d);
+        expect(d.markJobRetry).toHaveBeenCalledWith(
+            "job",
+            "campaign escrow is paused",
+            1,
+            expect.any(Date),
+        );
+        expect(d.markJobFailed).not.toHaveBeenCalled();
+    });
+
     it("submits and confirms both job and order", async () => {
         const d = deps();
         await runRelayerOnce(d);

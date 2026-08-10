@@ -4,6 +4,7 @@ import { applyConfirmedConsumptionProjection } from "@/core/chain/server/indexer
 import { db } from "@/server/drizzle/db";
 import { user } from "@/server/drizzle/schemas/auth-schema";
 import { cafe, cafeProduct } from "@/server/drizzle/schemas/cafe-schema";
+import { projectionCampaign } from "@/server/drizzle/schemas/chain-schema";
 import {
     consumerTransaction,
     consumptionProof,
@@ -17,7 +18,10 @@ import {
     consumerVoucher,
     punchBalanceProjection,
 } from "@/server/drizzle/schemas/punch-schema";
-import { purchaseOrder } from "@/server/drizzle/schemas/purchase-schema";
+import {
+    purchaseOrder,
+    relayerJob,
+} from "@/server/drizzle/schemas/purchase-schema";
 import { installIntegrationDbMutex } from "@/test/integration-db-mutex";
 
 const runIntegration = process.env.PUNCH_RUN_INTEGRATION === "1";
@@ -51,6 +55,7 @@ async function fixture(cafeCount = 3): Promise<Fixture> {
         id: f.userId,
         name: "Effects Integration User",
         email: `${suffix}@effects.invalid`,
+        walletAddress: "0x1111111111111111111111111111111111111111",
     });
     for (let i = 0; i < cafeCount; i++) {
         const cafeId = `effects-cafe-${suffix}-${i}`;
@@ -204,10 +209,30 @@ describeIntegration("indexed purchase effects", () => {
                 windowStart: new Date(Date.now() - 60_000),
                 windowEnd: new Date(Date.now() + 60_000),
                 active: true,
+                chainCampaignId: 700001,
             })
             .returning();
         f.campaignId = createdCampaign.id;
+        await db.insert(projectionCampaign).values({
+            chainCampaignId: 700001,
+            status: "published",
+            budget: 1000n,
+            voucherPayout: 1n,
+            maxVouchers: 10,
+            expiry: new Date(Date.now() + 60_000),
+            unlockedCount: 0,
+            redeemedCount: 0,
+            lastBlock: 0n,
+        });
         const created = await project(f, 0, 1);
+        await db.transaction(async (tx) => {
+            await applyConfirmedConsumptionProjection(tx, {
+                orderId: created.orderId,
+                txHash: txHash(1),
+                logIndex: 1,
+                blockNumber: 1n,
+            });
+        });
         await db.transaction(async (tx) => {
             await applyConfirmedConsumptionProjection(tx, {
                 orderId: created.orderId,
@@ -220,13 +245,31 @@ describeIntegration("indexed purchase effects", () => {
             .select()
             .from(consumerVoucher)
             .where(eq(consumerVoucher.consumerUserId, f.userId));
+        const jobs = await db
+            .select()
+            .from(relayerJob)
+            .where(
+                eq(
+                    relayerJob.idempotencyKey,
+                    "voucher_unlock:700001:0x1111111111111111111111111111111111111111",
+                ),
+            );
         const history = await db
             .select()
             .from(consumerTransaction)
             .where(eq(consumerTransaction.purchaseOrderId, created.orderId));
-        expect(vouchers).toHaveLength(1);
+        expect(vouchers).toHaveLength(0);
+        expect(jobs).toHaveLength(1);
+        expect(jobs[0]).toMatchObject({
+            kind: "voucher_unlock",
+            status: "pending",
+            payload: {
+                chainCampaignId: 700001,
+                userAddress: "0x1111111111111111111111111111111111111111",
+                effectId: expect.any(String),
+            },
+        });
         expect(history).toHaveLength(1);
-        expect(vouchers[0].campaignId).toBe(f.campaignId);
     });
 
     it("unlocks only one voucher when confirmations arrive out of submission order", async () => {

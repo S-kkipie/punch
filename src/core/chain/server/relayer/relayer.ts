@@ -327,12 +327,38 @@ async function submitJob(deps: RelayerDeps, job: Job) {
     const ctx = context(deps);
     const preflight = await handler.preflight?.(job, ctx);
     if (preflight) {
-        await markFailed(
+        if (handler.idempotentCodes?.has(preflight.code as RevertCode)) {
+            await confirm(deps, job);
+            return;
+        }
+        if (PERMANENT_CODES.has(preflight.code as RevertCode)) {
+            await markFailed(
+                deps,
+                job.id,
+                preflight.message,
+                preflight.code,
+                effect(deps, handler.onFailed?.(job, preflight)),
+            );
+            return;
+        }
+        const attempts = job.attempts + 1;
+        if (attempts >= 3) {
+            await markFailed(
+                deps,
+                job.id,
+                preflight.message,
+                preflight.code,
+                effect(deps, handler.onFailed?.(job, preflight)),
+            );
+            return;
+        }
+        await markRetry(
             deps,
             job.id,
             preflight.message,
-            preflight.code,
-            effect(deps, handler.onFailed?.(job, preflight)),
+            attempts,
+            new Date(deps.now().getTime() + 5_000 * 2 ** attempts),
+            effect(deps, handler.onRetry?.(job)),
         );
         return;
     }

@@ -40,18 +40,7 @@ vi.mock("@/core/punch/server/repository/balance", () => ({
     incrementBalance: vi.fn(),
     decrementBalance: vi.fn(),
 }));
-vi.mock("@/core/punch/domain/campaign", async (importOriginal) => {
-    const actual =
-        await importOriginal<typeof import("@/core/punch/domain/campaign")>();
-    return {
-        ...actual,
-        isEligibleForAcquisitionCampaign: vi.fn(
-            actual.isEligibleForAcquisitionCampaign,
-        ),
-    };
-});
 
-import { isEligibleForAcquisitionCampaign } from "@/core/punch/domain/campaign";
 import {
     BalanceRepositoryError,
     decrementBalance,
@@ -126,11 +115,6 @@ describe("PostgresMockConsumerChain.submitConsumption", () => {
     });
 });
 
-vi.mock("@/core/punch/server/repository/campaigns", () => ({
-    findActiveCampaignForCafe: vi.fn(),
-    hasPriorPaidPurchase: vi.fn(),
-    unlockCampaignVoucher: vi.fn(),
-}));
 vi.mock("@/core/punch/server/repository/crawls", () => ({
     findActiveCrawlForCafe: vi.fn(),
     getCrawlSteps: vi.fn(),
@@ -140,38 +124,12 @@ vi.mock("@/core/punch/server/repository/crawls", () => ({
 }));
 
 import {
-    findActiveCampaignForCafe,
-    hasPriorPaidPurchase,
-    unlockCampaignVoucher,
-} from "@/core/punch/server/repository/campaigns";
-import {
     advanceCrawlProgress,
     findActiveCrawlForCafe,
     getCrawlSteps,
     getOrCreateCrawlProgress,
     unlockCrawlVoucher,
 } from "@/core/punch/server/repository/crawls";
-
-async function finalizeEmission(key: string) {
-    const chain = new PostgresMockConsumerChain(() => Date.now(), 0);
-    const submission = await chain.submitConsumption({
-        proofId: "proof-1",
-        idempotencyKey: key,
-    });
-    vi.mocked(findTransactionById).mockResolvedValue({
-        id: submission.transactionId,
-        status: "pending",
-        operation: "emission",
-        proofId: "proof-1",
-        createdAt: new Date(0),
-    } as never);
-    vi.mocked(findProofById).mockResolvedValue({
-        id: "proof-1",
-        consumerUserId: "user-1",
-        cafeId: "cafe-target",
-    } as never);
-    await chain.getTransactionStatus(submission.transactionId);
-}
 
 describe("PostgresMockConsumerChain.submitConsumption campaign + crawl side effects", () => {
     beforeEach(() => {
@@ -195,135 +153,7 @@ describe("PostgresMockConsumerChain.submitConsumption campaign + crawl side effe
         } as never);
     });
 
-    it("unlocks a campaign voucher on a qualifying first purchase", async () => {
-        vi.mocked(findActiveCampaignForCafe).mockResolvedValue({
-            id: "campaign-1",
-            cafeId: "cafe-target",
-            windowStart: new Date(Date.now() - 86_400_000),
-            windowEnd: new Date(Date.now() + 86_400_000),
-        } as never);
-        vi.mocked(hasPriorPaidPurchase).mockResolvedValue(false);
-        vi.mocked(findActiveCrawlForCafe).mockResolvedValue(null);
-
-        const chain = new PostgresMockConsumerChain(() => Date.now(), 0);
-        const submission = await chain.submitConsumption({
-            proofId: "proof-1",
-            idempotencyKey: "k1",
-        });
-        vi.mocked(findTransactionById).mockResolvedValue({
-            id: submission.transactionId,
-            status: "pending",
-            operation: "emission",
-            proofId: "proof-1",
-            createdAt: new Date(0),
-        } as never);
-        vi.mocked(findProofById).mockResolvedValue({
-            id: "proof-1",
-            consumerUserId: "user-1",
-            cafeId: "cafe-target",
-        } as never);
-        await chain.getTransactionStatus(submission.transactionId);
-
-        expect(hasPriorPaidPurchase).toHaveBeenCalledWith(
-            expect.anything(),
-            "user-1",
-            "cafe-target",
-            expect.objectContaining({
-                id: submission.transactionId,
-                createdAt: new Date(0),
-            }),
-        );
-        expect(unlockCampaignVoucher).toHaveBeenCalledWith(
-            expect.anything(),
-            expect.objectContaining({
-                campaignId: "campaign-1",
-                consumerUserId: "user-1",
-                cafeId: "cafe-target",
-            }),
-        );
-    });
-
-    it("orders prior purchases by timestamp and id tie-break", async () => {
-        const earlier = new Date("2026-01-01T00:00:00.000Z");
-        const later = new Date("2026-01-02T00:00:00.000Z");
-        vi.mocked(findActiveCampaignForCafe).mockResolvedValue({
-            id: "campaign-1",
-            cafeId: "cafe-target",
-            windowStart: new Date("2025-01-01T00:00:00.000Z"),
-            windowEnd: new Date("2027-01-01T00:00:00.000Z"),
-        } as never);
-        vi.mocked(findActiveCrawlForCafe).mockResolvedValue(null);
-        vi.mocked(hasPriorPaidPurchase).mockImplementation(
-            async (_client, _userId, _cafeId, current) =>
-                current.createdAt > earlier ||
-                (current.createdAt.getTime() === earlier.getTime() &&
-                    current.id > "tx-a"),
-        );
-        vi.mocked(findTransactionById).mockImplementation(
-            async (id) =>
-                ({
-                    id,
-                    status: "pending",
-                    operation: "emission",
-                    proofId: "proof-1",
-                    createdAt: id === "tx-later" ? later : earlier,
-                }) as never,
-        );
-        vi.mocked(findProofById).mockResolvedValue({
-            id: "proof-1",
-            consumerUserId: "user-1",
-            cafeId: "cafe-target",
-        } as never);
-        const chain = new PostgresMockConsumerChain(() => Date.now(), 0);
-        await chain.getTransactionStatus("tx-later");
-        await chain.getTransactionStatus("tx-a");
-        expect(unlockCampaignVoucher).toHaveBeenCalledTimes(1);
-        vi.clearAllMocks();
-        vi.mocked(updateTransactionStatus).mockResolvedValue({
-            id: "tx-a",
-            status: "confirmed",
-        } as never);
-        vi.mocked(findActiveCampaignForCafe).mockResolvedValue({
-            id: "campaign-1",
-            cafeId: "cafe-target",
-            windowStart: new Date("2025-01-01T00:00:00.000Z"),
-            windowEnd: new Date("2027-01-01T00:00:00.000Z"),
-        } as never);
-        vi.mocked(findActiveCrawlForCafe).mockResolvedValue(null);
-        vi.mocked(hasPriorPaidPurchase).mockImplementation(
-            async (_client, _userId, _cafeId, current) =>
-                current.createdAt > earlier ||
-                (current.createdAt.getTime() === earlier.getTime() &&
-                    current.id > "tx-a"),
-        );
-        vi.mocked(findTransactionById).mockImplementation(
-            async (id) =>
-                ({
-                    id,
-                    status: "pending",
-                    operation: "emission",
-                    proofId: "proof-1",
-                    createdAt: earlier,
-                }) as never,
-        );
-        vi.mocked(findProofById).mockResolvedValue({
-            id: "proof-1",
-            consumerUserId: "user-1",
-            cafeId: "cafe-target",
-        } as never);
-        await chain.getTransactionStatus("tx-b");
-        await chain.getTransactionStatus("tx-a");
-        expect(unlockCampaignVoucher).toHaveBeenCalledTimes(1);
-    });
-
-    it("increments once when one purchase unlocks campaign and completes crawl", async () => {
-        vi.mocked(findActiveCampaignForCafe).mockResolvedValue({
-            id: "campaign-1",
-            cafeId: "cafe-target",
-            windowStart: new Date(Date.now() - 86_400_000),
-            windowEnd: new Date(Date.now() + 86_400_000),
-        } as never);
-        vi.mocked(hasPriorPaidPurchase).mockResolvedValue(false);
+    it("increments once when one purchase completes a crawl", async () => {
         vi.mocked(findActiveCrawlForCafe).mockResolvedValue({
             id: "crawl-1",
             expiresAt: new Date(Date.now() + 86_400_000),
@@ -356,69 +186,9 @@ describe("PostgresMockConsumerChain.submitConsumption campaign + crawl side effe
         await chain.getTransactionStatus(submission.transactionId);
 
         expect(incrementBalance).toHaveBeenCalledTimes(1);
-        expect(unlockCampaignVoucher).toHaveBeenCalledTimes(1);
         expect(advanceCrawlProgress).toHaveBeenCalledTimes(1);
         expect(unlockCrawlVoucher).toHaveBeenCalledTimes(1);
         expect(updateTransactionStatus).toHaveBeenCalledTimes(1);
-    });
-
-    it("does not unlock when there is no active campaign", async () => {
-        vi.mocked(findActiveCampaignForCafe).mockResolvedValue(null);
-        vi.mocked(findActiveCrawlForCafe).mockResolvedValue(null);
-        await finalizeEmission("campaign-inactive");
-        expect(findActiveCampaignForCafe).toHaveBeenCalledWith(
-            expect.anything(),
-            "cafe-target",
-        );
-        expect(isEligibleForAcquisitionCampaign).not.toHaveBeenCalled();
-        expect(hasPriorPaidPurchase).not.toHaveBeenCalled();
-        expect(unlockCampaignVoucher).not.toHaveBeenCalled();
-    });
-
-    it("does not unlock an active campaign when purchase is outside its window", async () => {
-        const windowStart = new Date(Date.now() + 60_000);
-        vi.mocked(findActiveCampaignForCafe).mockResolvedValue({
-            id: "campaign-window",
-            cafeId: "cafe-target",
-            windowStart,
-            windowEnd: new Date(Date.now() + 120_000),
-        } as never);
-        vi.mocked(hasPriorPaidPurchase).mockResolvedValue(false);
-        vi.mocked(findActiveCrawlForCafe).mockResolvedValue(null);
-        await finalizeEmission("campaign-window");
-        expect(hasPriorPaidPurchase).toHaveBeenCalledTimes(1);
-        const eligibilityInput = vi.mocked(isEligibleForAcquisitionCampaign)
-            .mock.calls[0]?.[0];
-        expect(eligibilityInput?.hadPriorPaidPurchaseAtCafe).toBe(false);
-        expect(eligibilityInput?.purchaseAt.getTime()).toBeLessThan(
-            windowStart.getTime(),
-        );
-        expect(unlockCampaignVoucher).not.toHaveBeenCalled();
-    });
-
-    it("does not unlock an in-window campaign after a prior purchase", async () => {
-        const windowStart = new Date(Date.now() - 60_000);
-        const windowEnd = new Date(Date.now() + 60_000);
-        vi.mocked(findActiveCampaignForCafe).mockResolvedValue({
-            id: "campaign-prior",
-            cafeId: "cafe-target",
-            windowStart,
-            windowEnd,
-        } as never);
-        vi.mocked(hasPriorPaidPurchase).mockResolvedValue(true);
-        vi.mocked(findActiveCrawlForCafe).mockResolvedValue(null);
-        await finalizeEmission("campaign-prior");
-        expect(hasPriorPaidPurchase).toHaveBeenCalledTimes(1);
-        const eligibilityInput = vi.mocked(isEligibleForAcquisitionCampaign)
-            .mock.calls[0]?.[0];
-        expect(eligibilityInput?.hadPriorPaidPurchaseAtCafe).toBe(true);
-        expect(eligibilityInput?.purchaseAt.getTime()).toBeGreaterThanOrEqual(
-            windowStart.getTime(),
-        );
-        expect(eligibilityInput?.purchaseAt.getTime()).toBeLessThanOrEqual(
-            windowEnd.getTime(),
-        );
-        expect(unlockCampaignVoucher).not.toHaveBeenCalled();
     });
 
     it.each([
@@ -426,7 +196,6 @@ describe("PostgresMockConsumerChain.submitConsumption campaign + crawl side effe
         "wrong next step",
         "already completed",
     ])("does not advance or unlock an %s crawl", async (caseName) => {
-        vi.mocked(findActiveCampaignForCafe).mockResolvedValue(null);
         vi.mocked(findActiveCrawlForCafe).mockResolvedValue({
             id: "crawl-1",
             expiresAt:
@@ -490,74 +259,11 @@ describe("PostgresMockConsumerChain.submitConsumption campaign + crawl side effe
         await chain.getTransactionStatus("tx-poll");
         expect(incrementBalance).toHaveBeenCalledTimes(1);
         expect(advanceCrawlProgress).not.toHaveBeenCalled();
-        expect(unlockCampaignVoucher).not.toHaveBeenCalled();
         expect(unlockCrawlVoucher).not.toHaveBeenCalled();
         expect(updateTransactionStatus).toHaveBeenCalledTimes(1);
     });
 
-    it("confirms when a unique voucher unlock is already present", async () => {
-        vi.mocked(findActiveCampaignForCafe).mockResolvedValue({
-            id: "campaign-1",
-            cafeId: "cafe-target",
-            windowStart: new Date(Date.now() - 86_400_000),
-            windowEnd: new Date(Date.now() + 86_400_000),
-        } as never);
-        vi.mocked(hasPriorPaidPurchase).mockResolvedValue(false);
-        vi.mocked(unlockCampaignVoucher).mockResolvedValue(null);
-        vi.mocked(findActiveCrawlForCafe).mockResolvedValue(null);
-        const chain = new PostgresMockConsumerChain(() => Date.now(), 0);
-        const submission = await chain.submitConsumption({
-            proofId: "proof-1",
-            idempotencyKey: "unique",
-        });
-        vi.mocked(findTransactionById).mockResolvedValue({
-            id: submission.transactionId,
-            status: "pending",
-            operation: "emission",
-            proofId: "proof-1",
-            createdAt: new Date(0),
-        } as never);
-        vi.mocked(findProofById).mockResolvedValue({
-            id: "proof-1",
-            consumerUserId: "user-1",
-            cafeId: "cafe-target",
-        } as never);
-        await expect(
-            chain.getTransactionStatus(submission.transactionId),
-        ).resolves.toMatchObject({ status: "confirmed" });
-        expect(updateTransactionStatus).toHaveBeenCalledTimes(1);
-    });
-
-    it("does not confirm when campaign evaluation fails", async () => {
-        vi.mocked(findActiveCampaignForCafe).mockRejectedValue(
-            new Error("db unavailable"),
-        );
-        vi.mocked(findActiveCrawlForCafe).mockResolvedValue(null);
-        const chain = new PostgresMockConsumerChain(() => Date.now(), 0);
-        const submission = await chain.submitConsumption({
-            proofId: "proof-1",
-            idempotencyKey: "failure",
-        });
-        vi.mocked(findTransactionById).mockResolvedValue({
-            id: submission.transactionId,
-            status: "pending",
-            operation: "emission",
-            proofId: "proof-1",
-            createdAt: new Date(0),
-        } as never);
-        vi.mocked(findProofById).mockResolvedValue({
-            id: "proof-1",
-            consumerUserId: "user-1",
-            cafeId: "cafe-target",
-        } as never);
-        await expect(
-            chain.getTransactionStatus(submission.transactionId),
-        ).rejects.toThrow("db unavailable");
-        expect(updateTransactionStatus).not.toHaveBeenCalled();
-    });
-
     it("advances the crawl step matching this café", async () => {
-        vi.mocked(findActiveCampaignForCafe).mockResolvedValue(null);
         vi.mocked(findActiveCrawlForCafe).mockResolvedValue({
             id: "crawl-1",
             expiresAt: new Date(Date.now() + 86_400_000),
@@ -601,7 +307,6 @@ describe("PostgresMockConsumerChain.submitConsumption campaign + crawl side effe
     });
 
     it("unlocks the crawl voucher when the final step completes", async () => {
-        vi.mocked(findActiveCampaignForCafe).mockResolvedValue(null);
         vi.mocked(findActiveCrawlForCafe).mockResolvedValue({
             id: "crawl-1",
             expiresAt: new Date(Date.now() + 86_400_000),
