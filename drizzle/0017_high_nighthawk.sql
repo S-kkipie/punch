@@ -1,11 +1,11 @@
 CREATE TYPE "public"."campaign_projection_status" AS ENUM('draft', 'published', 'cancelled');--> statement-breakpoint
-ALTER TYPE "public"."relayer_job_kind" ADD VALUE 'consumption_record' BEFORE 'punch_redemption';--> statement-breakpoint
-ALTER TYPE "public"."relayer_job_kind" ADD VALUE 'campaign_create';--> statement-breakpoint
-ALTER TYPE "public"."relayer_job_kind" ADD VALUE 'campaign_fund_approve';--> statement-breakpoint
-ALTER TYPE "public"."relayer_job_kind" ADD VALUE 'campaign_fund';--> statement-breakpoint
-ALTER TYPE "public"."relayer_job_kind" ADD VALUE 'campaign_publish';--> statement-breakpoint
-ALTER TYPE "public"."relayer_job_kind" ADD VALUE 'voucher_unlock';--> statement-breakpoint
-ALTER TYPE "public"."relayer_job_kind" ADD VALUE 'voucher_redeem';--> statement-breakpoint
+ALTER TABLE "relayer_job" DROP CONSTRAINT "relayer_job_target_check";--> statement-breakpoint
+ALTER TABLE "relayer_job" ALTER COLUMN "kind" DROP DEFAULT;--> statement-breakpoint
+ALTER TYPE "public"."relayer_job_kind" RENAME TO "relayer_job_kind_old";--> statement-breakpoint
+CREATE TYPE "public"."relayer_job_kind" AS ENUM('consumption', 'consumption_record', 'punch_redemption', 'campaign_create', 'campaign_fund_approve', 'campaign_fund', 'campaign_publish', 'voucher_unlock', 'voucher_redeem');--> statement-breakpoint
+ALTER TABLE "relayer_job" ALTER COLUMN "kind" TYPE "public"."relayer_job_kind" USING "kind"::text::"public"."relayer_job_kind";--> statement-breakpoint
+ALTER TABLE "relayer_job" ALTER COLUMN "kind" SET DEFAULT 'consumption'::"public"."relayer_job_kind";--> statement-breakpoint
+DROP TYPE "public"."relayer_job_kind_old";--> statement-breakpoint
 CREATE TABLE "projection_campaign" (
 	"chain_campaign_id" integer PRIMARY KEY NOT NULL,
 	"status" "campaign_projection_status" NOT NULL,
@@ -21,7 +21,6 @@ CREATE TABLE "projection_campaign" (
 );
 --> statement-breakpoint
 ALTER TABLE "relayer_job" DROP CONSTRAINT "relayer_job_order_id_unique";--> statement-breakpoint
-ALTER TABLE "relayer_job" DROP CONSTRAINT "relayer_job_target_check";--> statement-breakpoint
 ALTER TABLE "campaign" ADD COLUMN "chain_campaign_id" integer;--> statement-breakpoint
 ALTER TABLE "campaign" ADD COLUMN "voucher_payout" bigint;--> statement-breakpoint
 ALTER TABLE "campaign" ADD COLUMN "max_vouchers" integer;--> statement-breakpoint
