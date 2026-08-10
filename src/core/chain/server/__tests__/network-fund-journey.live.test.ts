@@ -28,18 +28,8 @@ import {
     cafeMember,
     cafeProduct,
 } from "@/server/drizzle/schemas/cafe-schema";
-import {
-    consumerTransaction,
-    consumptionProof,
-} from "@/server/drizzle/schemas/consumption-schema";
-import {
-    campaign,
-    chainPurchaseEffect,
-} from "@/server/drizzle/schemas/punch-schema";
-import {
-    purchaseOrder,
-    relayerJob,
-} from "@/server/drizzle/schemas/purchase-schema";
+import { campaign } from "@/server/drizzle/schemas/punch-schema";
+import { relayerJob } from "@/server/drizzle/schemas/purchase-schema";
 
 const live =
     process.env.PUNCH_RUN_INTEGRATION === "1" &&
@@ -73,7 +63,6 @@ let chainCafeId = 0;
 let productId = "";
 let campaignId = "";
 let chainCampaignId = 0;
-let orderId = "";
 let reuseFinalizedEpoch = false;
 let demoCampaignStates: { id: string; active: boolean }[] = [];
 
@@ -341,7 +330,6 @@ describeLive("live network fund journey", () => {
         ).toBe(true);
         if (!confirmed.ok)
             throw new Error("network fund quote confirmation failed");
-        orderId = confirmed.data.order.id;
         await drainRelayerAndIndexer();
 
         const [referralJob] = await db
@@ -451,21 +439,9 @@ describeLive("live network fund journey", () => {
 
     afterAll(async () => {
         if (!live) return;
-        if (orderId) {
-            await db
-                .delete(chainPurchaseEffect)
-                .where(eq(chainPurchaseEffect.purchaseOrderId, orderId));
-            await db
-                .delete(consumerTransaction)
-                .where(eq(consumerTransaction.purchaseOrderId, orderId));
-            await db
-                .delete(consumptionProof)
-                .where(eq(consumptionProof.purchaseOrderId, orderId));
-            await db.delete(relayerJob).where(eq(relayerJob.orderId, orderId));
-            await db.delete(purchaseOrder).where(eq(purchaseOrder.id, orderId));
-        }
-        // The campaign, its projection, voucher, referral job, and fixture
-        // consumer stay: their events are on chain and must remain replayable.
+        // The confirmed purchase and all of its linked rows stay alongside the
+        // campaign, projection, voucher, referral job, and fixture consumer:
+        // every one is backed by events that a later replay must correlate.
         if (campaignId) {
             await db
                 .update(campaign)
