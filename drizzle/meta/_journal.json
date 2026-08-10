@@ -127,6 +127,13 @@
             "when": 1786333837338,
             "tag": "0017_high_nighthawk",
             "breakpoints": true
+        },
+        {
+            "idx": 18,
+            "version": "7",
+            "when": 1786375491690,
+            "tag": "0018_plain_roulette",
+            "breakpoints": true
         }
     ]
 }
