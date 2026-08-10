@@ -1,8 +1,13 @@
 import "server-only";
 
 import { and, eq } from "drizzle-orm";
+import {
+    enqueueReferralRecord,
+    referralKeyForCrawl,
+} from "@/core/chain/server/network-fund/referrals";
 import type { DbClient } from "@/server/drizzle/db";
 import { user } from "@/server/drizzle/schemas/auth-schema";
+import { cafe } from "@/server/drizzle/schemas/cafe-schema";
 import { chainPurchaseEffect } from "@/server/drizzle/schemas/punch-schema";
 import { purchaseOrder } from "@/server/drizzle/schemas/purchase-schema";
 import {
@@ -180,6 +185,33 @@ export async function applyChainPurchaseEffects(
         completedCafeIds,
         completedCafeIds.length >= steps.length,
     );
+
+    const previousCafeId =
+        progress.completedCafeIds[progress.completedCafeIds.length - 1];
+    if (previousCafeId) {
+        const [previousCafe] = await tx
+            .select({ chainCafeId: cafe.chainCafeId })
+            .from(cafe)
+            .where(eq(cafe.id, previousCafeId));
+        const [currentCafe] = await tx
+            .select({ chainCafeId: cafe.chainCafeId })
+            .from(cafe)
+            .where(eq(cafe.id, input.cafeId));
+        if (
+            previousCafe?.chainCafeId != null &&
+            currentCafe?.chainCafeId != null
+        ) {
+            await enqueueReferralRecord(tx, {
+                originChainCafeId: previousCafe.chainCafeId,
+                referralKey: referralKeyForCrawl(
+                    input.consumerUserId,
+                    previousCafe.chainCafeId,
+                    currentCafe.chainCafeId,
+                ),
+            });
+        }
+    }
+
     if (completedCafeIds.length >= steps.length) {
         const voucher = await unlockCrawlVoucher(tx as DbClient, {
             crawlId: crawl.id,

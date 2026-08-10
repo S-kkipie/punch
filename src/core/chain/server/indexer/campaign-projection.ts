@@ -3,11 +3,16 @@ import "server-only";
 
 import { and, eq, sql } from "drizzle-orm";
 import { user } from "@/server/drizzle/schemas/auth-schema";
+import { cafe } from "@/server/drizzle/schemas/cafe-schema";
 import { projectionCampaign } from "@/server/drizzle/schemas/chain-schema";
 import {
     campaign,
     consumerVoucher,
 } from "@/server/drizzle/schemas/punch-schema";
+import {
+    enqueueReferralRecord,
+    referralKeyForVoucher,
+} from "../network-fund/referrals";
 import type { IndexerEvent, IndexerTransaction } from "./apply-event";
 
 const MAX_SQL_INT = 2_147_483_647n;
@@ -247,6 +252,17 @@ async function applyUnlocked(tx: IndexerTransaction, event: IndexerEvent) {
         );
     const voucher = vouchers[0];
     if (!voucher) return;
+
+    const [cafeRow] = await tx
+        .select({ chainCafeId: cafe.chainCafeId })
+        .from(cafe)
+        .where(eq(cafe.id, appCampaign.cafeId));
+    if (cafeRow?.chainCafeId != null) {
+        await enqueueReferralRecord(tx, {
+            originChainCafeId: cafeRow.chainCafeId,
+            referralKey: referralKeyForVoucher(chainCampaignId, userAddress),
+        });
+    }
 }
 
 async function applyRedeemed(tx: IndexerTransaction, event: IndexerEvent) {
