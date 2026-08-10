@@ -1,5 +1,6 @@
 import { and, eq, inArray, like, sql } from "drizzle-orm";
-import { createPublicClient, http } from "viem";
+import { createPublicClient, createWalletClient, http } from "viem";
+import { mnemonicToAccount } from "viem/accounts";
 import { foundry } from "viem/chains";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { abis } from "@/core/chain/abis";
@@ -17,7 +18,11 @@ import { db } from "@/server/drizzle/db";
 import { user } from "@/server/drizzle/schemas/auth-schema";
 import { cafe, cafeMember, cafeProduct } from "@/server/drizzle/schemas/cafe-schema";
 import { projectionCampaign } from "@/server/drizzle/schemas/chain-schema";
-import { consumerTransaction, redemptionRequest } from "@/server/drizzle/schemas/consumption-schema";
+import {
+    consumerTransaction,
+    consumptionProof,
+    redemptionRequest,
+} from "@/server/drizzle/schemas/consumption-schema";
 import { chainPurchaseEffect, campaign, consumerVoucher } from "@/server/drizzle/schemas/punch-schema";
 import { purchaseOrder, relayerJob } from "@/server/drizzle/schemas/purchase-schema";
 
@@ -42,7 +47,7 @@ let firstOrderId = "";
 let secondOrderId = "";
 let voucherId = "";
 let redemptionRequestId = "";
-let demoCampaignIds: string[] = [];
+let demoCampaignStates: { id: string; active: boolean }[] = [];
 
 const chain = createPublicClient({
     chain: foundry,
@@ -88,9 +93,33 @@ async function createPurchase(label: string) {
 describeLive("live campaign journey and chain projections", () => {
     beforeAll(async () => {
         await findFixture();
-        const existing = await db.select({ id: campaign.id }).from(campaign).where(eq(campaign.cafeId, cafeId));
-        demoCampaignIds = existing.map((row) => row.id);
-        if (demoCampaignIds.length > 0) await db.update(campaign).set({ active: false }).where(inArray(campaign.id, demoCampaignIds));
+        const ownerBalance = await chain.readContract({
+            address: addresses.mockPEN,
+            abi: abis.mockPEN,
+            functionName: "balanceOf",
+            args: [ownerAddress as `0x${string}`],
+        });
+        if (ownerBalance < budget) {
+            const deployer = mnemonicToAccount(
+                "test test test test test test test test test test test junk",
+                { addressIndex: 0 },
+            );
+            const deployerWallet = createWalletClient({
+                account: deployer,
+                chain: foundry,
+                transport: http(process.env.CHAIN_RPC_URL ?? "http://127.0.0.1:8545"),
+            });
+            const mintHash = await deployerWallet.writeContract({
+                address: addresses.mockPEN,
+                abi: abis.mockPEN,
+                functionName: "mint",
+                args: [ownerAddress as `0x${string}`, budget - ownerBalance],
+            });
+            await chain.waitForTransactionReceipt({ hash: mintHash });
+        }
+        const existing = await db.select({ id: campaign.id, active: campaign.active }).from(campaign).where(eq(campaign.cafeId, cafeId));
+        demoCampaignStates = existing;
+        if (demoCampaignStates.length > 0) await db.update(campaign).set({ active: false }).where(inArray(campaign.id, demoCampaignStates.map((row) => row.id)));
         const created = await createCampaignService(ownerId, cafeId, {
             name: `Live campaign ${suffix}`,
             windowStart: new Date(Date.now() - 60_000),
@@ -165,6 +194,7 @@ describeLive("live campaign journey and chain projections", () => {
         if (orderIds.length > 0) {
             await db.delete(chainPurchaseEffect).where(inArray(chainPurchaseEffect.purchaseOrderId, orderIds));
             await db.delete(consumerTransaction).where(inArray(consumerTransaction.purchaseOrderId, orderIds));
+            await db.delete(consumptionProof).where(inArray(consumptionProof.purchaseOrderId, orderIds));
             await db.delete(relayerJob).where(inArray(relayerJob.orderId, orderIds));
             await db.delete(purchaseOrder).where(inArray(purchaseOrder.id, orderIds));
         }
@@ -172,10 +202,14 @@ describeLive("live campaign journey and chain projections", () => {
         if (voucherId) await db.delete(redemptionRequest).where(eq(redemptionRequest.voucherId, voucherId));
         if (campaignId) {
             await db.delete(consumerVoucher).where(eq(consumerVoucher.campaignId, campaignId));
-            await db.delete(relayerJob).where(sql`${relayerJob.payload}->>'campaignId' = ${campaignId}`);
+            await db.delete(relayerJob).where(
+                sql`${relayerJob.payload}->>'campaignId' = ${campaignId} OR ${relayerJob.payload}->>'chainCampaignId' = ${chainCampaignId}`,
+            );
             if (chainCampaignId > 0) await db.delete(projectionCampaign).where(eq(projectionCampaign.chainCampaignId, chainCampaignId));
             await db.delete(campaign).where(eq(campaign.id, campaignId));
         }
-        if (demoCampaignIds.length > 0) await db.update(campaign).set({ active: true }).where(inArray(campaign.id, demoCampaignIds));
+        for (const state of demoCampaignStates) {
+            await db.update(campaign).set({ active: state.active }).where(eq(campaign.id, state.id));
+        }
     });
 });

@@ -2,6 +2,7 @@ import "server-only";
 
 import {
     type Address,
+    encodeFunctionData,
     type Hex,
     keccak256,
     type PublicClient,
@@ -379,8 +380,12 @@ async function submitJob(deps: RelayerDeps, job: Job) {
         } else if (handler.idempotentOnChain === false) {
             const call = await handler.call(job, ctx);
             const request = await wallet.prepareTransactionRequest({
-                ...call,
-                args: call.args,
+                to: call.address,
+                data: encodeFunctionData({
+                    abi: call.abi as never,
+                    functionName: call.functionName,
+                    args: call.args as never,
+                }),
                 account: signer,
             } as never);
             const signedTx = await wallet.signTransaction(request as never);
