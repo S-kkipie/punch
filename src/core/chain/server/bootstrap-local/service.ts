@@ -1,5 +1,8 @@
 import "server-only";
 
+import type { Address, Hex } from "viem";
+import { demoCampaignValues } from "@/core/punch/domain/demo-state";
+
 export type BootstrapProduct = {
     id: string;
     chainProductId: number | null;
@@ -35,6 +38,78 @@ export type LiveCafe = {
     eligibleProductIds: bigint[];
     planActive: boolean;
     credits: bigint;
+};
+
+export type DemoCampaign = {
+    id: string;
+    cafeId: string;
+    chainCampaignId: number | null;
+    voucherPayout: bigint | null;
+    maxVouchers: number | null;
+    windowEnd: Date;
+};
+
+export type DemoCampaignCafe = {
+    id: string;
+    slug: string;
+    chainCafeId: number | null;
+    ownerWalletIndex: number | null;
+    ownerWalletAddress: string | null;
+    campaign: DemoCampaign | null;
+};
+
+export type DemoCampaignRepository = {
+    findCafeForCampaign(slug: string): Promise<DemoCampaignCafe | null>;
+    insertDemoCampaign(input: {
+        cafeId: string;
+        values: ReturnType<typeof demoCampaignValues>;
+        voucherPayout: bigint;
+        maxVouchers: number;
+    }): Promise<DemoCampaign>;
+    linkCampaign(input: {
+        campaignId: string;
+        chainCampaignId: number;
+    }): Promise<void>;
+};
+
+export type CampaignSigner = Address;
+export type DemoCampaignChain = {
+    mint(input: {
+        to: Address;
+        amount: bigint;
+        signer: CampaignSigner;
+    }): Promise<void>;
+    createCampaign(input: {
+        sourceCafeId: bigint;
+        signer: CampaignSigner;
+    }): Promise<{
+        receipt: { status: "success" | "reverted"; logs: readonly unknown[] };
+        hash?: Hex;
+    }>;
+    approve(input: {
+        spender: Address;
+        amount: bigint;
+        signer: CampaignSigner;
+    }): Promise<void>;
+    fundCampaign(input: {
+        campaignId: bigint;
+        amount: bigint;
+        signer: CampaignSigner;
+    }): Promise<void>;
+    publishCampaign(input: {
+        campaignId: bigint;
+        voucherPayout: bigint;
+        maxVouchers: bigint;
+        expiry: bigint;
+        signer: CampaignSigner;
+    }): Promise<void>;
+    parseCreatedCampaignId(receipt: {
+        logs: readonly unknown[];
+    }): bigint | null;
+    addresses: { campaignEscrow: Address };
+    opsAddress: Address;
+    deployerAddress: Address;
+    ownerAddressForIndex(index: number): Address;
 };
 
 export type BootstrapChain = {
@@ -93,6 +168,86 @@ async function authorizeOperators(input: {
             );
         }
     }
+}
+
+export async function bootstrapDemoCampaign(input: {
+    repository: DemoCampaignRepository;
+    chain: DemoCampaignChain;
+    cafeSlug: string;
+}): Promise<void> {
+    const cafe = await input.repository.findCafeForCampaign(input.cafeSlug);
+    if (!cafe) throw new Error(`bootstrap ${input.cafeSlug}: café is missing`);
+    if (
+        cafe.campaign?.chainCampaignId !== null &&
+        cafe.campaign?.chainCampaignId !== undefined
+    )
+        return;
+    if (cafe.chainCafeId === null) {
+        throw new Error(
+            `bootstrap ${input.cafeSlug}: chain café id is missing`,
+        );
+    }
+    if (cafe.ownerWalletIndex === null || !cafe.ownerWalletAddress) {
+        throw new Error(`bootstrap ${input.cafeSlug}: owner wallet is missing`);
+    }
+    const owner = input.chain.ownerAddressForIndex(cafe.ownerWalletIndex);
+    if (!sameAddress(owner, cafe.ownerWalletAddress)) {
+        throw new Error(
+            `bootstrap ${input.cafeSlug}: DB owner does not match derived owner`,
+        );
+    }
+    const values = demoCampaignValues(Date.now(), cafe.id);
+    const campaign =
+        cafe.campaign ??
+        (await input.repository.insertDemoCampaign({
+            cafeId: cafe.id,
+            values,
+            voucherPayout: values.voucherPayout,
+            maxVouchers: values.maxVouchers,
+        }));
+    if (campaign.chainCampaignId !== null) return;
+    const budget = values.voucherPayout * BigInt(values.maxVouchers);
+    await input.chain.mint({
+        to: owner,
+        amount: budget,
+        signer: input.chain.deployerAddress,
+    });
+    const created = await input.chain.createCampaign({
+        sourceCafeId: BigInt(cafe.chainCafeId),
+        signer: input.chain.opsAddress,
+    });
+    if (created.receipt.status !== "success")
+        throw new Error("bootstrap campaign create reverted");
+    const chainCampaignId = input.chain.parseCreatedCampaignId(created.receipt);
+    if (
+        chainCampaignId === null ||
+        chainCampaignId > BigInt(Number.MAX_SAFE_INTEGER)
+    ) {
+        throw new Error(
+            "bootstrap campaign create receipt has invalid campaign id",
+        );
+    }
+    await input.repository.linkCampaign({
+        campaignId: campaign.id,
+        chainCampaignId: Number(chainCampaignId),
+    });
+    await input.chain.approve({
+        spender: input.chain.addresses.campaignEscrow,
+        amount: budget,
+        signer: owner,
+    });
+    await input.chain.fundCampaign({
+        campaignId: chainCampaignId,
+        amount: budget,
+        signer: owner,
+    });
+    await input.chain.publishCampaign({
+        campaignId: chainCampaignId,
+        voucherPayout: values.voucherPayout,
+        maxVouchers: BigInt(values.maxVouchers),
+        expiry: BigInt(Math.floor(values.windowEnd.getTime() / 1000)),
+        signer: input.chain.opsAddress,
+    });
 }
 
 export async function bootstrapApprovedSeedCafes(input: {
