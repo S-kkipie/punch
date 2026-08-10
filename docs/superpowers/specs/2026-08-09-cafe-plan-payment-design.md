@@ -265,8 +265,9 @@ Clasificación en el mismo espíritu que `parse-revert.ts`:
 motivo `max_attempts` y el último error en `last_error`: RPC caído durante fondeo, aprobación o
 simulación.
 
-**Enviados sin receipt** — una orden `submitted` con `tx_hash` permanece `submitted`, registra cada
-intento y extiende su lease hasta un máximo de 5. Si sigue sin receipt, termina en
+**Enviados sin receipt** — al entrar en `submitted`, la orden inicia un presupuesto nuevo de
+intentos. Con `tx_hash` permanece `submitted`, registra cada intento y extiende su lease hasta un
+máximo de 5. Si sigue sin receipt, termina en
 `needs_reconciliation`. Una orden `submitted` sin hash, o un fallo después de intentar el envío,
 también termina en `needs_reconciliation`; nunca vuelve a `pending`.
 

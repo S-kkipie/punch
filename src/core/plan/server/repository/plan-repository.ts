@@ -160,7 +160,12 @@ export async function markOrderExecuting(
 ): Promise<PlanOrderRow | null> {
     const [row] = await db
         .update(planOrder)
-        .set({ status: "submitted", lastError: null, nextRetryAt })
+        .set({
+            status: "submitted",
+            attempts: 0,
+            lastError: null,
+            nextRetryAt,
+        })
         .where(and(eq(planOrder.id, id), eq(planOrder.status, "pending")))
         .returning();
     return row ?? null;
