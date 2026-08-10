@@ -1,42 +1,19 @@
 import { isNotNull } from "drizzle-orm";
-import {
-    createPublicClient,
-    createWalletClient,
-    formatUnits,
-    http,
-} from "viem";
+import { createPublicClient, createWalletClient, http } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
 import { foundry } from "viem/chains";
 import { abis } from "@/core/chain/abis";
 import { getAddresses } from "@/core/chain/addresses";
-import { currentEpoch } from "@/core/chain/server/network-fund/epoch";
+import {
+    formatMpen,
+    requestedEpoch,
+} from "@/core/chain/server/network-fund/epoch";
 import { closeEpoch } from "@/core/chain/server/network-fund/epoch-ops";
 import { db } from "@/server/drizzle/db";
 import { cafe } from "@/server/drizzle/schemas/cafe-schema";
 
 const ANVIL_MNEMONIC =
     "test test test test test test test test test test test junk";
-
-function requestedEpoch(args: string[]): number {
-    const flagIndex = args.indexOf("--epoch");
-    const value =
-        flagIndex >= 0
-            ? args[flagIndex + 1]
-            : args.find((arg) => arg.startsWith("--epoch="))?.slice(8);
-    if (value === undefined) return currentEpoch();
-    if (
-        !/^\d{6}$/.test(value) ||
-        Number(value.slice(4)) > 12 ||
-        value.endsWith("00")
-    ) {
-        throw new Error("--epoch must use YYYYMM with a month from 01 to 12");
-    }
-    return Number(value);
-}
-
-function mpen(amount: bigint): string {
-    return `${formatUnits(amount, 6)} mPEN`;
-}
 
 async function listChainCafeIds(): Promise<number[]> {
     const rows = await db
@@ -72,11 +49,11 @@ async function main() {
     });
 
     console.log(`Epoch ${result.epoch} finalized`);
-    console.log(`  origin:       ${mpen(buckets.originPool)}`);
-    console.log(`  origin paid:  ${mpen(buckets.originPaid)}`);
-    console.log(`  acquisition:  ${mpen(buckets.acquisitionPool)}`);
-    console.log(`  crawl:        ${mpen(buckets.crawlPool)}`);
-    console.log(`  contingency:  ${mpen(buckets.contingencyPool)}`);
+    console.log(`  origin:       ${formatMpen(buckets.originPool)}`);
+    console.log(`  origin paid:  ${formatMpen(buckets.originPaid)}`);
+    console.log(`  acquisition:  ${formatMpen(buckets.acquisitionPool)}`);
+    console.log(`  crawl:        ${formatMpen(buckets.crawlPool)}`);
+    console.log(`  contingency:  ${formatMpen(buckets.contingencyPool)}`);
     if (result.claims.length === 0) {
         console.log(
             "  claims: none (cafes without referrals or already claimed were skipped)",
@@ -86,7 +63,7 @@ async function main() {
     console.log("  claims:");
     for (const claim of result.claims) {
         console.log(
-            `    cafe ${claim.chainCafeId}: ${claim.referrals} referrals, ${mpen(claim.amount)}`,
+            `    cafe ${claim.chainCafeId}: ${claim.referrals} referrals, ${formatMpen(claim.amount)}`,
         );
     }
 }

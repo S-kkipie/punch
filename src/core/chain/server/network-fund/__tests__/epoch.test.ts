@@ -1,5 +1,34 @@
 import { describe, expect, it } from "vitest";
-import { currentEpoch } from "../epoch";
+import { currentEpoch, requestedEpoch } from "../epoch";
+
+describe("requestedEpoch", () => {
+    it("rejects a bare --epoch flag", () => {
+        expect(() => requestedEpoch(["--epoch"])).toThrow(
+            "El argumento --epoch debe usar YYYYMM con un mes del 01 al 12",
+        );
+    });
+
+    it.each([
+        "",
+        "20260",
+        "2026013",
+        "202613",
+        "202600",
+        "abc",
+    ])("rejects malformed epoch value %j", (value) => {
+        expect(() => requestedEpoch([`--epoch=${value}`])).toThrow(
+            "El argumento --epoch debe usar YYYYMM con un mes del 01 al 12",
+        );
+    });
+
+    it("accepts a valid YYYYMM value", () => {
+        expect(requestedEpoch(["--epoch", "202607"])).toBe(202607);
+    });
+
+    it("uses the injected current epoch when --epoch is absent", () => {
+        expect(requestedEpoch([], 202608)).toBe(202608);
+    });
+});
 
 describe("currentEpoch", () => {
     it("formats YYYYMM in UTC", () => {
