@@ -7,6 +7,7 @@ import {
 import { campaignPublishHandler } from "./campaign-publish";
 import { consumptionRecordHandler } from "./consumption-record";
 import type { JobHandler } from "./types";
+import { voucherUnlockHandler } from "./voucher-unlock";
 
 const handlers: Partial<Record<RelayerJobKind, JobHandler>> = {
     campaign_create: campaignCreateHandler,
@@ -14,6 +15,7 @@ const handlers: Partial<Record<RelayerJobKind, JobHandler>> = {
     campaign_fund: campaignFundHandler,
     campaign_publish: campaignPublishHandler,
     consumption_record: consumptionRecordHandler,
+    voucher_unlock: voucherUnlockHandler,
 };
 
 export function handlerFor(kind: RelayerJobKind): JobHandler {

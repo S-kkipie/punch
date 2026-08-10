@@ -26,7 +26,10 @@ export type JobFailure = {
 
 export type JobContext = {
     addresses: AddressMap;
-    pub: Pick<PublicClient, "readContract" | "simulateContract" | "getLogs">;
+    pub: Pick<
+        PublicClient,
+        "readContract" | "simulateContract" | "getLogs" | "getBlock"
+    >;
     now: () => Date;
 };
 
