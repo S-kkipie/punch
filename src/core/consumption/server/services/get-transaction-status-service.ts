@@ -1,5 +1,4 @@
 import "server-only";
-import { env } from "@/config/env";
 import { requireCafeRole } from "@/server/auth/membership/require-cafe-role";
 import {
     AppErrors,
@@ -25,14 +24,10 @@ export async function getTransactionStatusService(
         transactionId,
         requestingUserId,
     );
-    const settlement =
-        env.CONSUMER_CHAIN_MODE === "local"
-            ? await findRedemptionSettlementById(transactionId)
-            : null;
-    const legacyTransaction =
-        env.CONSUMER_CHAIN_MODE === "local"
-            ? null
-            : await findTransactionById(transactionId);
+    const settlement = await findRedemptionSettlementById(transactionId);
+    const legacyTransaction = settlement
+        ? null
+        : await findTransactionById(transactionId);
     let authorized = Boolean(owned);
     if (!authorized && settlement?.consumerUserId === requestingUserId) {
         authorized = true;
@@ -43,7 +38,7 @@ export async function getTransactionStatusService(
         cafeId &&
         cafeSettlement &&
         cafeSettlement.cafeId === cafeId &&
-        (settlement ||
+        (settlement !== null ||
             legacyTransaction?.operation === "punch_redemption" ||
             legacyTransaction?.operation === "voucher_redemption")
     ) {
@@ -56,7 +51,7 @@ export async function getTransactionStatusService(
     if (!authorized) {
         return err(AppErrors.notFound({ targets: ["transactionId"] }));
     }
-    if (settlement?.source === "relayer_job") {
+    if (settlement) {
         return ok({
             transactionId: settlement.id,
             status: settlement.status,
