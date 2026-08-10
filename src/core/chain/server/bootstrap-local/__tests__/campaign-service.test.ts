@@ -15,7 +15,9 @@ function fixture(
         maxVouchers: number | null;
         windowEnd: Date;
     } | null = null,
+    ownerWalletIndex = 4,
 ) {
+    const fixtureOwner = ownerWalletIndex === 123 ? address("123") : owner;
     let campaign = existing
         ? { id: "campaign-1", cafeId: "cafe-1", ...existing }
         : null;
@@ -30,8 +32,8 @@ function fixture(
             id: "cafe-1",
             slug: "esquina-sur",
             chainCafeId: 7,
-            ownerWalletIndex: 4,
-            ownerWalletAddress: owner,
+            ownerWalletIndex,
+            ownerWalletAddress: fixtureOwner,
             campaign,
         })),
         insertDemoCampaign: vi.fn(
@@ -68,7 +70,7 @@ function fixture(
         allowance: vi.fn(async () => approved),
         opsAddress: address("1"),
         deployerAddress: address("2"),
-        ownerAddressForIndex: vi.fn(() => owner),
+        ownerAddressForIndex: vi.fn(() => fixtureOwner),
         mint: vi.fn(async ({ amount }) => {
             calls.push("mint");
             minted += amount;
@@ -188,6 +190,102 @@ describe("bootstrapDemoCampaign", () => {
                 maxVouchers: 3n,
                 expiry: 1893456000n,
             }),
+        );
+    });
+
+    it("retries after approve failure from the linked draft without recreating it", async () => {
+        const f = fixture();
+        vi.mocked(f.chain.approve).mockImplementationOnce(async () => {
+            f.calls.push("approve");
+            throw new Error("approve");
+        });
+
+        await expect(run(f)).rejects.toThrow("approve");
+        await run(f);
+
+        expect(f.calls).toEqual([
+            "insert",
+            "mint",
+            "create",
+            "link",
+            "approve",
+            "approve",
+            "fund",
+            "publish",
+        ]);
+        expect(f.chain.mint).toHaveBeenCalledTimes(1);
+        expect(f.chain.createCampaign).toHaveBeenCalledTimes(1);
+        expect(f.repository.linkCampaign).toHaveBeenCalledTimes(1);
+        expect(f.chain.fundCampaign).toHaveBeenCalledTimes(1);
+        expect(f.chain.publishCampaign).toHaveBeenCalledTimes(1);
+    });
+
+    it("retries after fund failure with the retained allowance", async () => {
+        const f = fixture();
+        vi.mocked(f.chain.fundCampaign).mockImplementationOnce(async () => {
+            f.calls.push("fund");
+            throw new Error("fund");
+        });
+
+        await expect(run(f)).rejects.toThrow("fund");
+        await run(f);
+
+        expect(f.calls).toEqual([
+            "insert",
+            "mint",
+            "create",
+            "link",
+            "approve",
+            "fund",
+            "fund",
+            "publish",
+        ]);
+        expect(f.chain.mint).toHaveBeenCalledTimes(1);
+        expect(f.chain.createCampaign).toHaveBeenCalledTimes(1);
+        expect(f.repository.linkCampaign).toHaveBeenCalledTimes(1);
+        expect(f.chain.approve).toHaveBeenCalledTimes(1);
+        expect(f.chain.publishCampaign).toHaveBeenCalledTimes(1);
+    });
+
+    it("retries after publish failure when the campaign is already funded", async () => {
+        const f = fixture();
+        vi.mocked(f.chain.publishCampaign).mockImplementationOnce(async () => {
+            f.calls.push("publish");
+            throw new Error("publish");
+        });
+
+        await expect(run(f)).rejects.toThrow("publish");
+        await run(f);
+
+        expect(f.calls).toEqual([
+            "insert",
+            "mint",
+            "create",
+            "link",
+            "approve",
+            "fund",
+            "publish",
+            "publish",
+        ]);
+        expect(f.chain.mint).toHaveBeenCalledTimes(1);
+        expect(f.chain.createCampaign).toHaveBeenCalledTimes(1);
+        expect(f.repository.linkCampaign).toHaveBeenCalledTimes(1);
+        expect(f.chain.approve).toHaveBeenCalledTimes(1);
+        expect(f.chain.fundCampaign).toHaveBeenCalledTimes(1);
+        expect(f.chain.publishCampaign).toHaveBeenCalledTimes(2);
+    });
+
+    it("passes owner wallet index 123 directly to derivation and owner writes", async () => {
+        const f = fixture(null, 123);
+
+        await run(f);
+
+        expect(f.chain.ownerAddressForIndex).toHaveBeenCalledWith(123);
+        expect(f.chain.approve).toHaveBeenCalledWith(
+            expect.objectContaining({ ownerWalletIndex: 123 }),
+        );
+        expect(f.chain.fundCampaign).toHaveBeenCalledWith(
+            expect.objectContaining({ ownerWalletIndex: 123 }),
         );
     });
 
