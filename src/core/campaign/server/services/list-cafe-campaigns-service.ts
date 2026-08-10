@@ -1,5 +1,6 @@
 import "server-only";
 
+import { calculateCampaignFunding } from "@/core/campaign/domain/funding";
 import type { CampaignLifecycle } from "@/core/campaign/domain/types";
 import { requireCafeRole } from "@/server/auth/membership/require-cafe-role";
 import {
@@ -9,7 +10,6 @@ import {
     ok,
 } from "@/server/common/responses";
 import { listCafeCampaigns } from "../repository/campaign-repository";
-import { getCampaignFundingService } from "./get-campaign-funding-service";
 
 export type CafeCampaign = {
     id: string;
@@ -43,12 +43,14 @@ export async function listCafeCampaignsService(
             ) {
                 return err(AppErrors.conflict({ targets: ["campaignId"] }));
             }
-            const funding = await getCampaignFundingService(
-                userId,
-                cafeId,
-                row.campaign.id,
+            const funding = calculateCampaignFunding(
+                {
+                    voucherPayout: row.campaign.voucherPayout,
+                    maxVouchers: row.campaign.maxVouchers,
+                    chainCampaignId: row.campaign.chainCampaignId,
+                },
+                row.projection,
             );
-            if (!funding.ok) return funding;
             campaigns.push({
                 id: row.campaign.id,
                 cafeId: row.campaign.cafeId,
@@ -57,7 +59,7 @@ export async function listCafeCampaignsService(
                 windowEnd: row.campaign.windowEnd,
                 voucherPayout: row.campaign.voucherPayout,
                 maxVouchers: row.campaign.maxVouchers,
-                ...funding.data,
+                ...funding,
             });
         }
         return ok(campaigns);

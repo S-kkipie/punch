@@ -1,10 +1,6 @@
 import "server-only";
 
-import {
-    canPublish,
-    lifecycleOf,
-    requiredBudget,
-} from "@/core/campaign/domain/transitions";
+import { calculateCampaignFunding } from "@/core/campaign/domain/funding";
 import type { CampaignLifecycle } from "@/core/campaign/domain/types";
 import { findCampaignWithProjection } from "@/core/campaign/server/repository/campaign-repository";
 import { requireCafeRole } from "@/server/auth/membership/require-cafe-role";
@@ -41,17 +37,16 @@ export async function getCampaignFundingService(
         ) {
             return err(AppErrors.conflict({ targets: ["campaignId"] }));
         }
-        const voucherPayout = row.campaign.voucherPayout;
-        const maxVouchers = row.campaign.maxVouchers;
-        const required = requiredBudget({ voucherPayout, maxVouchers });
-        const funded = row.projection?.budget ?? 0n;
-        return ok({
-            required,
-            funded,
-            missing: funded >= required ? 0n : required - funded,
-            lifecycle: lifecycleOf(row.campaign, row.projection),
-            canPublish: canPublish(row.projection, required),
-        });
+        return ok(
+            calculateCampaignFunding(
+                {
+                    voucherPayout: row.campaign.voucherPayout,
+                    maxVouchers: row.campaign.maxVouchers,
+                    chainCampaignId: row.campaign.chainCampaignId,
+                },
+                row.projection,
+            ),
+        );
     } catch (cause) {
         return err(AppErrors.unexpected(cause));
     }
