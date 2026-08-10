@@ -1,6 +1,7 @@
 import "server-only";
 
 import { eq } from "drizzle-orm";
+import { isAddress } from "viem";
 import {
     enqueueJob,
     type JobTransaction,
@@ -16,6 +17,12 @@ import { relayerJob } from "@/server/drizzle/schemas/purchase-schema";
 import type { ChainSubmission, ConsumerChainPort } from "./chain-port";
 import { ConsumerChainError } from "./chain-port";
 
+function statusOf(job: {
+    status: "pending" | "submitted" | "confirmed" | "failed";
+}) {
+    return job.status === "submitted" ? "pending" : job.status;
+}
+
 export class CampaignEscrowChain implements ConsumerChainPort {
     async submitVoucherRedemption(input: {
         redemptionRequestId: string;
@@ -29,7 +36,10 @@ export class CampaignEscrowChain implements ConsumerChainPort {
                 .from(relayerJob)
                 .where(eq(relayerJob.idempotencyKey, idempotencyKey));
             if (existingJob)
-                return { transactionId: existingJob.id, status: "pending" };
+                return {
+                    transactionId: existingJob.id,
+                    status: statusOf(existingJob),
+                };
 
             const [request] = await tx
                 .select()
@@ -72,7 +82,7 @@ export class CampaignEscrowChain implements ConsumerChainPort {
                 .from(user)
                 .where(eq(user.id, request.consumerUserId));
             const userAddress = consumer?.walletAddress?.trim().toLowerCase();
-            if (!userAddress)
+            if (!userAddress || !isAddress(userAddress))
                 throw new ConsumerChainError("REQUEST_NOT_APPROVED");
 
             const payload = {
@@ -96,7 +106,7 @@ export class CampaignEscrowChain implements ConsumerChainPort {
                         .where(eq(relayerJob.idempotencyKey, idempotencyKey))
                 )[0];
             if (!job) throw new Error("voucher redemption job unavailable");
-            return { transactionId: job.id, status: "pending" };
+            return { transactionId: job.id, status: statusOf(job) };
         });
     }
 
