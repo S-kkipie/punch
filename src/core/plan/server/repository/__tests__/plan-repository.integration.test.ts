@@ -14,7 +14,9 @@ import {
     markOrderConfirmed,
     markOrderExecuting,
     markOrderFailed,
+    markOrderRetry,
     markOrderSubmitted,
+    recordReconciliationHash,
 } from "../plan-repository";
 
 const runIntegration = process.env.PUNCH_RUN_INTEGRATION === "1";
@@ -147,6 +149,22 @@ describeIntegration("plan repository", () => {
         expect(secondClaim).toBeNull();
     });
 
+    it("never returns a submitted order to pending for retry", async () => {
+        const base = await fixture();
+        const order = await insertOrderIfIdle(newOrder(base));
+        await markOrderExecuting(order.row.id, new Date());
+
+        const retried = await markOrderRetry(
+            order.row.id,
+            "rpc unavailable",
+            1,
+            new Date(),
+        );
+
+        expect(retried).toBeNull();
+        expect((await findInFlightByCafe(base.cafeId))?.status).toBe("submitted");
+    });
+
     it("extends a submitted lease without changing its transaction state", async () => {
         const base = await fixture();
         const order = await insertOrderIfIdle(newOrder(base));
@@ -180,6 +198,25 @@ describeIntegration("plan repository", () => {
         expect((await findUnresolvedByCafe(base.cafeId))?.id).toBe(
             unresolved.row.id,
         );
+    });
+
+    it("records a known hash on an order already awaiting reconciliation", async () => {
+        const base = await fixture();
+        const order = await insertOrderIfIdle(newOrder(base));
+        await markOrderFailed(
+            order.row.id,
+            "submission result unknown",
+            "needs_reconciliation",
+        );
+
+        const reconciled = await recordReconciliationHash(
+            order.row.id,
+            "0xabc",
+            "submission result unknown (tx 0xabc)",
+        );
+
+        expect(reconciled?.txHash).toBe("0xabc");
+        expect(reconciled?.lastError).toContain("tx 0xabc");
     });
 
     it("returns no unresolved order for a different failed reason", async () => {

@@ -30,6 +30,7 @@ function deps(overrides = {}) {
         markOrderConfirmed: vi.fn().mockResolvedValue(order),
         markOrderRetry: vi.fn().mockResolvedValue(order),
         markOrderFailed: vi.fn().mockResolvedValue(order),
+        recordReconciliationHash: vi.fn().mockResolvedValue(order),
         deriveAccount: vi
             .fn()
             .mockReturnValue({ address: order.signerAddress } as never),
@@ -157,7 +158,7 @@ describe("runPlanRunnerOnce", () => {
         expect(d.markOrderRetry).not.toHaveBeenCalled();
         expect(d.markOrderFailed).toHaveBeenCalledWith(
             "o1",
-            expect.stringContaining("database unavailable"),
+            expect.stringContaining("database unavailable (tx 0xdead)"),
             "needs_reconciliation",
         );
         expect(d.send).toHaveBeenCalledTimes(1);
@@ -182,6 +183,21 @@ describe("runPlanRunnerOnce", () => {
             "needs_reconciliation",
         );
         expect(d.send).toHaveBeenCalledTimes(1);
+    });
+
+    it("records the known hash when another worker already moved the order to reconciliation", async () => {
+        const d = deps({
+            markOrderSubmitted: vi.fn().mockResolvedValue(null),
+            markOrderFailed: vi.fn().mockResolvedValue(null),
+        });
+
+        await runPlanRunnerOnce(d);
+
+        expect(d.recordReconciliationHash).toHaveBeenCalledWith(
+            "o1",
+            "0xdead",
+            "transaction submission could not be recorded (tx 0xdead)",
+        );
     });
 
     it("does not send when another worker wins the executing claim", async () => {

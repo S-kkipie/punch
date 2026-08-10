@@ -26,6 +26,7 @@ import {
     markOrderRetry,
     markOrderSubmitted,
     PLAN_CLAIM_LEASE_MS,
+    recordReconciliationHash,
 } from "../repository/plan-repository";
 import { ensureGas, ensureMpen } from "./funding";
 
@@ -41,6 +42,7 @@ export type PlanRunnerDeps = {
     markOrderConfirmed: typeof markOrderConfirmed;
     markOrderRetry: typeof markOrderRetry;
     markOrderFailed: typeof markOrderFailed;
+    recordReconciliationHash: typeof recordReconciliationHash;
     deriveAccount: (walletIndex: number) => HDAccount;
     ensureGas: (signer: Address) => Promise<void>;
     ensureMpen: (input: { account: HDAccount; price: bigint }) => Promise<void>;
@@ -69,6 +71,7 @@ const defaults: PlanRunnerDeps = {
     markOrderConfirmed,
     markOrderRetry,
     markOrderFailed,
+    recordReconciliationHash,
     deriveAccount: deriveUserAccount,
     ensureGas: (signer) => ensureGas(signer),
     ensureMpen: (input) => ensureMpen(input),
@@ -170,26 +173,38 @@ async function runPending(
         return;
     }
 
+    let hash: Hex | undefined;
     try {
-        const hash = await d.send(account, order.kind, order.chainCafeId);
+        hash = await d.send(account, order.kind, order.chainCafeId);
         const submitted = await d.markOrderSubmitted(
             order.id,
             hash,
             new Date(d.now().getTime() + 2_000),
         );
         if (!submitted) {
-            await d.markOrderFailed(
+            const message =
+                `transaction submission could not be recorded (tx ${hash})`;
+            const failed = await d.markOrderFailed(
                 order.id,
-                `transaction submission could not be recorded (tx ${hash})`,
+                message,
                 "needs_reconciliation",
             );
+            if (!failed) {
+                await d.recordReconciliationHash(order.id, hash, message);
+            }
         }
     } catch (error) {
-        await d.markOrderFailed(
+        const message = hash
+            ? `${errorText(error)} (tx ${hash})`
+            : errorText(error);
+        const failed = await d.markOrderFailed(
             order.id,
-            errorText(error),
+            message,
             "needs_reconciliation",
         );
+        if (hash && !failed) {
+            await d.recordReconciliationHash(order.id, hash, message);
+        }
     }
 }
 

@@ -213,7 +213,7 @@ export async function markOrderRetry(
         .where(
             and(
                 eq(planOrder.id, id),
-                inArray(planOrder.status, [...IN_FLIGHT]),
+                eq(planOrder.status, "pending"),
             ),
         )
         .returning();
@@ -232,6 +232,26 @@ export async function markOrderFailed(
             and(
                 eq(planOrder.id, id),
                 inArray(planOrder.status, [...IN_FLIGHT]),
+            ),
+        )
+        .returning();
+    return row ?? null;
+}
+
+export async function recordReconciliationHash(
+    id: string,
+    txHash: string,
+    error: string,
+): Promise<PlanOrderRow | null> {
+    const [row] = await db
+        .update(planOrder)
+        .set({ txHash, lastError: error })
+        .where(
+            and(
+                eq(planOrder.id, id),
+                eq(planOrder.status, "failed"),
+                eq(planOrder.failureReason, "needs_reconciliation"),
+                isNull(planOrder.txHash),
             ),
         )
         .returning();
@@ -264,5 +284,6 @@ export const planRepository = {
     markOrderConfirmed,
     markOrderRetry,
     markOrderFailed,
+    recordReconciliationHash,
     extendSubmittedLease,
 };
