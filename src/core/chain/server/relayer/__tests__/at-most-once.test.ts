@@ -9,9 +9,17 @@ const handler: JobHandler = {
     signer: () => ({ kind: "relayer" }),
     call: async () => ({
         address: `0x${"11".repeat(20)}` as `0x${string}`,
-        abi: [],
+        abi: [
+            {
+                type: "function",
+                name: "createCampaign",
+                stateMutability: "nonpayable",
+                inputs: [{ name: "sourceCafeId", type: "uint256" }],
+                outputs: [{ name: "campaignId", type: "uint256" }],
+            },
+        ],
         functionName: "createCampaign",
-        args: [],
+        args: [7n],
     }),
 };
 
@@ -92,6 +100,29 @@ function deps(overrides: Partial<RelayerDeps> = {}) {
 }
 
 describe("non-idempotent relayer sends", () => {
+    it("encodes campaign_create as a call to the escrow", async () => {
+        const { d } = deps();
+        await runRelayerOnce(d);
+
+        const prepared = (
+            d.wallet.prepareTransactionRequest as ReturnType<typeof vi.fn>
+        ).mock.calls[0]?.[0];
+        expect(prepared).toMatchObject({
+            to: `0x${"11".repeat(20)}`,
+        });
+        expect(prepared.data).toMatch(/^0x[0-9a-f]+$/);
+        expect(prepared.data).not.toBe("0x");
+        expect(d.wallet.signTransaction).toHaveBeenCalledWith(
+            expect.objectContaining({
+                to: `0x${"11".repeat(20)}`,
+                data: prepared.data,
+            }),
+        );
+        expect(d.wallet.sendRawTransaction).toHaveBeenCalledWith({
+            serializedTransaction: "0xdeadbeef",
+        });
+    });
+
     it("reuses persisted bytes after broadcast failure", async () => {
         const { d, current } = deps();
         const send = d.wallet.sendRawTransaction as ReturnType<typeof vi.fn>;
