@@ -156,6 +156,18 @@ export const bootstrapRepository: BootstrapRepository & DemoCampaignRepository =
             };
         },
 
+        async withDemoCampaignBootstrapLock<T>(
+            cafeId: string,
+            run: () => Promise<T>,
+        ) {
+            return db.transaction(async (tx) => {
+                await tx.execute(
+                    sql`select pg_advisory_xact_lock(hashtextextended(${`bootstrap:${cafeId}`}, 0))`,
+                );
+                return run();
+            });
+        },
+
         async insertDemoCampaign(input) {
             return db.transaction(async (tx) => {
                 await tx.execute(

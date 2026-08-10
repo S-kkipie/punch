@@ -21,6 +21,7 @@ import {
     bootstrapApprovedSeedCafes,
     bootstrapDemoCampaign,
     type DemoCampaignChain,
+    decodeCampaignStatus,
     type LiveCafe,
 } from "../src/core/chain/server/bootstrap-local/service";
 import { runIndexerOnce } from "../src/core/chain/server/indexer/indexer";
@@ -232,12 +233,7 @@ function liveDemoCampaignChain(): DemoCampaignChain {
                 expiry: bigint;
                 status: number;
             };
-            const status =
-                raw.status === 0
-                    ? "draft"
-                    : raw.status === 1
-                      ? "published"
-                      : "cancelled";
+            const status = decodeCampaignStatus(raw.status);
             return {
                 sourceCafeId: raw.sourceCafeId,
                 budget: raw.budget,
