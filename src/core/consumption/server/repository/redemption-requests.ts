@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { type DbClient, db } from "@/server/drizzle/db";
 import {
     consumerTransaction,
@@ -315,11 +315,14 @@ export async function listFulfillmentRequestsForCafe(
                     eq(redemptionRequest.status, "pending"),
                     and(
                         eq(redemptionRequest.status, "approved"),
-                        inArray(relayerJob.status, [
-                            "pending",
-                            "submitted",
-                            "failed",
-                        ]),
+                        or(
+                            isNull(relayerJob.id),
+                            inArray(relayerJob.status, [
+                                "pending",
+                                "submitted",
+                                "failed",
+                            ]),
+                        ),
                     ),
                     inArray(redemptionRequest.status, ["confirmed", "failed"]),
                     inArray(consumerTransaction.status, [

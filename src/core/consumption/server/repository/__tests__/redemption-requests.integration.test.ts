@@ -201,4 +201,55 @@ run("redemption request repository", () => {
             await db.delete(user).where(eq(user.id, userId));
         }
     });
+
+    it("keeps an approved request visible until settlement or relayer enqueue", async () => {
+        const suffix = crypto.randomUUID();
+        const userId = `approved-inbox-user-${suffix}`;
+        const cafeId = `approved-inbox-cafe-${suffix}`;
+        const productId = `approved-inbox-product-${suffix}`;
+        const requestId = `approved-inbox-request-${suffix}`;
+        await db.insert(user).values({
+            id: userId,
+            name: "Approved Inbox User",
+            email: `${suffix}@approved-inbox.test`,
+        });
+        await db.insert(cafe).values({
+            id: cafeId,
+            name: "Approved Inbox Cafe",
+            slug: `approved-inbox-${suffix}`,
+        });
+        await db.insert(cafeProduct).values({
+            id: productId,
+            cafeId,
+            name: "Approved Inbox Reward",
+            priceSoles: "12.00",
+            type: "reward",
+            approvalStatus: "approved",
+        });
+        await db.insert(redemptionRequest).values({
+            id: requestId,
+            kind: "punch_reward",
+            consumerUserId: userId,
+            cafeId,
+            productId,
+            status: "approved",
+        });
+        try {
+            const rows = await listFulfillmentRequestsForCafe(cafeId);
+            expect(rows).toEqual([
+                expect.objectContaining({
+                    request: expect.objectContaining({ id: requestId }),
+                    transactionId: null,
+                    transactionStatus: null,
+                }),
+            ]);
+        } finally {
+            await db
+                .delete(redemptionRequest)
+                .where(eq(redemptionRequest.id, requestId));
+            await db.delete(cafeProduct).where(eq(cafeProduct.id, productId));
+            await db.delete(cafe).where(eq(cafe.id, cafeId));
+            await db.delete(user).where(eq(user.id, userId));
+        }
+    });
 });
