@@ -168,8 +168,9 @@ pending
                                                    │
                                                    ├──(receipt ok)──> confirmed
                                                    ├──(receipt revert)──> failed
-                                                   ├──(timeout con tx_hash)──> submitted con lease extendido
-                                                   └──(resultado de envío incierto o hash ausente)
+                                                   ├──(timeout con tx_hash, attempts < 5)
+                                                   │   ──> submitted con lease extendido
+                                                   └──(resultado incierto, hash ausente o attempts = 5)
                                                        ──> failed(needs_reconciliation)
 ```
 
@@ -213,8 +214,9 @@ a aprobar de más, porque las precondiciones ya se cumplen y esos pasos se salta
 La llamada de pago no se reintenta: `subscribe` y `buyPack` carecen de request ID o guarda de replay.
 El runner registra la intención como `submitted` antes de enviar. Si el envío puede haber ocurrido
 pero no se puede guardar el hash, la orden termina en `needs_reconciliation`; si hay hash y el receipt
-tarda, permanece `submitted`. En ambos casos nunca vuelve a `pending`. Una reconciliación pendiente
-bloquea pagos nuevos del café hasta resolución humana.
+tarda, permanece `submitted` hasta cinco intentos. Si continúa sin receipt, también pasa a
+`needs_reconciliation`. En ningún caso vuelve a `pending`. Una reconciliación pendiente bloquea
+pagos nuevos del café hasta resolución humana.
 
 ### Fondeo
 
@@ -263,11 +265,12 @@ Clasificación en el mismo espíritu que `parse-revert.ts`:
 motivo `max_attempts` y el último error en `last_error`: RPC caído durante fondeo, aprobación o
 simulación.
 
-**Enviados sin receipt** — una orden `submitted` con `tx_hash` permanece `submitted` y extiende su
-lease. Una orden `submitted` sin hash, o un fallo después de intentar el envío, termina en
-`needs_reconciliation`; nunca vuelve a `pending`.
+**Enviados sin receipt** — una orden `submitted` con `tx_hash` permanece `submitted`, registra cada
+intento y extiende su lease hasta un máximo de 5. Si sigue sin receipt, termina en
+`needs_reconciliation`. Una orden `submitted` sin hash, o un fallo después de intentar el envío,
+también termina en `needs_reconciliation`; nunca vuelve a `pending`.
 
-El `simulateContract` previo convierte casi cualquier revert en fallo limpio antes de gastar gas.
+El `simulateContract` previo convierte casi cualquier revert en fallo limpio antes de enviar el pago.
 
 ## 12. UI
 

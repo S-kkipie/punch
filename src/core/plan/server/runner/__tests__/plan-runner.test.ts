@@ -287,17 +287,20 @@ describe("runPlanRunnerOnce", () => {
         await runPlanRunnerOnce(d);
         expect(d.extendSubmittedLease).toHaveBeenCalledWith(
             "o1",
+            "receipt not found",
+            1,
             expect.any(Date),
         );
         expect(markOrderPending).not.toHaveBeenCalled();
         expect(d.send).not.toHaveBeenCalled();
     });
 
-    it("waits again after a receipt timeout without sending again", async () => {
+    it("requires reconciliation after the submitted receipt attempt cap", async () => {
         const submitted = {
             ...order,
             status: "submitted" as const,
             txHash: "0xdead",
+            attempts: 4,
         };
         const d = deps({
             findOrdersToRun: vi.fn().mockResolvedValue([]),
@@ -306,10 +309,15 @@ describe("runPlanRunnerOnce", () => {
                 .fn()
                 .mockRejectedValue(new Error("receipt not found")),
         });
+
         await runPlanRunnerOnce(d);
-        await runPlanRunnerOnce(d);
-        expect(d.waitForReceipt).toHaveBeenCalledTimes(2);
-        expect(d.extendSubmittedLease).toHaveBeenCalledTimes(2);
+
+        expect(d.markOrderFailed).toHaveBeenCalledWith(
+            "o1",
+            "receipt not found",
+            "needs_reconciliation",
+        );
+        expect(d.extendSubmittedLease).not.toHaveBeenCalled();
         expect(d.send).not.toHaveBeenCalled();
     });
 });

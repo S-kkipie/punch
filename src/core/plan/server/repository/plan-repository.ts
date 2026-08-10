@@ -261,11 +261,13 @@ export async function recordReconciliationHash(
 /** Keeps a sent order in the submitted lane while its receipt is still pending. */
 export async function extendSubmittedLease(
     id: string,
+    error: string,
+    attempts: number,
     nextRetryAt: Date,
 ): Promise<PlanOrderRow | null> {
     const [row] = await db
         .update(planOrder)
-        .set({ nextRetryAt })
+        .set({ lastError: error, attempts, nextRetryAt })
         .where(and(eq(planOrder.id, id), eq(planOrder.status, "submitted")))
         .returning();
     return row ?? null;

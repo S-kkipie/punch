@@ -175,9 +175,16 @@ describeIntegration("plan repository", () => {
             new Date(Date.now() + 1_000),
         );
         const lease = new Date(Date.now() + 60_000);
-        const extended = await extendSubmittedLease(order.row.id, lease);
+        const extended = await extendSubmittedLease(
+            order.row.id,
+            "receipt not found",
+            1,
+            lease,
+        );
         expect(extended?.status).toBe("submitted");
         expect(extended?.txHash).toBe(submitted?.txHash);
+        expect(extended?.attempts).toBe(1);
+        expect(extended?.lastError).toBe("receipt not found");
         expect(extended?.nextRetryAt?.getTime()).toBe(lease.getTime());
     });
 

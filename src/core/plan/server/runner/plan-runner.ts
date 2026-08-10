@@ -97,8 +97,8 @@ const defaults: PlanRunnerDeps = {
         const pub = createChainPublicClient();
         const address = getAddresses().planManager;
         const functionName = kind === "plan" ? "subscribe" : "buyPack";
-        // Simulating first turns almost every revert into a clean failure
-        // before any gas is spent.
+        // Simulation turns almost every payment revert into a clean failure
+        // before the non-idempotent payment transaction is sent.
         await pub.simulateContract({
             address,
             abi: abis.planManager,
@@ -227,11 +227,23 @@ async function runSubmitted(
             return;
         }
         await d.markOrderFailed(order.id, "transaction reverted", "reverted");
-    } catch {
+    } catch (error) {
+        const message = errorText(error);
+        const attempts = order.attempts + 1;
+        if (attempts >= MAX_PLAN_ATTEMPTS) {
+            await d.markOrderFailed(
+                order.id,
+                message,
+                "needs_reconciliation",
+            );
+            return;
+        }
         // No receipt yet. Keep it in the submitted lane — an order that was
         // already sent must never return to pending, or the next tick pays again.
         await d.extendSubmittedLease(
             order.id,
+            message,
+            attempts,
             new Date(d.now().getTime() + 2_000),
         );
     }
