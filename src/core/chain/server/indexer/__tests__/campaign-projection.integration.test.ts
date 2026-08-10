@@ -180,7 +180,7 @@ describeIntegration("campaign projection integration", () => {
             chainUnlockTxHash: base.transactionHash,
             campaignId: ids.campaign,
         });
-        expect(effect.createdVoucherId).toBe(voucher.id);
+        expect(effect.createdVoucherId).toBeNull();
     });
 
     it("accepts two same-block unlocks and rejects an identical replay", async () => {

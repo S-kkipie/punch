@@ -294,6 +294,11 @@ export async function listFulfillmentRequestsForCafe(
                     "punch_redemption",
                     "voucher_redemption",
                 ]),
+                eq(consumerTransaction.cafeId, redemptionRequest.cafeId),
+                eq(
+                    consumerTransaction.consumerUserId,
+                    redemptionRequest.consumerUserId,
+                ),
             ),
         )
         .leftJoin(
@@ -307,13 +312,21 @@ export async function listFulfillmentRequestsForCafe(
             and(
                 eq(redemptionRequest.cafeId, cafeId),
                 or(
-                    inArray(redemptionRequest.status, [
+                    eq(redemptionRequest.status, "pending"),
+                    and(
+                        eq(redemptionRequest.status, "approved"),
+                        inArray(relayerJob.status, [
+                            "pending",
+                            "submitted",
+                            "failed",
+                        ]),
+                    ),
+                    inArray(redemptionRequest.status, ["confirmed", "failed"]),
+                    inArray(consumerTransaction.status, [
                         "pending",
-                        "approved",
                         "confirmed",
                         "failed",
                     ]),
-                    inArray(consumerTransaction.status, ["pending", "failed"]),
                     inArray(relayerJob.status, [
                         "pending",
                         "submitted",
@@ -322,9 +335,8 @@ export async function listFulfillmentRequestsForCafe(
                 ),
             ),
         )
-        .orderBy(desc(redemptionRequest.createdAt))
-        .limit(100);
-    return rows.map((row) => {
+        .orderBy(desc(redemptionRequest.createdAt));
+    const mapped = rows.map((row) => {
         const settlement = row.transactionId
             ? normalizeRedemptionSettlement({
                   id: row.transactionId,
@@ -353,4 +365,15 @@ export async function listFulfillmentRequestsForCafe(
             transactionFailureReason: settlement?.rejectionReason ?? null,
         };
     });
+    const actionable = mapped.filter(
+        ({ request }) => !["confirmed", "failed"].includes(request.status),
+    );
+    const settled = mapped
+        .filter(({ request }) =>
+            ["confirmed", "failed"].includes(request.status),
+        )
+        .slice(0, 100);
+    return [...actionable, ...settled].sort(
+        (a, b) => b.request.createdAt.getTime() - a.request.createdAt.getTime(),
+    );
 }
