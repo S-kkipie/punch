@@ -6,6 +6,7 @@ import {
 } from "./campaign-fund";
 import { campaignPublishHandler } from "./campaign-publish";
 import { consumptionRecordHandler } from "./consumption-record";
+import { referralRecordHandler } from "./referral-record";
 import type { JobHandler } from "./types";
 import { voucherRedeemHandler } from "./voucher-redeem";
 import { voucherUnlockHandler } from "./voucher-unlock";
@@ -17,6 +18,7 @@ const handlers: Partial<Record<RelayerJobKind, JobHandler>> = {
     campaign_publish: campaignPublishHandler,
     consumption: consumptionRecordHandler,
     consumption_record: consumptionRecordHandler,
+    referral_record: referralRecordHandler,
     voucher_unlock: voucherUnlockHandler,
     voucher_redeem: voucherRedeemHandler,
 };

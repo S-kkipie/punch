@@ -24,6 +24,10 @@ export type RevertCode =
     | "expiry_in_past"
     | "zero_amount"
     | "cafe_not_operational"
+    | "referral_id_used"
+    | "not_referral_recorder"
+    | "epoch_finalized"
+    | "referral_proof_required"
     | "voucher_not_unlocked"
     | "voucher_already_unlocked"
     | "voucher_already_redeemed"
@@ -39,6 +43,7 @@ const errorAbis = [
     ...abis.punchVault,
     ...abis.planManager,
     ...abis.campaignEscrow,
+    ...abis.networkFund,
 ] as Abi;
 const errorNames: Record<string, RevertCode> = {
     NonceUsed: "nonce_used",
@@ -65,6 +70,10 @@ const errorNames: Record<string, RevertCode> = {
     ExpiryInPast: "expiry_in_past",
     ZeroAmount: "zero_amount",
     CafeNotOperational: "cafe_not_operational",
+    ReferralIdUsed: "referral_id_used",
+    NotReferralRecorder: "not_referral_recorder",
+    EpochFinalized: "epoch_finalized",
+    ReferralProofRequired: "referral_proof_required",
     VoucherNotUnlocked: "voucher_not_unlocked",
     VoucherAlreadyUnlocked: "voucher_already_unlocked",
     VoucherAlreadyRedeemed: "voucher_already_redeemed",

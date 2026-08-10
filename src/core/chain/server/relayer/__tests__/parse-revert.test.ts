@@ -18,6 +18,13 @@ const cases = [
     ["InvalidCafeSignature", [], "invalid_signature"],
     ["InvalidUserSignature", [], "invalid_signature"],
     ["NotDraft", [1n], "not_draft"],
+    ["ReferralIdUsed", [`0x${"22".repeat(32)}`], "referral_id_used"],
+    [
+        "NotReferralRecorder",
+        ["0x0000000000000000000000000000000000000001"],
+        "not_referral_recorder",
+    ],
+    ["EpochFinalized", [202608n], "epoch_finalized"],
 ] as const;
 
 describe("parseRevert", () => {
@@ -27,7 +34,13 @@ describe("parseRevert", () => {
                 ? abis.planManager
                 : errorName === "NotDraft"
                   ? abis.campaignEscrow
-                  : abis.consumptionLog;
+                  : [
+                          "ReferralIdUsed",
+                          "NotReferralRecorder",
+                          "EpochFinalized",
+                      ].includes(errorName)
+                    ? abis.networkFund
+                    : abis.consumptionLog;
         // biome-ignore lint/suspicious/noExplicitAny: viem's variadic ABI overload cannot infer dynamic test cases.
         const data = (encodeErrorResult as any)({ abi, errorName, args });
         const error = new ContractFunctionRevertedError({
