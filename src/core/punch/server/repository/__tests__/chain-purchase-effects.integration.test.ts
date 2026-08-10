@@ -38,6 +38,8 @@ type Fixture = {
     orderIds: string[];
     proofIds: string[];
     campaignId?: string;
+    chainCampaignId?: number;
+    unlockJobKeys: string[];
     crawlId?: string;
 };
 const fixtures: Fixture[] = [];
@@ -50,6 +52,7 @@ async function fixture(cafeCount = 3): Promise<Fixture> {
         productIds: [],
         orderIds: [],
         proofIds: [],
+        unlockJobKeys: [],
     };
     await db.insert(user).values({
         id: f.userId,
@@ -82,6 +85,20 @@ async function fixture(cafeCount = 3): Promise<Fixture> {
     }
     fixtures.push(f);
     return f;
+}
+
+function campaignChainId(f: Fixture): number {
+    if (f.chainCampaignId !== undefined) return f.chainCampaignId;
+    const hex = f.userId.replace("effects-user-", "").replaceAll("-", "");
+    f.chainCampaignId =
+        (Number.parseInt(hex.slice(0, 8), 16) % 2_147_483_646) + 1;
+    return f.chainCampaignId;
+}
+
+function unlockKey(f: Fixture): string {
+    const key = `voucher_unlock:${campaignChainId(f)}:0x1111111111111111111111111111111111111111`;
+    if (!f.unlockJobKeys.includes(key)) f.unlockJobKeys.push(key);
+    return key;
 }
 
 async function order(f: Fixture, index: number, suffix = "") {
@@ -167,17 +184,16 @@ async function cleanup() {
         await db
             .delete(chainPurchaseEffect)
             .where(inArray(chainPurchaseEffect.purchaseOrderId, f.orderIds));
-        await db
-            .delete(relayerJob)
-            .where(eq(relayerJob.kind, "voucher_unlock"));
-        await db
-            .delete(projectionCampaign)
-            .where(
-                inArray(
-                    projectionCampaign.chainCampaignId,
-                    [700001, 700002, 700003],
-                ),
-            );
+        if (f.unlockJobKeys.length > 0)
+            await db
+                .delete(relayerJob)
+                .where(inArray(relayerJob.idempotencyKey, f.unlockJobKeys));
+        if (f.chainCampaignId !== undefined)
+            await db
+                .delete(projectionCampaign)
+                .where(
+                    eq(projectionCampaign.chainCampaignId, f.chainCampaignId),
+                );
         await db
             .delete(consumptionProof)
             .where(eq(consumptionProof.issuedByUserId, f.userId));
@@ -210,9 +226,7 @@ afterEach(async () => {
 describeIntegration("indexed purchase effects", () => {
     it("enqueues one unlock job and no voucher exactly once on replay", async () => {
         const f = await fixture(1);
-        await db
-            .delete(projectionCampaign)
-            .where(eq(projectionCampaign.chainCampaignId, 700001));
+        const chainCampaignId = campaignChainId(f);
         const [createdCampaign] = await db
             .insert(campaign)
             .values({
@@ -223,12 +237,12 @@ describeIntegration("indexed purchase effects", () => {
                 windowStart: new Date(Date.now() - 60_000),
                 windowEnd: new Date(Date.now() + 60_000),
                 active: true,
-                chainCampaignId: 700001,
+                chainCampaignId: chainCampaignId,
             })
             .returning();
         f.campaignId = createdCampaign.id;
         await db.insert(projectionCampaign).values({
-            chainCampaignId: 700001,
+            chainCampaignId: chainCampaignId,
             status: "published",
             budget: 1000n,
             voucherPayout: 1n,
@@ -262,12 +276,7 @@ describeIntegration("indexed purchase effects", () => {
         const jobs = await db
             .select()
             .from(relayerJob)
-            .where(
-                eq(
-                    relayerJob.idempotencyKey,
-                    "voucher_unlock:700001:0x1111111111111111111111111111111111111111",
-                ),
-            );
+            .where(eq(relayerJob.idempotencyKey, unlockKey(f)));
         const history = await db
             .select()
             .from(consumerTransaction)
@@ -278,7 +287,7 @@ describeIntegration("indexed purchase effects", () => {
             kind: "voucher_unlock",
             status: "pending",
             payload: {
-                chainCampaignId: 700001,
+                chainCampaignId: chainCampaignId,
                 userAddress: "0x1111111111111111111111111111111111111111",
                 effectId: expect.any(String),
             },
@@ -288,9 +297,7 @@ describeIntegration("indexed purchase effects", () => {
 
     it("enqueues only one unlock job when confirmations arrive out of submission order", async () => {
         const f = await fixture(1);
-        await db
-            .delete(projectionCampaign)
-            .where(eq(projectionCampaign.chainCampaignId, 700002));
+        const chainCampaignId = campaignChainId(f);
         const [campaignRow] = await db
             .insert(campaign)
             .values({
@@ -301,12 +308,12 @@ describeIntegration("indexed purchase effects", () => {
                 windowStart: new Date(Date.now() - 60_000),
                 windowEnd: new Date(Date.now() + 60_000),
                 active: true,
-                chainCampaignId: 700002,
+                chainCampaignId: chainCampaignId,
             })
             .returning();
         f.campaignId = campaignRow.id;
         await db.insert(projectionCampaign).values({
-            chainCampaignId: 700002,
+            chainCampaignId: chainCampaignId,
             status: "published",
             budget: 1000n,
             voucherPayout: 1n,
@@ -345,15 +352,14 @@ describeIntegration("indexed purchase effects", () => {
         const jobs = await db
             .select()
             .from(relayerJob)
-            .where(eq(relayerJob.kind, "voucher_unlock"));
+            .where(eq(relayerJob.idempotencyKey, unlockKey(f)));
         expect(vouchers).toHaveLength(0);
         expect(jobs).toHaveLength(1);
         expect(jobs[0]).toMatchObject({
             status: "pending",
-            idempotencyKey:
-                "voucher_unlock:700002:0x1111111111111111111111111111111111111111",
+            idempotencyKey: unlockKey(f),
             payload: {
-                chainCampaignId: 700002,
+                chainCampaignId: chainCampaignId,
                 userAddress: "0x1111111111111111111111111111111111111111",
                 effectId: expect.any(String),
             },
@@ -362,9 +368,7 @@ describeIntegration("indexed purchase effects", () => {
 
     it("uses chain order when same-millisecond confirmations disagree with ids", async () => {
         const f = await fixture(1);
-        await db
-            .delete(projectionCampaign)
-            .where(eq(projectionCampaign.chainCampaignId, 700003));
+        const chainCampaignId = campaignChainId(f);
         const [campaignRow] = await db
             .insert(campaign)
             .values({
@@ -375,12 +379,12 @@ describeIntegration("indexed purchase effects", () => {
                 windowStart: new Date(Date.now() - 60_000),
                 windowEnd: new Date(Date.now() + 60_000),
                 active: true,
-                chainCampaignId: 700003,
+                chainCampaignId: chainCampaignId,
             })
             .returning();
         f.campaignId = campaignRow.id;
         await db.insert(projectionCampaign).values({
-            chainCampaignId: 700003,
+            chainCampaignId: chainCampaignId,
             status: "published",
             budget: 1000n,
             voucherPayout: 1n,
@@ -404,14 +408,13 @@ describeIntegration("indexed purchase effects", () => {
         const jobs = await db
             .select()
             .from(relayerJob)
-            .where(eq(relayerJob.kind, "voucher_unlock"));
+            .where(eq(relayerJob.idempotencyKey, unlockKey(f)));
         expect(jobs).toHaveLength(1);
         expect(jobs[0]).toMatchObject({
             status: "pending",
-            idempotencyKey:
-                "voucher_unlock:700003:0x1111111111111111111111111111111111111111",
+            idempotencyKey: unlockKey(f),
             payload: {
-                chainCampaignId: 700003,
+                chainCampaignId: chainCampaignId,
                 userAddress: "0x1111111111111111111111111111111111111111",
                 effectId: expect.any(String),
             },
