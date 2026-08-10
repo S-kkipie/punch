@@ -196,17 +196,22 @@ export async function bootstrapDemoCampaign(input: {
             `bootstrap ${input.cafeSlug}: DB owner does not match derived owner`,
         );
     }
-    const values = demoCampaignValues(Date.now(), cafe.id);
+    const insertValues = demoCampaignValues(Date.now(), cafe.id);
     const campaign =
         cafe.campaign ??
         (await input.repository.insertDemoCampaign({
             cafeId: cafe.id,
-            values,
-            voucherPayout: values.voucherPayout,
-            maxVouchers: values.maxVouchers,
+            values: insertValues,
+            voucherPayout: insertValues.voucherPayout,
+            maxVouchers: insertValues.maxVouchers,
         }));
     if (campaign.chainCampaignId !== null) return;
-    const budget = values.voucherPayout * BigInt(values.maxVouchers);
+    if (campaign.voucherPayout === null || campaign.maxVouchers === null) {
+        throw new Error(
+            `bootstrap ${input.cafeSlug}: campaign payout and cap are missing`,
+        );
+    }
+    const budget = campaign.voucherPayout * BigInt(campaign.maxVouchers);
     await input.chain.mint({
         to: owner,
         amount: budget,
@@ -219,10 +224,7 @@ export async function bootstrapDemoCampaign(input: {
     if (created.receipt.status !== "success")
         throw new Error("bootstrap campaign create reverted");
     const chainCampaignId = input.chain.parseCreatedCampaignId(created.receipt);
-    if (
-        chainCampaignId === null ||
-        chainCampaignId > BigInt(Number.MAX_SAFE_INTEGER)
-    ) {
+    if (chainCampaignId === null || chainCampaignId > 2_147_483_647n) {
         throw new Error(
             "bootstrap campaign create receipt has invalid campaign id",
         );
@@ -243,9 +245,9 @@ export async function bootstrapDemoCampaign(input: {
     });
     await input.chain.publishCampaign({
         campaignId: chainCampaignId,
-        voucherPayout: values.voucherPayout,
-        maxVouchers: BigInt(values.maxVouchers),
-        expiry: BigInt(Math.floor(values.windowEnd.getTime() / 1000)),
+        voucherPayout: campaign.voucherPayout,
+        maxVouchers: BigInt(campaign.maxVouchers),
+        expiry: BigInt(Math.floor(campaign.windowEnd.getTime() / 1000)),
         signer: input.chain.opsAddress,
     });
 }
