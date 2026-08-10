@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { useCafeProducts } from "@/core/cafe/client/hooks";
 import type { Product } from "@/core/cafe/domain/types";
 import { useCreatePurchaseProof } from "@/core/consumption/client/hooks";
+import { CreditsBadge } from "@/core/plan/client/ui/credits-badge";
 import { Button } from "@/frontend/components/ui/button";
 import {
     Card,
@@ -63,6 +64,7 @@ export default function CafeTerminalPage() {
             <Card>
                 <CardHeader>
                     <CardTitle>Generar compra</CardTitle>
+                    <CreditsBadge cafeId={cafeId} />
                 </CardHeader>
                 <CardContent className="space-y-4">
                     {productsQuery.isError ? (

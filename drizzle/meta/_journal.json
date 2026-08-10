@@ -1,118 +1,125 @@
 {
-    "version": "7",
-    "dialect": "postgresql",
-    "entries": [
-        {
-            "idx": 0,
-            "version": "7",
-            "when": 1783831892665,
-            "tag": "0000_eminent_pete_wisdom",
-            "breakpoints": true
-        },
-        {
-            "idx": 1,
-            "version": "7",
-            "when": 1786161048704,
-            "tag": "0001_cold_sleeper",
-            "breakpoints": true
-        },
-        {
-            "idx": 2,
-            "version": "7",
-            "when": 1786162860949,
-            "tag": "0002_misty_karnak",
-            "breakpoints": true
-        },
-        {
-            "idx": 3,
-            "version": "7",
-            "when": 1786204813492,
-            "tag": "0003_fair_human_cannonball",
-            "breakpoints": true
-        },
-        {
-            "idx": 4,
-            "version": "7",
-            "when": 1786205224843,
-            "tag": "0004_flaky_cardiac",
-            "breakpoints": true
-        },
-        {
-            "idx": 5,
-            "version": "7",
-            "when": 1786208245769,
-            "tag": "0005_exotic_payback",
-            "breakpoints": true
-        },
-        {
-            "idx": 6,
-            "version": "7",
-            "when": 1786214438530,
-            "tag": "0006_dusty_dormammu",
-            "breakpoints": true
-        },
-        {
-            "idx": 7,
-            "version": "7",
-            "when": 1786215436065,
-            "tag": "0007_clean_shinobi_shaw",
-            "breakpoints": true
-        },
-        {
-            "idx": 8,
-            "version": "7",
-            "when": 1786222835477,
-            "tag": "0008_soft_pyro",
-            "breakpoints": true
-        },
-        {
-            "idx": 9,
-            "version": "7",
-            "when": 1786247287238,
-            "tag": "0009_serious_arclight",
-            "breakpoints": true
-        },
-        {
-            "idx": 10,
-            "version": "7",
-            "when": 1786253699552,
-            "tag": "0010_lucky_dexter_bennett",
-            "breakpoints": true
-        },
-        {
-            "idx": 11,
-            "version": "7",
-            "when": 1786262346541,
-            "tag": "0011_vengeful_living_tribunal",
-            "breakpoints": true
-        },
-        {
-            "idx": 12,
-            "version": "7",
-            "when": 1786263973201,
-            "tag": "0012_minor_anita_blake",
-            "breakpoints": true
-        },
-        {
-            "idx": 13,
-            "version": "7",
-            "when": 1786295304365,
-            "tag": "0013_motionless_joshua_kane",
-            "breakpoints": true
-        },
-        {
-            "idx": 14,
-            "version": "7",
-            "when": 1786305136695,
-            "tag": "0014_flippant_sunset_bain",
-            "breakpoints": true
-        },
-        {
-            "idx": 15,
-            "version": "7",
-            "when": 1786305136696,
-            "tag": "0015_redemption_event_marker",
-            "breakpoints": true
-        }
-    ]
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1783831892665,
+      "tag": "0000_eminent_pete_wisdom",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786161048704,
+      "tag": "0001_cold_sleeper",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786162860949,
+      "tag": "0002_misty_karnak",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1786204813492,
+      "tag": "0003_fair_human_cannonball",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786205224843,
+      "tag": "0004_flaky_cardiac",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786208245769,
+      "tag": "0005_exotic_payback",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786214438530,
+      "tag": "0006_dusty_dormammu",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786215436065,
+      "tag": "0007_clean_shinobi_shaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1786222835477,
+      "tag": "0008_soft_pyro",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786247287238,
+      "tag": "0009_serious_arclight",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786253699552,
+      "tag": "0010_lucky_dexter_bennett",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1786262346541,
+      "tag": "0011_vengeful_living_tribunal",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1786263973201,
+      "tag": "0012_minor_anita_blake",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1786295304365,
+      "tag": "0013_motionless_joshua_kane",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1786305136695,
+      "tag": "0014_flippant_sunset_bain",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1786305136696,
+      "tag": "0015_redemption_event_marker",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1786326392958,
+      "tag": "0016_fair_captain_marvel",
+      "breakpoints": true
+    }
+  ]
 }

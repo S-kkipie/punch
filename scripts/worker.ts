@@ -6,11 +6,16 @@ import {
     recoverStuckJobs,
     runRelayerOnce,
 } from "@/core/chain/server/relayer/relayer";
+import {
+    recoverStuckPlanOrders,
+    runPlanRunnerOnce,
+} from "@/core/plan/server/runner/plan-runner";
 import { expirePurchasesService } from "@/core/purchase/server/services/expire-purchases-service";
 import { normalizeError } from "@/core/worker/error-redaction";
 
 const intervals = {
     relayer: 2_000,
+    planRunner: 2_000,
     indexer: 2_000,
     expiry: 30_000,
     reconciler: 60_000,
@@ -30,7 +35,9 @@ export interface WorkerSignals {
 
 export interface WorkerDependencies {
     recoverStuckJobs: () => Promise<unknown>;
+    recoverStuckPlanOrders: () => Promise<unknown>;
     runRelayerOnce: () => Promise<unknown>;
+    runPlanRunnerOnce: () => Promise<unknown>;
     runIndexerOnce: () => Promise<unknown>;
     expirePurchasesService: () => Promise<unknown>;
     runReconcilerOnce: () => Promise<unknown>;
@@ -50,7 +57,9 @@ export async function startWorker(
 ): Promise<WorkerController> {
     const dependencies: WorkerDependencies = {
         recoverStuckJobs: () => recoverStuckJobs(),
+        recoverStuckPlanOrders: () => recoverStuckPlanOrders(),
         runRelayerOnce: () => runRelayerOnce(),
+        runPlanRunnerOnce: () => runPlanRunnerOnce(),
         runIndexerOnce: () => runIndexerOnce(),
         expirePurchasesService: () => expirePurchasesService(),
         runReconcilerOnce: () => runReconcilerOnce(),
@@ -116,6 +125,11 @@ export async function startWorker(
         } catch (error) {
             logFailure("recovery", error);
         }
+        try {
+            await dependencies.recoverStuckPlanOrders();
+        } catch (error) {
+            logFailure("recovery", error);
+        }
     })();
     active.add(startup);
     void startup.then(() => active.delete(startup));
@@ -123,6 +137,7 @@ export async function startWorker(
 
     if (!shuttingDown) {
         startLoop("relayer", dependencies.runRelayerOnce);
+        startLoop("planRunner", dependencies.runPlanRunnerOnce);
         startLoop("indexer", dependencies.runIndexerOnce);
         startLoop("expiry", dependencies.expirePurchasesService);
         startLoop("reconciler", dependencies.runReconcilerOnce);

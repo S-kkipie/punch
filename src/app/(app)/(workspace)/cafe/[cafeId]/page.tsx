@@ -21,6 +21,7 @@ import { submissionGaps } from "@/core/cafe/domain/transitions";
 import type { CafeAdmin, ProductAdmin } from "@/core/cafe/domain/types";
 import { useCafePayouts } from "@/core/consumption/client/hooks";
 import type { CafePayouts } from "@/core/consumption/server/services/get-cafe-payouts-service";
+import { CreditsBadge } from "@/core/plan/client/ui/credits-badge";
 import { Button } from "@/frontend/components/ui/button";
 import {
     Card,
@@ -147,6 +148,13 @@ export default function CafePanelPage() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                     <StatusBadge status={cafe.onboardingStatus} />
+                    <CreditsBadge cafeId={cafeId} />
+                    <Link
+                        href={`/cafe/${cafeId}/plan`}
+                        className="text-sm underline"
+                    >
+                        Plan y créditos
+                    </Link>
                     {cafe.onboardingStatus === "approved" && (
                         <>
                             <Button
