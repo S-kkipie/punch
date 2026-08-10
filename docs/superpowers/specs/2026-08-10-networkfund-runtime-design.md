@@ -68,7 +68,9 @@ proyectar el voucher confirmado, encolar job relayer:
 - `idempotencyKey: "referral:voucher:<chainCampaignId>:<consumerAddress>"`
 - payload: `{ epoch, originCafeId: <sourceCafeId de la campaña>,
   referralId: keccak256("voucher:<chainCampaignId>:<consumerAddress>") }`
-- `epoch` se calcula del timestamp del bloque del evento (`YYYYMM` UTC).
+- `epoch` se calcula al momento de encolar con la fecha actual UTC
+  (`YYYYMM`); el registro y el evento se procesan en el mismo mes en la
+  práctica y evita una lectura extra de bloque.
 
 `sourceCafeId` es el café que creó/financió la campaña: el que invirtió en
 adquirir el cliente recibe el crédito (consistente con contrato y §12.1).
@@ -93,7 +95,9 @@ registrado en el registry existente. Firma con la wallet del relayer
 
 - `ReferralIdUsed` → job confirmado (ya registrado; idempotencia).
 - `CafeNotOperational`, `EpochFinalized` → fallo permanente con razón.
-- `NotReferralRecorder` → retryable (bootstrap aún no giró la llave).
+- `NotReferralRecorder` → fallo permanente con razón accionable
+  ("recorder no configurado; correr chain:bootstrap-local"); el deploy
+  local lo configura, así que solo ocurre por bootstrap incompleto.
 - Errores ambiguos de broadcast → mismas reglas de recuperación que el
   resto de handlers (receipt por hash persistido).
 
