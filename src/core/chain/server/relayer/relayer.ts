@@ -382,10 +382,10 @@ async function submitJob(deps: RelayerDeps, job: Job) {
             const request = await wallet.prepareTransactionRequest({
                 to: call.address,
                 data: encodeFunctionData({
-                    abi: call.abi as never,
+                    abi: call.abi,
                     functionName: call.functionName,
-                    args: call.args as never,
-                }),
+                    args: call.args,
+                } as never),
                 account: signer,
             } as never);
             const signedTx = await wallet.signTransaction(request as never);
