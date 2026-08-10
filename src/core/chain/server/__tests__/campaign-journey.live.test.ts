@@ -45,7 +45,7 @@ const live =
     process.env.PUNCH_RUN_LIVE_CHAIN === "1";
 const describeLive = describe.skipIf(!live);
 const payout = 1_000_000n;
-const cap = 1;
+const cap = 2;
 const budget = payout * BigInt(cap);
 const suffix = crypto.randomUUID();
 const yapePrefix = `LIVE-CAMPAIGN-${suffix}`;
@@ -148,6 +148,11 @@ async function createPurchase(label: string) {
 
 describeLive("live campaign journey and chain projections", () => {
     beforeAll(async () => {
+        if (process.env.CONSUMER_CHAIN_MODE !== "local") {
+            throw new Error(
+                "campaign live journey requires CONSUMER_CHAIN_MODE=local",
+            );
+        }
         await findFixture();
         const ownerBalance = await chain.readContract({
             address: addresses.mockPEN,
@@ -362,12 +367,21 @@ describeLive("live campaign journey and chain projections", () => {
                 .delete(purchaseOrder)
                 .where(inArray(purchaseOrder.id, orderIds));
         }
-        if (redemptionRequestId)
+        if (redemptionRequestId) {
+            await db
+                .delete(consumerTransaction)
+                .where(
+                    eq(
+                        consumerTransaction.redemptionRequestId,
+                        redemptionRequestId,
+                    ),
+                );
             await db
                 .delete(relayerJob)
                 .where(
                     sql`${relayerJob.payload}->>'redemptionRequestId' = ${redemptionRequestId}`,
                 );
+        }
         if (voucherId)
             await db
                 .delete(redemptionRequest)
