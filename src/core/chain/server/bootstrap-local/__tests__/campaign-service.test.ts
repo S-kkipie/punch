@@ -23,6 +23,7 @@ function fixture(
         ? { id: "campaign-1", cafeId: "cafe-1", ...existing }
         : null;
     const calls: string[] = [];
+    let lockTail = Promise.resolve();
     let minted = 0n;
     let funded = 0n;
     let approved = 0n;
@@ -37,6 +38,19 @@ function fixture(
             ownerWalletAddress: fixtureOwner,
             campaign,
         })),
+        withDemoCampaignBootstrapLock: vi.fn(async (_cafeId, run) => {
+            const previous = lockTail;
+            let release!: () => void;
+            lockTail = new Promise<void>((resolve) => {
+                release = resolve;
+            });
+            await previous;
+            try {
+                return await run();
+            } finally {
+                release();
+            }
+        }),
         insertDemoCampaign: vi.fn(
             async ({ cafeId, values, voucherPayout, maxVouchers }) => {
                 campaign = {
@@ -183,6 +197,20 @@ describe("bootstrapDemoCampaign", () => {
         expect(f.calls).toHaveLength(count);
         expect(f.repository.insertDemoCampaign).toHaveBeenCalledTimes(1);
         expect(f.repository.linkCampaign).toHaveBeenCalledTimes(1);
+    });
+
+    it("serializes concurrent bootstraps around intent and chain writes", async () => {
+        const f = fixture();
+
+        await expect(Promise.all([run(f), run(f)])).resolves.toEqual([
+            undefined,
+            undefined,
+        ]);
+
+        expect(f.chain.createCampaign).toHaveBeenCalledTimes(1);
+        expect(f.repository.linkCampaign).toHaveBeenCalledTimes(1);
+        expect(f.chain.fundCampaign).toHaveBeenCalledTimes(1);
+        expect(f.chain.publishCampaign).toHaveBeenCalledTimes(1);
     });
 
     it("resumes an unlinked intent without inserting and uses persisted values", async () => {

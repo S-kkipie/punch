@@ -60,6 +60,10 @@ export type DemoCampaignCafe = {
 
 export type DemoCampaignRepository = {
     findCafeForCampaign(slug: string): Promise<DemoCampaignCafe | null>;
+    withDemoCampaignBootstrapLock<T>(
+        cafeId: string,
+        run: () => Promise<T>,
+    ): Promise<T>;
     insertDemoCampaign(input: {
         cafeId: string;
         values: ReturnType<typeof demoCampaignValues>;
@@ -199,6 +203,22 @@ async function authorizeOperators(input: {
 }
 
 export async function bootstrapDemoCampaign(input: {
+    repository: DemoCampaignRepository;
+    chain: DemoCampaignChain;
+    cafeSlug: string;
+}): Promise<void> {
+    const initialCafe = await input.repository.findCafeForCampaign(
+        input.cafeSlug,
+    );
+    if (!initialCafe)
+        throw new Error(`bootstrap ${input.cafeSlug}: café is missing`);
+    await input.repository.withDemoCampaignBootstrapLock(
+        initialCafe.id,
+        async () => bootstrapDemoCampaignUnlocked(input),
+    );
+}
+
+async function bootstrapDemoCampaignUnlocked(input: {
     repository: DemoCampaignRepository;
     chain: DemoCampaignChain;
     cafeSlug: string;

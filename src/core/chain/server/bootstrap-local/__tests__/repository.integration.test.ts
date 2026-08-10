@@ -40,6 +40,28 @@ afterEach(async () => {
 });
 
 describeIntegration("bootstrap campaign repository", () => {
+    it("serializes bootstrap lock callbacks for one café", async () => {
+        const fixture = await createFixture();
+        let active = 0;
+        let maxActive = 0;
+
+        await Promise.all(
+            [1, 2].map(() =>
+                bootstrapRepository.withDemoCampaignBootstrapLock(
+                    fixture.cafeId,
+                    async () => {
+                        active += 1;
+                        maxActive = Math.max(maxActive, active);
+                        await new Promise((resolve) => setTimeout(resolve, 20));
+                        active -= 1;
+                    },
+                ),
+            ),
+        );
+
+        expect(maxActive).toBe(1);
+    });
+
     it("returns one canonical campaign for concurrent inserts at one café", async () => {
         const fixture = await createFixture();
         const values = demoCampaignValues(Date.now(), fixture.cafeId);
