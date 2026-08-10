@@ -168,6 +168,17 @@ async function cleanup() {
             .delete(chainPurchaseEffect)
             .where(inArray(chainPurchaseEffect.purchaseOrderId, f.orderIds));
         await db
+            .delete(relayerJob)
+            .where(eq(relayerJob.kind, "voucher_unlock"));
+        await db
+            .delete(projectionCampaign)
+            .where(
+                inArray(
+                    projectionCampaign.chainCampaignId,
+                    [700001, 700002, 700003],
+                ),
+            );
+        await db
             .delete(consumptionProof)
             .where(eq(consumptionProof.issuedByUserId, f.userId));
         await db
@@ -197,8 +208,11 @@ afterEach(async () => {
 });
 
 describeIntegration("indexed purchase effects", () => {
-    it("unlocks a qualifying acquisition voucher exactly once on replay", async () => {
+    it("enqueues one unlock job and no voucher exactly once on replay", async () => {
         const f = await fixture(1);
+        await db
+            .delete(projectionCampaign)
+            .where(eq(projectionCampaign.chainCampaignId, 700001));
         const [createdCampaign] = await db
             .insert(campaign)
             .values({
@@ -272,8 +286,11 @@ describeIntegration("indexed purchase effects", () => {
         expect(history).toHaveLength(1);
     });
 
-    it("unlocks only one voucher when confirmations arrive out of submission order", async () => {
+    it("enqueues only one unlock job when confirmations arrive out of submission order", async () => {
         const f = await fixture(1);
+        await db
+            .delete(projectionCampaign)
+            .where(eq(projectionCampaign.chainCampaignId, 700002));
         const [campaignRow] = await db
             .insert(campaign)
             .values({
@@ -284,9 +301,21 @@ describeIntegration("indexed purchase effects", () => {
                 windowStart: new Date(Date.now() - 60_000),
                 windowEnd: new Date(Date.now() + 60_000),
                 active: true,
+                chainCampaignId: 700002,
             })
             .returning();
         f.campaignId = campaignRow.id;
+        await db.insert(projectionCampaign).values({
+            chainCampaignId: 700002,
+            status: "published",
+            budget: 1000n,
+            voucherPayout: 1n,
+            maxVouchers: 10,
+            expiry: new Date(Date.now() + 60_000),
+            unlockedCount: 0,
+            redeemedCount: 0,
+            lastBlock: 0n,
+        });
         const submittedFirst = await order(f, 0, "submitted-first");
         const confirmedFirst = await order(f, 0, "confirmed-first");
         await db
@@ -313,11 +342,29 @@ describeIntegration("indexed purchase effects", () => {
             .select()
             .from(consumerVoucher)
             .where(eq(consumerVoucher.consumerUserId, f.userId));
-        expect(vouchers).toHaveLength(1);
+        const jobs = await db
+            .select()
+            .from(relayerJob)
+            .where(eq(relayerJob.kind, "voucher_unlock"));
+        expect(vouchers).toHaveLength(0);
+        expect(jobs).toHaveLength(1);
+        expect(jobs[0]).toMatchObject({
+            status: "pending",
+            idempotencyKey:
+                "voucher_unlock:700002:0x1111111111111111111111111111111111111111",
+            payload: {
+                chainCampaignId: 700002,
+                userAddress: "0x1111111111111111111111111111111111111111",
+                effectId: expect.any(String),
+            },
+        });
     });
 
     it("uses chain order when same-millisecond confirmations disagree with ids", async () => {
         const f = await fixture(1);
+        await db
+            .delete(projectionCampaign)
+            .where(eq(projectionCampaign.chainCampaignId, 700003));
         const [campaignRow] = await db
             .insert(campaign)
             .values({
@@ -328,9 +375,21 @@ describeIntegration("indexed purchase effects", () => {
                 windowStart: new Date(Date.now() - 60_000),
                 windowEnd: new Date(Date.now() + 60_000),
                 active: true,
+                chainCampaignId: 700003,
             })
             .returning();
         f.campaignId = campaignRow.id;
+        await db.insert(projectionCampaign).values({
+            chainCampaignId: 700003,
+            status: "published",
+            budget: 1000n,
+            voucherPayout: 1n,
+            maxVouchers: 10,
+            expiry: new Date(Date.now() + 60_000),
+            unlockedCount: 0,
+            redeemedCount: 0,
+            lastBlock: 0n,
+        });
         const firstOnChain = await order(f, 0, "a");
         const secondOnChain = await order(f, 0, "b");
         const confirmedAt = new Date();
@@ -342,6 +401,21 @@ describeIntegration("indexed purchase effects", () => {
             .where(eq(chainPurchaseEffect.kind, "campaign_qualification"));
         expect(effects).toHaveLength(1);
         expect(effects[0].purchaseOrderId).toBe(firstOnChain.orderId);
+        const jobs = await db
+            .select()
+            .from(relayerJob)
+            .where(eq(relayerJob.kind, "voucher_unlock"));
+        expect(jobs).toHaveLength(1);
+        expect(jobs[0]).toMatchObject({
+            status: "pending",
+            idempotencyKey:
+                "voucher_unlock:700003:0x1111111111111111111111111111111111111111",
+            payload: {
+                chainCampaignId: 700003,
+                userAddress: "0x1111111111111111111111111111111111111111",
+                effectId: expect.any(String),
+            },
+        });
     });
 
     it("advances an ordered A to B to C crawl once per café and ignores repeats", async () => {
