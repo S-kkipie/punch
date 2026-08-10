@@ -298,12 +298,13 @@ export async function listFulfillmentRequestsForCafe(
             and(
                 eq(redemptionRequest.cafeId, cafeId),
                 or(
-                    eq(redemptionRequest.status, "pending"),
-                    inArray(consumerTransaction.status, [
+                    inArray(redemptionRequest.status, [
                         "pending",
+                        "approved",
+                        "confirmed",
                         "failed",
-                        "rejected",
                     ]),
+                    inArray(consumerTransaction.status, ["pending", "failed"]),
                     inArray(relayerJob.status, [
                         "pending",
                         "submitted",
@@ -312,7 +313,8 @@ export async function listFulfillmentRequestsForCafe(
                 ),
             ),
         )
-        .orderBy(desc(redemptionRequest.createdAt));
+        .orderBy(desc(redemptionRequest.createdAt))
+        .limit(100);
     return rows.map((row) => {
         const settlement = row.transactionId
             ? normalizeRedemptionSettlement({

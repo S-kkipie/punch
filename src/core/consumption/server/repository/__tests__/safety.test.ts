@@ -184,28 +184,37 @@ describe("redemption request safety", () => {
     it("limits the café inbox to recent actionable and settled statuses", async () => {
         let predicate: unknown;
         let limitValue: number | undefined;
+        const leftJoinCalls: unknown[][] = [];
+        const where = (value: unknown) => {
+            predicate = value;
+            return {
+                orderBy: () => ({
+                    limit: (value: number) => {
+                        limitValue = value;
+                        return Promise.resolve([]);
+                    },
+                }),
+            };
+        };
         const client = {
             select: () => ({
                 from: () => ({
-                    leftJoin: () => ({
-                        where: (value: unknown) => {
-                            predicate = value;
-                            return {
-                                orderBy: () => ({
-                                    limit: (value: number) => {
-                                        limitValue = value;
-                                        return Promise.resolve([]);
-                                    },
-                                }),
-                            };
-                        },
-                    }),
+                    leftJoin: (...args: unknown[]) => {
+                        leftJoinCalls.push(args);
+                        return {
+                            leftJoin: (...args: unknown[]) => {
+                                leftJoinCalls.push(args);
+                                return { where };
+                            },
+                        };
+                    },
                 }),
             }),
         } as never;
 
         await listFulfillmentRequestsForCafe("cafe-1", client);
 
+        expect(leftJoinCalls).toHaveLength(2);
         const text = predicateText(predicate);
         expect(text).toContain("pending");
         expect(text).toContain("approved");
