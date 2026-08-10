@@ -94,7 +94,9 @@ function campaignChainId(f: Fixture): number {
 }
 
 function unlockKey(f: Fixture): string {
-    return `voucher_unlock:${campaignChainId(f)}:0x1111111111111111111111111111111111111111`;
+    if (f.chainCampaignId === undefined)
+        throw new Error("campaign chain id is not assigned");
+    return `voucher_unlock:${f.chainCampaignId}:0x1111111111111111111111111111111111111111`;
 }
 
 async function order(f: Fixture, index: number, suffix = "") {
