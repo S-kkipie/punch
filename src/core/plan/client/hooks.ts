@@ -38,6 +38,19 @@ export const usePlanOrders = (cafeId: string) => {
             .orders.get.queryOptions() as unknown as Record<string, unknown>),
         queryKey: ["plans", cafeId, "orders"],
         select: unwrapResponse,
+        refetchInterval: (query: { state: { data: unknown } }) => {
+            const data = query.state.data as
+                | { response?: Array<{ status?: string }> }
+                | Array<{ status?: string }>
+                | undefined;
+            const orders = Array.isArray(data) ? data : data?.response;
+            return orders?.some(
+                (order) =>
+                    order.status === "pending" || order.status === "submitted",
+            )
+                ? 2_000
+                : false;
+        },
     });
 };
 
