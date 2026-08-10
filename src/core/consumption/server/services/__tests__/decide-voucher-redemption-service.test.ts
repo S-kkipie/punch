@@ -4,7 +4,8 @@ const {
     requireCafeRole,
     findRedemptionRequestById,
     decideRedemptionRequest,
-    submitVoucherRedemption,
+    mockSubmitVoucherRedemption,
+    escrowSubmitVoucherRedemption,
     getBalance,
     incrementBalance,
     decrementBalance,
@@ -13,7 +14,8 @@ const {
     requireCafeRole: vi.fn(),
     findRedemptionRequestById: vi.fn(),
     decideRedemptionRequest: vi.fn(),
-    submitVoucherRedemption: vi.fn(),
+    mockSubmitVoucherRedemption: vi.fn(),
+    escrowSubmitVoucherRedemption: vi.fn(),
     getBalance: vi.fn(),
     incrementBalance: vi.fn(),
     decrementBalance: vi.fn(),
@@ -46,12 +48,12 @@ vi.mock("../../repository/redemption-requests", () => ({
 }));
 vi.mock("../../postgres-mock-chain", () => ({
     PostgresMockConsumerChain: class {
-        submitVoucherRedemption = submitVoucherRedemption;
+        submitVoucherRedemption = mockSubmitVoucherRedemption;
     },
 }));
 vi.mock("../../campaign-escrow-chain", () => ({
     CampaignEscrowChain: class {
-        submitVoucherRedemption = submitVoucherRedemption;
+        submitVoucherRedemption = escrowSubmitVoucherRedemption;
     },
 }));
 
@@ -79,8 +81,12 @@ describe("decideVoucherRedemptionService", () => {
             ...pending,
             status: "approved",
         });
-        submitVoucherRedemption.mockResolvedValue({
+        mockSubmitVoucherRedemption.mockResolvedValue({
             transactionId: "tx-1",
+            status: "pending",
+        });
+        escrowSubmitVoucherRedemption.mockResolvedValue({
+            transactionId: "escrow-tx-1",
             status: "pending",
         });
     });
@@ -98,7 +104,7 @@ describe("decideVoucherRedemptionService", () => {
         );
         expect(result).toEqual({ ok: false, error });
         expect(findRedemptionRequestById).not.toHaveBeenCalled();
-        expect(submitVoucherRedemption).not.toHaveBeenCalled();
+        expect(mockSubmitVoucherRedemption).not.toHaveBeenCalled();
         expect(getBalance).not.toHaveBeenCalled();
         expect(incrementBalance).not.toHaveBeenCalled();
         expect(decrementBalance).not.toHaveBeenCalled();
@@ -122,7 +128,7 @@ describe("decideVoucherRedemptionService", () => {
             expect(result.ok).toBe(false);
             expect(result.ok || result.error.status).toBe(404);
             expect(decideRedemptionRequest).not.toHaveBeenCalled();
-            expect(submitVoucherRedemption).not.toHaveBeenCalled();
+            expect(mockSubmitVoucherRedemption).not.toHaveBeenCalled();
             expect(getBalance).not.toHaveBeenCalled();
             expect(incrementBalance).not.toHaveBeenCalled();
             expect(decrementBalance).not.toHaveBeenCalled();
@@ -165,7 +171,7 @@ describe("decideVoucherRedemptionService", () => {
             },
         );
         expect(result.ok && result.data).toMatchObject({ status: "rejected" });
-        expect(submitVoucherRedemption).not.toHaveBeenCalled();
+        expect(mockSubmitVoucherRedemption).not.toHaveBeenCalled();
         expect(getBalance).not.toHaveBeenCalled();
         expect(incrementBalance).not.toHaveBeenCalled();
         expect(decrementBalance).not.toHaveBeenCalled();
@@ -220,9 +226,9 @@ describe("decideVoucherRedemptionService", () => {
         );
         expect(result).toEqual({
             ok: true,
-            data: { transactionId: "tx-1", status: "pending" },
+            data: { transactionId: "escrow-tx-1", status: "pending" },
         });
-        expect(submitVoucherRedemption).toHaveBeenCalledWith({
+        expect(escrowSubmitVoucherRedemption).toHaveBeenCalledWith({
             redemptionRequestId: "req-1",
             idempotencyKey: "voucher_redemption:req-1",
         });
@@ -256,7 +262,8 @@ describe("decideVoucherRedemptionService", () => {
             },
         );
         expect(conflict.ok || conflict.error.status).toBe(409);
-        expect(submitVoucherRedemption).toHaveBeenCalledTimes(1);
+        expect(mockSubmitVoucherRedemption).toHaveBeenCalledTimes(1);
+        expect(escrowSubmitVoucherRedemption).not.toHaveBeenCalled();
         expect(getBalance).not.toHaveBeenCalled();
         expect(incrementBalance).not.toHaveBeenCalled();
         expect(decrementBalance).not.toHaveBeenCalled();
