@@ -3,6 +3,7 @@ import {
     bootstrapDemoCampaign,
     type DemoCampaignChain,
     type DemoCampaignRepository,
+    decodeCampaignStatus,
 } from "../service";
 
 const address = (n: string) => `0x${n.padStart(40, "0")}` as `0x${string}`;
@@ -109,6 +110,18 @@ const run = (f: ReturnType<typeof fixture>) =>
         chain: f.chain,
         cafeSlug: "esquina-sur",
     });
+
+describe("decodeCampaignStatus", () => {
+    it.each([
+        [0, "missing"],
+        [1, "draft"],
+        [2, "published"],
+        [3, "cancelled"],
+        [99, "missing"],
+    ] as const)("decodes Solidity status %s as %s", (raw, expected) => {
+        expect(decodeCampaignStatus(raw)).toBe(expected);
+    });
+});
 
 describe("bootstrapDemoCampaign", () => {
     it("inserts and performs exact ordered writes with exact signers and values", async () => {

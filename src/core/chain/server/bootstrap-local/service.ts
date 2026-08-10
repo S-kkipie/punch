@@ -151,6 +151,22 @@ export type BootstrapChain = {
     }): Promise<boolean>;
 };
 
+export function decodeCampaignStatus(
+    status: number,
+): "draft" | "published" | "cancelled" | "missing" {
+    if (status === 0) return "missing";
+    switch (status) {
+        case 1:
+            return "draft";
+        case 2:
+            return "published";
+        case 3:
+            return "cancelled";
+        default:
+            return "missing";
+    }
+}
+
 function sameAddress(a: string, b: string) {
     return a.toLowerCase() === b.toLowerCase();
 }
