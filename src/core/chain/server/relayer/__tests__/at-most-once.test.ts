@@ -78,7 +78,9 @@ function deps(overrides: Partial<RelayerDeps> = {}) {
             current.status = "pending";
         }),
         wallet: {
-            prepareTransactionRequest: vi.fn().mockResolvedValue({}),
+            prepareTransactionRequest: vi
+                .fn()
+                .mockImplementation(async (request) => request),
             signTransaction: vi.fn().mockResolvedValue(signed),
             sendRawTransaction: vi.fn(),
             writeContract: vi.fn(),
