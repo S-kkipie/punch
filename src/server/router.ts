@@ -9,6 +9,7 @@ import { ServerConfig } from "@/config/server-config";
 import { cafeRouter } from "@/core/cafe/server/api/router";
 import { campaignRouter } from "@/core/campaign/server/api/router";
 import { consumptionRouter } from "@/core/consumption/server/api/router";
+import { planRouter } from "@/core/plan/server/api/router";
 import { projectRouter } from "@/core/project/server/api/router";
 import { punchRouter } from "@/core/punch/server/api/router";
 import { purchaseRouter } from "@/core/purchase/server/api/router";
@@ -77,6 +78,7 @@ const app = new Elysia({ prefix: "/api/v1" })
     .use(cafeRouter)
     .use(campaignRouter)
     .use(purchaseRouter)
+    .use(planRouter)
     .use(consumptionRouter)
     .use(punchRouter);
 

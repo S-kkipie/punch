@@ -94,6 +94,62 @@ describeIntegration("legacy proof migration", () => {
         }
     });
 
+    it("cleans legacy duplicate active PUNCH requests before the unique index", async () => {
+        expect(baseUrl).toBeTruthy();
+        const dbName = `punch_dupes_${crypto.randomUUID().replaceAll("-", "")}`;
+        createdDatabases.push(dbName);
+        const { adminUrl } = parseDatabaseUrl(baseUrl);
+        const admin = new Client({ connectionString: adminUrl, ssl: false });
+        await admin.connect();
+        await admin.query(`CREATE DATABASE "${dbName}"`);
+        await admin.end();
+        const databaseUrl = buildDatabaseUrl(baseUrl, dbName);
+        await migrateDatabase(databaseUrl, copyMigrationSet(13));
+        const client = new Client({
+            connectionString: databaseUrl,
+            ssl: false,
+        });
+        await client.connect();
+        try {
+            await client.query(`
+                INSERT INTO "user" (id, name, email)
+                VALUES ('dup-user', 'Duplicate User', 'dup-user@example.test');
+                INSERT INTO cafe (id, name, slug)
+                VALUES ('dup-cafe', 'Duplicate Cafe', 'dup-cafe');
+                INSERT INTO cafe_product (id, cafe_id, name, price_soles, type, approval_status, active)
+                VALUES ('dup-product', 'dup-cafe', 'Reward', '12.00', 'reward', 'approved', true);
+                INSERT INTO redemption_request
+                    (id, kind, consumer_user_id, cafe_id, product_id, status, created_at, updated_at)
+                VALUES
+                    ('dup-old', 'punch_reward', 'dup-user', 'dup-cafe', 'dup-product', 'approved', now() - interval '1 hour', now()),
+                    ('dup-new', 'punch_reward', 'dup-user', 'dup-cafe', 'dup-product', 'pending', now(), now());
+            `);
+        } finally {
+            await client.end();
+        }
+        await migrateDatabase(databaseUrl, drizzleRoot);
+        const verify = new Client({
+            connectionString: databaseUrl,
+            ssl: false,
+        });
+        await verify.connect();
+        try {
+            const result = await verify.query(
+                `SELECT id, status, rejection_reason FROM redemption_request WHERE id IN ('dup-old', 'dup-new') ORDER BY id`,
+            );
+            expect(result.rows).toEqual([
+                { id: "dup-new", status: "pending", rejection_reason: null },
+                {
+                    id: "dup-old",
+                    status: "rejected",
+                    rejection_reason: "superseded_by_newer_active_request",
+                },
+            ]);
+        } finally {
+            await verify.end();
+        }
+    });
+
     it("reclassifies legacy confirmed proofs without purchase orders and completes migration", async () => {
         expect(baseUrl).toBeTruthy();
         const dbName = `punch_legacy_${crypto.randomUUID().replaceAll("-", "")}`;

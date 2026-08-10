@@ -1,5 +1,6 @@
 import "server-only";
 
+import { eq } from "drizzle-orm";
 import {
     type Address,
     encodeFunctionData,
@@ -10,6 +11,7 @@ import {
     TransactionReceiptNotFoundError,
     type WalletClient,
 } from "viem";
+import { abis } from "@/core/chain/abis";
 import { type AddressMap, getAddresses } from "@/core/chain/addresses";
 import {
     createChainPublicClient,
@@ -28,13 +30,15 @@ import {
     RELAYER_CLAIM_LEASE_MS,
 } from "@/core/chain/server/relayer/job-repository";
 import { resolveSigner } from "@/core/chain/server/relayer/signers";
+import { db } from "@/server/drizzle/db";
+import { consumerTransaction } from "@/server/drizzle/schemas/consumption-schema";
 import {
     hasRecordedProof,
     parseSubmission,
     replaySubmissionError,
 } from "./handlers/consumption-record";
 import { handlerFor } from "./handlers/registry";
-import type { JobContext, JobFailure } from "./handlers/types";
+import type { JobContext, JobFailure, JobHandler } from "./handlers/types";
 import {
     type ParsedRevert,
     parseRevert,
@@ -76,7 +80,7 @@ export type RelayerDeps = {
         id: string,
         txHash: Hex,
         nextRetryAt: Date,
-        sideEffect?: JobSideEffect,
+        sideEffect?: JobSideEffect | { signedTransaction: string },
     ) => Promise<unknown>;
     markJobSigned?: (
         id: string,
@@ -105,8 +109,10 @@ export type RelayerDeps = {
         nextRetryAt: Date,
         sideEffect?: JobSideEffect,
     ) => Promise<unknown>;
+    hasRedemptionLedger?: (requestId: string) => Promise<boolean>;
     wallet: RelayerWallet;
     pub: {
+        sendRawTransaction: PublicClient["sendRawTransaction"];
         waitForTransactionReceipt: PublicClient["waitForTransactionReceipt"];
         getTransactionReceipt: PublicClient["getTransactionReceipt"];
         getLogs: PublicClient["getLogs"];
@@ -139,8 +145,20 @@ function defaultDeps(): RelayerDeps {
         markJobRetry,
         markJobFailed,
         markJobPending,
+        hasRedemptionLedger: async (requestId: string) => {
+            const [row] = await db
+                .select({ id: consumerTransaction.id })
+                .from(consumerTransaction)
+                .where(
+                    eq(
+                        consumerTransaction.idempotencyKey,
+                        `chain_redemption:${requestId}`,
+                    ),
+                );
+            return !!row;
+        },
         wallet,
-        pub: createChainPublicClient(),
+        pub: createChainPublicClient() as unknown as RelayerDeps["pub"],
         addresses: getAddresses(),
         submitter: submitterAccount.address,
         now: () => new Date(),
@@ -157,6 +175,12 @@ function context(deps: RelayerDeps): JobContext & { submitter: Address } {
         now: deps.now,
         submitter: deps.submitter,
     };
+}
+
+function handlerForJob(job: Job): JobHandler | null {
+    return job.kind === "punch_redemption"
+        ? null
+        : handlerFor(job.kind ?? "consumption_record");
 }
 
 function sanitizedFailure(parsed: ParsedRevert): string {
@@ -231,11 +255,14 @@ async function confirm(
     job: Job,
     receipt?: TransactionReceipt,
 ) {
-    const handler = handlerFor(job.kind ?? "consumption_record");
+    const handler = handlerForJob(job);
     await markConfirmed(
         deps,
         job.id,
-        effect(deps, handler.onConfirmed?.(job, receipt as TransactionReceipt)),
+        effect(
+            deps,
+            handler?.onConfirmed?.(job, receipt as TransactionReceipt),
+        ),
     );
 }
 
@@ -245,7 +272,21 @@ async function handleFailure(
     error: unknown,
     submission?: ReturnType<typeof parseSubmission>,
 ) {
-    const handler = handlerFor(job.kind ?? "consumption_record");
+    const handler = handlerForJob(job);
+    if (!handler) {
+        const parsed = parseRevert(error);
+        const message = parsed.message;
+        if (PERMANENT_CODES.has(parsed.code))
+            await deps.markJobFailed(job.id, message, parsed.code);
+        else
+            await deps.markJobRetry(
+                job.id,
+                message,
+                job.attempts + 1,
+                new Date(deps.now().getTime() + 5000 * 2 ** (job.attempts + 1)),
+            );
+        return;
+    }
     const parsed = parseRevert(error);
     const nonceTooLow =
         error instanceof Error && /nonce too low/i.test(error.message);
@@ -270,7 +311,7 @@ async function handleFailure(
                 ? "invalid signature"
                 : sanitizedFailure(parsed),
     };
-    if (code !== "superseded" && handler.idempotentCodes?.has(code)) {
+    if (code !== "superseded" && handler?.idempotentCodes?.has(code)) {
         if (
             code !== "nonce_used" ||
             (submission && (await hasRecordedProof(context(deps), submission)))
@@ -287,7 +328,7 @@ async function handleFailure(
             job.id,
             conflict.message,
             conflict.code,
-            effect(deps, handler.onFailed?.(job, conflict)),
+            effect(deps, handler?.onFailed?.(job, conflict)),
         );
         return;
     }
@@ -297,7 +338,7 @@ async function handleFailure(
             job.id,
             failure.message,
             code,
-            effect(deps, handler.onFailed?.(job, failure)),
+            effect(deps, handler?.onFailed?.(job, failure)),
         );
         return;
     }
@@ -308,7 +349,7 @@ async function handleFailure(
             job.id,
             failure.message,
             code,
-            effect(deps, handler.onFailed?.(job, failure)),
+            effect(deps, handler?.onFailed?.(job, failure)),
         );
         return;
     }
@@ -319,12 +360,168 @@ async function handleFailure(
         failure.message,
         attempts,
         nextRetryAt,
-        effect(deps, handler.onRetry?.(job)),
+        effect(deps, handler?.onRetry?.(job)),
     );
 }
 
+type RedemptionSubmission = {
+    user: Address;
+    cafeId: bigint;
+    productId: bigint;
+};
+function parseRedemptionSubmission(job: Job): RedemptionSubmission {
+    if (!job.payload || typeof job.payload !== "object")
+        throw new Error("invalid payload");
+    const payload = job.payload as Record<string, unknown>;
+    if (
+        typeof payload.userWallet !== "string" ||
+        !/^0x[0-9a-fA-F]{40}$/.test(payload.userWallet) ||
+        typeof payload.chainCafeId !== "number" ||
+        !Number.isInteger(payload.chainCafeId) ||
+        typeof payload.chainProductId !== "number" ||
+        !Number.isInteger(payload.chainProductId)
+    )
+        throw new Error("invalid payload");
+    return {
+        user: payload.userWallet as Address,
+        cafeId: BigInt(payload.chainCafeId),
+        productId: BigInt(payload.chainProductId),
+    };
+}
+async function hasRedemptionLedger(deps: RelayerDeps, requestId: string) {
+    if (!deps.hasRedemptionLedger)
+        throw new Error("redemption ledger guard unavailable");
+    return deps.hasRedemptionLedger(requestId);
+}
+async function replayRedemptionError(
+    deps: RelayerDeps,
+    submission: RedemptionSubmission,
+    blockNumber?: bigint,
+): Promise<unknown> {
+    try {
+        await deps.pub.simulateContract({
+            address: deps.addresses.punchVault,
+            abi: abis.punchVault,
+            functionName: "redeem",
+            args: [submission.user, submission.cafeId, submission.productId],
+            account: deps.submitter,
+            blockNumber,
+        } as never);
+    } catch (error) {
+        return error;
+    }
+    return new Error("transaction reverted");
+}
+function isAmbiguousRedemptionBroadcastError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return /already known|already-known|nonce too low|nonce has already been used|replacement transaction underpriced|known transaction/i.test(
+        message,
+    );
+}
+function getPersistedSignedTransaction(job: Job): Hex | undefined {
+    if (!job.payload || typeof job.payload !== "object") return undefined;
+    const value = (job.payload as Record<string, unknown>).signedTransaction;
+    return typeof value === "string" && /^0x[0-9a-fA-F]+$/.test(value)
+        ? (value as Hex)
+        : undefined;
+}
+async function submitRedemptionJob(deps: RelayerDeps, job: Job) {
+    if (!job.redemptionRequestId) {
+        await deps.markJobFailed(job.id, "invalid payload", "unknown");
+        return;
+    }
+    if (await hasRedemptionLedger(deps, job.redemptionRequestId)) {
+        await confirm(deps, job);
+        return;
+    }
+    let submission: RedemptionSubmission;
+    let signedTransaction = getPersistedSignedTransaction(job);
+    let hash: Hex;
+    try {
+        submission = parseRedemptionSubmission(job);
+        if (!signedTransaction) {
+            const data = encodeFunctionData({
+                abi: abis.punchVault,
+                functionName: "redeem",
+                args: [
+                    submission.user,
+                    submission.cafeId,
+                    submission.productId,
+                ],
+            });
+            const request = await deps.wallet.prepareTransactionRequest({
+                account: deps.submitter,
+                to: deps.addresses.punchVault,
+                data,
+            } as never);
+            signedTransaction = (await deps.wallet.signTransaction(
+                request as never,
+            )) as Hex;
+        }
+        hash = keccak256(signedTransaction);
+    } catch (error) {
+        await handleFailure(deps, job, error);
+        return;
+    }
+    if (!job.signedTx && deps.markJobSigned) {
+        const signed = await deps.markJobSigned(
+            job.id,
+            hash,
+            signedTransaction,
+        );
+        if (signed === null) return;
+    }
+    const persisted = await deps.markJobSubmitted(
+        job.id,
+        hash,
+        new Date(deps.now().getTime() + RELAYER_CLAIM_LEASE_MS),
+        { signedTransaction },
+    );
+    if (persisted === null) return;
+    try {
+        await deps.pub.sendRawTransaction({
+            serializedTransaction: signedTransaction,
+        });
+        const receipt = await deps.pub.waitForTransactionReceipt({ hash });
+        if (receipt.status === "success") await confirm(deps, job);
+        else
+            await handleFailure(
+                deps,
+                job,
+                await replayRedemptionError(
+                    deps,
+                    submission,
+                    receipt.blockNumber,
+                ),
+            );
+    } catch (error) {
+        if (isAmbiguousRedemptionBroadcastError(error)) {
+            try {
+                const receipt = await deps.pub.getTransactionReceipt({ hash });
+                if (receipt.status === "success") await confirm(deps, job);
+                else
+                    await handleFailure(
+                        deps,
+                        job,
+                        await replayRedemptionError(
+                            deps,
+                            submission,
+                            receipt.blockNumber,
+                        ),
+                    );
+            } catch {
+                await markPending(deps, job.id, deps.now());
+            }
+            return;
+        }
+        await handleFailure(deps, job, error);
+    }
+}
 async function submitJob(deps: RelayerDeps, job: Job) {
-    const handler = handlerFor(job.kind ?? "consumption_record");
+    if (job.kind === "punch_redemption") return submitRedemptionJob(deps, job);
+    const handler = handlerForJob(job);
+    if (!handler)
+        throw new Error("unsupported relayer job kind punch_redemption");
     const ctx = context(deps);
     const preflight = await handler.preflight?.(job, ctx);
     if (preflight) {
@@ -338,7 +535,7 @@ async function submitJob(deps: RelayerDeps, job: Job) {
                 job.id,
                 preflight.message,
                 preflight.code,
-                effect(deps, handler.onFailed?.(job, preflight)),
+                effect(deps, handler?.onFailed?.(job, preflight)),
             );
             return;
         }
@@ -349,7 +546,7 @@ async function submitJob(deps: RelayerDeps, job: Job) {
                 job.id,
                 preflight.message,
                 preflight.code,
-                effect(deps, handler.onFailed?.(job, preflight)),
+                effect(deps, handler?.onFailed?.(job, preflight)),
             );
             return;
         }
@@ -359,7 +556,7 @@ async function submitJob(deps: RelayerDeps, job: Job) {
             preflight.message,
             attempts,
             new Date(deps.now().getTime() + 5_000 * 2 ** attempts),
-            effect(deps, handler.onRetry?.(job)),
+            effect(deps, handler?.onRetry?.(job)),
         );
         return;
     }
@@ -421,7 +618,7 @@ async function submitJob(deps: RelayerDeps, job: Job) {
         job.id,
         hash,
         new Date(deps.now().getTime() + RELAYER_CLAIM_LEASE_MS),
-        effect(deps, handler.onSubmitted?.(job, hash)),
+        effect(deps, handler?.onSubmitted?.(job, hash)),
     );
     try {
         const receipt = await deps.pub.waitForTransactionReceipt({ hash });
@@ -463,13 +660,58 @@ export async function recoverStuckJobs(
 ): Promise<void> {
     const jobs = await deps.claimSubmittedJobs(10);
     for (const job of jobs) {
-        const handler = handlerFor(job.kind ?? "consumption_record");
+        const handler = handlerForJob(job);
         if (!job.txHash) {
             await markPending(
                 deps,
                 job.id,
                 deps.now(),
-                effect(deps, handler.onPending?.(job)),
+                effect(deps, handler?.onPending?.(job)),
+            );
+            continue;
+        }
+        if (job.kind === "punch_redemption") {
+            if (
+                job.redemptionRequestId &&
+                (await hasRedemptionLedger(deps, job.redemptionRequestId))
+            ) {
+                await confirm(deps, job);
+                continue;
+            }
+            let redemption: RedemptionSubmission;
+            try {
+                redemption = parseRedemptionSubmission(job);
+            } catch (error) {
+                await handleFailure(deps, job, error);
+                continue;
+            }
+            let redemptionReceipt: Awaited<
+                ReturnType<RelayerDeps["pub"]["getTransactionReceipt"]>
+            >;
+            try {
+                redemptionReceipt = await deps.pub.getTransactionReceipt({
+                    hash: job.txHash as Hex,
+                });
+            } catch (error) {
+                if (isMissingReceiptError(error)) {
+                    await markPending(deps, job.id, deps.now());
+                    continue;
+                }
+                await handleFailure(deps, job, error);
+                continue;
+            }
+            if (redemptionReceipt.status === "success") {
+                await confirm(deps, job, redemptionReceipt);
+                continue;
+            }
+            await handleFailure(
+                deps,
+                job,
+                await replayRedemptionError(
+                    deps,
+                    redemption,
+                    redemptionReceipt.blockNumber,
+                ),
             );
             continue;
         }
@@ -494,7 +736,7 @@ export async function recoverStuckJobs(
                     deps,
                     job.id,
                     deps.now(),
-                    effect(deps, handler.onPending?.(job)),
+                    effect(deps, handler?.onPending?.(job)),
                 );
                 continue;
             }

@@ -1,2 +1,0 @@
-ALTER TABLE "projection_campaign" ADD COLUMN "last_transaction_index" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
-ALTER TABLE "projection_campaign" ADD COLUMN "last_log_index" integer DEFAULT 0 NOT NULL;

@@ -1,124 +1,108 @@
+import { readFile } from "node:fs/promises";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../repository/redemption-requests", () => ({
+    approveRedemptionAndEnqueueJob: vi.fn(),
     decideRedemptionRequest: vi.fn(),
     findRedemptionRequestById: vi.fn(),
 }));
 vi.mock("@/server/auth/membership/require-cafe-role", () => ({
     requireCafeRole: vi.fn(),
 }));
-vi.mock("../../postgres-mock-chain", () => ({
-    PostgresMockConsumerChain: vi.fn().mockImplementation(() => ({
-        submitPunchRedemption: vi.fn().mockResolvedValue({
-            transactionId: "tx",
-            status: "pending",
-        }),
-    })),
+vi.mock("@/core/chain/server/wallet/repository", () => ({
+    findUserWallet: vi.fn(),
 }));
 
+import { findUserWallet } from "@/core/chain/server/wallet/repository";
 import { requireCafeRole } from "@/server/auth/membership/require-cafe-role";
 import { ok } from "@/server/common/responses";
 import {
+    approveRedemptionAndEnqueueJob,
     decideRedemptionRequest,
     findRedemptionRequestById,
 } from "../../repository/redemption-requests";
 import { decidePunchRedemptionService } from "../decide-punch-redemption-service";
 
-const rejectedRequest = {
+const request = {
     id: "r",
     kind: "punch_reward",
+    consumerUserId: "consumer",
     cafeId: "c",
     productId: "p",
     voucherId: null,
-    status: "rejected",
-    rejectionReason: "Sin stock",
+    status: "pending",
+    rejectionReason: null,
+    decidedByUserId: null,
+    failureReason: null,
     createdAt: new Date(),
+    updatedAt: new Date(),
 };
+
+const deps = {
+    findCafeChainMapping: vi.fn(),
+    findProductChainMapping: vi.fn(),
+};
+
+function authorize() {
+    vi.mocked(requireCafeRole).mockResolvedValue(
+        ok({ userId: "u", cafeId: "c", role: "barista" } as never),
+    );
+}
 
 describe("decidePunchRedemptionService", () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        vi.mocked(findRedemptionRequestById).mockResolvedValue({
-            ...rejectedRequest,
-            status: "pending",
-        } as never);
-    });
-
-    it("authorizes barista and submits approval", async () => {
-        vi.mocked(requireCafeRole).mockResolvedValue(
-            ok({ userId: "u", cafeId: "c", role: "barista" } as never),
-        );
-        vi.mocked(decideRedemptionRequest).mockResolvedValue({
-            ...rejectedRequest,
-            status: "approved",
-            rejectionReason: null,
-        } as never);
-        const result = await decidePunchRedemptionService("u", "c", "r", {
-            decision: "approved",
-        });
-        expect(result.ok).toBe(true);
-    });
-
-    it.each([
-        null,
-        { ...rejectedRequest, cafeId: "other" },
-        { ...rejectedRequest, kind: "voucher" },
-    ])("denies missing, foreign, or wrong-kind requests", async (request) => {
+        authorize();
         vi.mocked(findRedemptionRequestById).mockResolvedValue(
             request as never,
         );
-        const result = await decidePunchRedemptionService("u", "c", "r", {
-            decision: "approved",
+        vi.mocked(findUserWallet).mockResolvedValue({
+            walletIndex: 1,
+            walletAddress: "0xabc",
         });
-        expect(result.ok).toBe(false);
-        expect(decideRedemptionRequest).not.toHaveBeenCalled();
-    });
-
-    it("retries approved requests through the same chain idempotency key", async () => {
-        vi.mocked(findRedemptionRequestById).mockResolvedValue({
-            ...rejectedRequest,
+        deps.findCafeChainMapping.mockResolvedValue({ chainCafeId: 3 });
+        deps.findProductChainMapping.mockResolvedValue({ chainProductId: 7 });
+        vi.mocked(approveRedemptionAndEnqueueJob).mockResolvedValue({
+            ...request,
             status: "approved",
-            rejectionReason: null,
         } as never);
-        const result = await decidePunchRedemptionService("u", "c", "r", {
-            decision: "approved",
+    });
+
+    it("approving enqueues a punch_redemption job with resolved chain payload", async () => {
+        const result = await decidePunchRedemptionService(
+            "u",
+            "c",
+            "r",
+            {
+                decision: "approved",
+            },
+            deps,
+        );
+        expect(approveRedemptionAndEnqueueJob).toHaveBeenCalledWith("r", "u", {
+            userWallet: "0xabc",
+            chainCafeId: 3,
+            chainProductId: 7,
         });
         expect(result.ok).toBe(true);
-        expect(decideRedemptionRequest).not.toHaveBeenCalled();
+        if (result.ok) expect(result.data.status).toBe("approved");
     });
 
-    it("returns conflict for an already rejected request with a different decision", async () => {
-        vi.mocked(findRedemptionRequestById).mockResolvedValue(
-            rejectedRequest as never,
-        );
-        const result = await decidePunchRedemptionService("u", "c", "r", {
-            decision: "approved",
-        });
-        expect(result.ok).toBe(false);
-        if (!result.ok) expect(result.error.code).toBe("CONFLICT");
-    });
-
-    it("makes the same rejection idempotent", async () => {
-        vi.mocked(findRedemptionRequestById).mockResolvedValue(
-            rejectedRequest as never,
-        );
-        const result = await decidePunchRedemptionService("u", "c", "r", {
-            decision: "rejected",
+    it("rejecting never enqueues and forwards the rejection reason", async () => {
+        vi.mocked(decideRedemptionRequest).mockResolvedValue({
+            ...request,
+            status: "rejected",
             rejectionReason: "Sin stock",
-        });
-        expect(result.ok).toBe(true);
-        expect(decideRedemptionRequest).not.toHaveBeenCalled();
-    });
-
-    it("rejects with actionable reason without chain", async () => {
-        vi.mocked(requireCafeRole).mockResolvedValue(ok({} as never));
-        vi.mocked(decideRedemptionRequest).mockResolvedValue(
-            rejectedRequest as never,
+        } as never);
+        const result = await decidePunchRedemptionService(
+            "u",
+            "c",
+            "r",
+            {
+                decision: "rejected",
+                rejectionReason: "Sin stock",
+            },
+            deps,
         );
-        const result = await decidePunchRedemptionService("u", "c", "r", {
-            decision: "rejected",
-            rejectionReason: "Sin stock",
-        });
         expect(result.ok).toBe(true);
         expect(decideRedemptionRequest).toHaveBeenCalledWith(
             "r",
@@ -126,5 +110,131 @@ describe("decidePunchRedemptionService", () => {
             "rejected",
             "Sin stock",
         );
+        expect(approveRedemptionAndEnqueueJob).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        null,
+        { ...request, cafeId: "other" },
+        { ...request, kind: "voucher" },
+    ])("returns not found for missing, foreign, or wrong-kind requests", async (existing) => {
+        vi.mocked(findRedemptionRequestById).mockResolvedValue(
+            existing as never,
+        );
+
+        const result = await decidePunchRedemptionService(
+            "u",
+            "c",
+            "r",
+            { decision: "approved" },
+            deps,
+        );
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.error.code).toBe("NOT_FOUND");
+        expect(decideRedemptionRequest).not.toHaveBeenCalled();
+        expect(approveRedemptionAndEnqueueJob).not.toHaveBeenCalled();
+    });
+
+    it("returns conflict for an already rejected request with a different decision", async () => {
+        vi.mocked(findRedemptionRequestById).mockResolvedValue({
+            ...request,
+            status: "rejected",
+            rejectionReason: "Sin stock",
+        } as never);
+
+        const result = await decidePunchRedemptionService(
+            "u",
+            "c",
+            "r",
+            { decision: "approved" },
+            deps,
+        );
+
+        expect(result.ok).toBe(false);
+        if (!result.ok) expect(result.error.code).toBe("CONFLICT");
+        expect(decideRedemptionRequest).not.toHaveBeenCalled();
+        expect(approveRedemptionAndEnqueueJob).not.toHaveBeenCalled();
+    });
+
+    it("makes the same rejection idempotent", async () => {
+        vi.mocked(findRedemptionRequestById).mockResolvedValue({
+            ...request,
+            status: "rejected",
+            rejectionReason: "Sin stock",
+        } as never);
+
+        const result = await decidePunchRedemptionService(
+            "u",
+            "c",
+            "r",
+            { decision: "rejected", rejectionReason: "Sin stock" },
+            deps,
+        );
+
+        expect(result.ok).toBe(true);
+        expect(decideRedemptionRequest).not.toHaveBeenCalled();
+        expect(approveRedemptionAndEnqueueJob).not.toHaveBeenCalled();
+    });
+
+    it("missing chain mapping returns 422 and does not enqueue", async () => {
+        deps.findCafeChainMapping.mockResolvedValue({ chainCafeId: null });
+        const result = await decidePunchRedemptionService(
+            "u",
+            "c",
+            "r",
+            {
+                decision: "approved",
+            },
+            deps,
+        );
+        expect(result.ok).toBe(false);
+        if (!result.ok && "targets" in result.error) {
+            expect(result.error.targets).toEqual(["chainMapping"]);
+        }
+        expect(approveRedemptionAndEnqueueJob).not.toHaveBeenCalled();
+    });
+
+    it("missing consumer wallet returns 422", async () => {
+        vi.mocked(findUserWallet).mockResolvedValue(null);
+        const result = await decidePunchRedemptionService(
+            "u",
+            "c",
+            "r",
+            {
+                decision: "approved",
+            },
+            deps,
+        );
+        expect(result.ok).toBe(false);
+        if (!result.ok && "targets" in result.error) {
+            expect(result.error.targets).toEqual(["wallet"]);
+        }
+    });
+
+    it("re-approving an approved request is idempotent", async () => {
+        vi.mocked(findRedemptionRequestById).mockResolvedValue({
+            ...request,
+            status: "approved",
+        } as never);
+        const result = await decidePunchRedemptionService(
+            "u",
+            "c",
+            "r",
+            {
+                decision: "approved",
+            },
+            deps,
+        );
+        expect(result.ok).toBe(true);
+        expect(approveRedemptionAndEnqueueJob).toHaveBeenCalled();
+    });
+
+    it("PostgresMockConsumerChain is no longer imported", async () => {
+        const src = await readFile(
+            "src/core/consumption/server/services/decide-punch-redemption-service.ts",
+            "utf8",
+        );
+        expect(src).not.toContain("PostgresMockConsumerChain");
     });
 });

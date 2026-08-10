@@ -102,16 +102,25 @@ export async function markJobSubmitted(
     id: string,
     txHash: string,
     nextRetryAt: Date,
-    sideEffect?: JobSideEffect,
+    sideEffect?: JobSideEffect | { signedTransaction: string },
 ): Promise<RelayerJobRow | null> {
     return db.transaction(async (tx) => {
         const [job] = await tx
             .update(relayerJob)
-            .set({ status: "submitted", txHash, lastError: null, nextRetryAt })
+            .set({
+                status: "submitted",
+                txHash,
+                lastError: null,
+                nextRetryAt,
+                signedTx:
+                    sideEffect && typeof sideEffect === "object"
+                        ? sideEffect.signedTransaction
+                        : undefined,
+            })
             .where(and(eq(relayerJob.id, id), eq(relayerJob.status, "pending")))
             .returning();
         if (!job) return null;
-        if (sideEffect) await sideEffect(tx, job);
+        if (typeof sideEffect === "function") await sideEffect(tx, job);
         return job;
     });
 }
@@ -132,7 +141,7 @@ export async function markJobConfirmed(
             )
             .returning();
         if (job) {
-            if (sideEffect) await sideEffect(tx, job);
+            if (typeof sideEffect === "function") await sideEffect(tx, job);
             return job;
         }
         const [current] = await tx
@@ -190,7 +199,7 @@ export async function markJobFailed(
             )
             .returning();
         if (!job) return null;
-        if (sideEffect) await sideEffect(tx, job);
+        if (typeof sideEffect === "function") await sideEffect(tx, job);
         return job;
     });
 }
@@ -209,7 +218,7 @@ export async function markJobPending(
             )
             .returning();
         if (!job) return null;
-        if (sideEffect) await sideEffect(tx, job);
+        if (typeof sideEffect === "function") await sideEffect(tx, job);
         return job;
     });
 }

@@ -3,6 +3,7 @@ import { confirmPurchaseRoute } from "./routes/confirm-purchase.route";
 import { createPurchaseProofRoute } from "./routes/create-purchase-proof.route";
 import { decidePunchRedemptionRoute } from "./routes/decide-punch-redemption.route";
 import { decideVoucherRedemptionRoute } from "./routes/decide-voucher-redemption.route";
+import { getCafePayoutsRoute } from "./routes/get-cafe-payouts.route";
 import { getPurchaseProofRoute } from "./routes/get-purchase-proof.route";
 import { getTransactionRoute } from "./routes/get-transaction.route";
 import { listCafeRedemptionInboxRoute } from "./routes/list-cafe-redemption-inbox.route";
@@ -15,6 +16,7 @@ export const consumptionRouter = new Elysia({ prefix: "/consumption" })
     .use(getPurchaseProofRoute)
     .use(confirmPurchaseRoute)
     .use(getTransactionRoute)
+    .use(getCafePayoutsRoute)
     .use(requestPunchRedemptionRoute)
     .use(decidePunchRedemptionRoute)
     .use(requestVoucherRedemptionRoute)

@@ -57,7 +57,8 @@ export const listCafeRedemptionInboxRoute = new Elysia().use(authed).get(
         },
         detail: {
             tags: ["Consumption"],
-            summary: "List a café's pending fulfillment inbox",
+            summary:
+                "List a café's recent actionable and settled fulfillment requests",
         },
     },
 );

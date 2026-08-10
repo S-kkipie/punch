@@ -22,6 +22,8 @@ const { punchMutate, voucherMutate, txState, inboxData, txError } = vi.hoisted(
             status: string;
             transactionId?: string;
             transactionStatus?: string;
+            failureReason?: string;
+            rejectionReason?: string;
         }>,
     }),
 );
@@ -181,6 +183,46 @@ describe("café redemption settlement lifecycle", () => {
                 decision: "approved",
             }),
             expect.any(Object),
+        );
+        await act(async () => root.unmount());
+    });
+
+    it("renders confirmed payout, failed reason, and approved processing state", async () => {
+        inboxData.splice(
+            0,
+            inboxData.length,
+            {
+                id: "confirmed-punch",
+                kind: "punch_reward",
+                status: "confirmed",
+            },
+            {
+                id: "failed-punch",
+                kind: "punch_reward",
+                status: "failed",
+                failureReason: "INSUFFICIENT_BALANCE",
+            },
+            {
+                id: "approved-punch",
+                kind: "punch_reward",
+                status: "approved",
+            },
+            {
+                id: "rejected-punch",
+                kind: "punch_reward",
+                status: "rejected",
+                rejectionReason: "No corresponde a esta campaña",
+            },
+        );
+        const container = document.createElement("div");
+        document.body.append(container);
+        const root = createRoot(container);
+        await act(async () => root.render(<CafeRedemptionsPage />));
+        expect(container.textContent).toContain("S/3.60");
+        expect(container.textContent).toContain("INSUFFICIENT_BALANCE");
+        expect(container.textContent).toContain("Procesando on-chain");
+        expect(container.textContent).toContain(
+            "No corresponde a esta campaña",
         );
         await act(async () => root.unmount());
     });

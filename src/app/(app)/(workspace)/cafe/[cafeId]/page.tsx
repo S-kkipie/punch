@@ -19,6 +19,9 @@ import { ProductList } from "@/core/cafe/client/ui/product-list";
 import { StatusBadge } from "@/core/cafe/client/ui/status-badge";
 import { submissionGaps } from "@/core/cafe/domain/transitions";
 import type { CafeAdmin, ProductAdmin } from "@/core/cafe/domain/types";
+import { useCafePayouts } from "@/core/consumption/client/hooks";
+import type { CafePayouts } from "@/core/consumption/server/services/get-cafe-payouts-service";
+import { CreditsBadge } from "@/core/plan/client/ui/credits-badge";
 import { Button } from "@/frontend/components/ui/button";
 import {
     Card,
@@ -27,6 +30,30 @@ import {
     CardTitle,
 } from "@/frontend/components/ui/card";
 import { Spinner } from "@/frontend/components/ui/spinner";
+
+function PayoutSummaryCard({ payouts }: { payouts?: CafePayouts }) {
+    const data = payouts;
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Pagos por canjes PUNCH</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-1 text-sm">
+                <p>
+                    Total confirmado: S/
+                    {((data?.totalCentimos ?? 0) / 100).toFixed(2)}
+                </p>
+                <p>Canjes confirmados: {data?.redemptionCount ?? 0}</p>
+                <p>
+                    Saldo del propietario:{" "}
+                    {data?.ownerMpenCentimos == null
+                        ? "—"
+                        : `S/${(data.ownerMpenCentimos / 100).toFixed(2)}`}
+                </p>
+            </CardContent>
+        </Card>
+    );
+}
 
 function responseTargets(error: unknown): string[] {
     const value = error as {
@@ -40,6 +67,7 @@ export default function CafePanelPage() {
     const { cafeId } = useParams<{ cafeId: string }>();
     const cafeQuery = useCafe(cafeId);
     const productsQuery = useCafeProducts(cafeId);
+    const payoutsQuery = useCafePayouts(cafeId);
     const updateCafe = useUpdateCafe(cafeId);
     const createProduct = useCreateProduct(cafeId);
     const submitCafe = useSubmitCafe(cafeId);
@@ -120,6 +148,13 @@ export default function CafePanelPage() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                     <StatusBadge status={cafe.onboardingStatus} />
+                    <CreditsBadge cafeId={cafeId} />
+                    <Link
+                        href={`/cafe/${cafeId}/plan`}
+                        className="text-sm underline"
+                    >
+                        Plan y créditos
+                    </Link>
                     {cafe.onboardingStatus === "approved" && (
                         <>
                             <Button
@@ -149,6 +184,9 @@ export default function CafePanelPage() {
                     Motivo del rechazo: {cafe.reviewNote}
                 </p>
             )}
+            <PayoutSummaryCard
+                payouts={payoutsQuery.data as CafePayouts | undefined}
+            />
             <Card>
                 <CardHeader>
                     <CardTitle>Perfil del café</CardTitle>

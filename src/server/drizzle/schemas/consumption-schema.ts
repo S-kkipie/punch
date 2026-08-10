@@ -158,6 +158,8 @@ export const redemptionRequestStatus = pgEnum("redemption_request_status", [
     "pending",
     "approved",
     "rejected",
+    "confirmed",
+    "failed",
 ]);
 
 export const redemptionRequest = pgTable(
@@ -177,6 +179,7 @@ export const redemptionRequest = pgTable(
         voucherId: text("voucher_id").references(() => consumerVoucher.id),
         status: redemptionRequestStatus("status").default("pending").notNull(),
         rejectionReason: text("rejection_reason"),
+        failureReason: text("failure_reason"),
         decidedByUserId: text("decided_by_user_id").references(() => user.id),
         createdAt: timestamp("created_at").defaultNow().notNull(),
         updatedAt: timestamp("updated_at")
@@ -191,6 +194,11 @@ export const redemptionRequest = pgTable(
             .on(table.voucherId)
             .where(
                 sql`${table.kind} = 'voucher' AND ${table.status} IN ('pending', 'approved') AND ${table.voucherId} IS NOT NULL`,
+            ),
+        uniqueIndex("redemption_request_active_punch_uq")
+            .on(table.consumerUserId)
+            .where(
+                sql`${table.kind} = 'punch_reward' AND ${table.status} IN ('pending', 'approved')`,
             ),
         check(
             "redemption_request_kind_shape",

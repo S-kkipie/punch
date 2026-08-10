@@ -3,6 +3,10 @@ import { abis } from "@/core/chain/abis";
 
 export type RevertCode =
     | "nonce_used"
+    | "insufficient_punch"
+    | "host_not_operational"
+    | "reward_not_eligible"
+    | "not_redeemer"
     | "receipt_used"
     | "daily_limit"
     | "no_credits"
@@ -32,17 +36,23 @@ export type ParsedRevert = { code: RevertCode; message: string };
 
 const errorAbis = [
     ...abis.consumptionLog,
+    ...abis.punchVault,
     ...abis.planManager,
     ...abis.campaignEscrow,
 ] as Abi;
 const errorNames: Record<string, RevertCode> = {
     NonceUsed: "nonce_used",
+    InsufficientPunch: "insufficient_punch",
+    HostNotOperational: "host_not_operational",
+    RewardNotEligible: "reward_not_eligible",
+    NotRedeemer: "not_redeemer",
     ReceiptUsed: "receipt_used",
     DailyLimitReached: "daily_limit",
     NoCredits: "no_credits",
     ProofExpired: "expired",
     TicketTooSmall: "ticket_too_small",
     ProductNotEligible: "product_not_eligible",
+    ProductNotEligibleReward: "reward_not_eligible",
     InvalidCafeSignature: "invalid_signature",
     InvalidUserSignature: "invalid_signature",
     NotDraft: "not_draft",
@@ -78,6 +88,22 @@ function findData(error: unknown): Hex | undefined {
 }
 
 export function parseRevert(error: unknown): ParsedRevert {
+    const directName =
+        error && typeof error === "object"
+            ? (error as Record<string, unknown>).errorName
+            : undefined;
+    const directMessage = error instanceof Error ? error.message : "";
+    const namedFromMessage = Object.keys(errorNames).find((name) =>
+        directMessage.includes(name),
+    );
+    if (namedFromMessage) {
+        const code = errorNames[namedFromMessage];
+        return { code, message: code };
+    }
+    if (typeof directName === "string" && errorNames[directName]) {
+        const code = errorNames[directName];
+        return { code, message: code };
+    }
     const data = findData(error);
     if (data) {
         try {

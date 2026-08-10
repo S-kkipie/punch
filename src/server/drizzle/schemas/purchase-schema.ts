@@ -75,7 +75,9 @@ export const relayerJobStatus = pgEnum("relayer_job_status", [
 ]);
 
 export const relayerJobKind = pgEnum("relayer_job_kind", [
+    "consumption",
     "consumption_record",
+    "punch_redemption",
     "campaign_create",
     "campaign_fund_approve",
     "campaign_fund",
@@ -93,8 +95,12 @@ export const relayerJob = pgTable(
         orderId: text("order_id").references(() => purchaseOrder.id, {
             onDelete: "restrict",
         }),
-        kind: relayerJobKind("kind").default("consumption_record").notNull(),
-        idempotencyKey: text("idempotency_key").notNull().unique(),
+        kind: relayerJobKind("kind").default("consumption").notNull(),
+        idempotencyKey: text("idempotency_key")
+            .notNull()
+            .$defaultFn(() => crypto.randomUUID())
+            .unique(),
+        redemptionRequestId: text("redemption_request_id").unique(),
         // { proof: {...stringified bigints}, cafeSignature, userSignature }
         payload: jsonb("payload").notNull(),
         attempts: integer("attempts").default(0).notNull(),
@@ -114,7 +120,11 @@ export const relayerJob = pgTable(
         // Preserves the old UNIQUE(order_id) guarantee for purchase jobs only.
         uniqueIndex("relayer_job_consumption_order_uq")
             .on(t.orderId)
-            .where(sql`${t.kind} = 'consumption_record'`),
+            .where(sql`${t.kind} in ('consumption', 'consumption_record')`),
+        check(
+            "relayer_job_target_check",
+            sql`((${t.kind} in ('consumption', 'consumption_record') AND ${t.orderId} IS NOT NULL AND ${t.redemptionRequestId} IS NULL) OR (${t.kind} = 'punch_redemption' AND ${t.redemptionRequestId} IS NOT NULL AND ${t.orderId} IS NULL) OR (${t.kind} in ('campaign_create', 'campaign_fund_approve', 'campaign_fund', 'campaign_publish', 'voucher_unlock', 'voucher_redeem') AND ${t.orderId} IS NULL AND ${t.redemptionRequestId} IS NULL))`,
+        ),
     ],
 );
 

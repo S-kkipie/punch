@@ -122,7 +122,13 @@ function liveChain(): BootstrapChain {
                 !live.active ||
                 !live.planActive ||
                 live.credits !== 100n ||
-                live.eligibleProductIds.length !== eligibleProductIds.length
+                (
+                    live.eligibleProductIds ??
+                    live.eligibleProducts?.map(
+                        (product) => product.productId,
+                    ) ??
+                    []
+                ).length !== eligibleProductIds.length
             ) {
                 throw new Error(
                     `bootstrap café ${chainCafeId}: live verification failed`,

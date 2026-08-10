@@ -27,6 +27,8 @@ const ALLOWED_FULFILLMENT: Record<
     pending: ["approved", "rejected"],
     approved: [],
     rejected: [],
+    confirmed: [],
+    failed: [],
 };
 
 export function canTransitionFulfillment(

@@ -13,14 +13,12 @@ const {
     voucherMutate,
     useSearchParams,
     voucherStatus,
-    chainMode,
     dashboardBalance,
 } = vi.hoisted(() => ({
     punchMutate: vi.fn(),
     voucherMutate: vi.fn(),
     useSearchParams: vi.fn(),
     voucherStatus: { value: "redeemed" as string },
-    chainMode: { value: "mock" as "mock" | "local" },
     dashboardBalance: { value: 12 as number | null },
 }));
 vi.mock("next/navigation", () => ({
@@ -39,7 +37,6 @@ vi.mock("@/core/punch/client/hooks", () => ({
         data: {
             balance: dashboardBalance.value,
             stale: dashboardBalance.value === null,
-            chainMode: chainMode.value,
         },
     }),
     useVouchers: () => ({
@@ -96,9 +93,20 @@ describe("RedeemPage voucher safety", () => {
     afterEach(() => {
         document.body.innerHTML = "";
         voucherStatus.value = "redeemed";
-        chainMode.value = "mock";
         dashboardBalance.value = 12;
         vi.clearAllMocks();
+    });
+
+    it("renders a readable invalid-link state without cafeId", async () => {
+        useSearchParams.mockReturnValue(new URLSearchParams());
+        const container = document.createElement("div");
+        document.body.append(container);
+        const root = createRoot(container);
+        await act(async () => root.render(<RedeemPage />));
+        expect(container.textContent).toContain("enlace de canje no es válido");
+        expect(container.textContent).toContain("falta la cafetería");
+        expect(punchMutate).not.toHaveBeenCalled();
+        await act(async () => root.unmount());
     });
 
     it("retains the last known balance when a refresh becomes unknown", async () => {
@@ -126,8 +134,7 @@ describe("RedeemPage voucher safety", () => {
         await act(async () => root.unmount());
     });
 
-    it("disables PUNCH redemption in local chain mode with an explanation", async () => {
-        chainMode.value = "local";
+    it("enables eligible PUNCH redemption", async () => {
         useSearchParams.mockReturnValue(new URLSearchParams("cafeId=cafe-1"));
         const container = document.createElement("div");
         document.body.append(container);
@@ -135,8 +142,8 @@ describe("RedeemPage voucher safety", () => {
         await act(async () => root.render(<RedeemPage />));
         expect(
             (container.querySelector("button") as HTMLButtonElement).disabled,
-        ).toBe(true);
-        expect(container.textContent).toMatch(
+        ).toBe(false);
+        expect(container.textContent).not.toMatch(
             /redención on-chain aún no disponible/i,
         );
         await act(async () => root.unmount());

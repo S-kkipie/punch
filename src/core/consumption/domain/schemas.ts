@@ -26,6 +26,8 @@ export const fulfillmentRequestStatusSchema = z.enum([
     "pending",
     "approved",
     "rejected",
+    "confirmed",
+    "failed",
 ]);
 
 export const redemptionRequestKindSchema = z.enum(["punch_reward", "voucher"]);
@@ -89,6 +91,7 @@ export const redemptionRequestSchema = z.object({
     voucherId: z.string().nullable(),
     status: fulfillmentRequestStatusSchema,
     rejectionReason: z.string().nullable(),
+    failureReason: z.string().nullable().optional(),
     createdAt: z.string(),
     transactionId: z.string().nullable().optional(),
     transactionStatus: consumerTransactionStatusSchema.nullable().optional(),

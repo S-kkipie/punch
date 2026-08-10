@@ -3,6 +3,11 @@ import "server-only";
 import type { Address, Hex } from "viem";
 import { demoCampaignValues } from "@/core/punch/domain/demo-state";
 
+export type EligibleProduct = {
+    productId: bigint;
+    kind: number;
+};
+
 export type BootstrapProduct = {
     id: string;
     chainProductId: number | null;
@@ -35,7 +40,8 @@ export type LiveCafe = {
     chainCafeId: bigint;
     ownerAddress: `0x${string}`;
     active: boolean;
-    eligibleProductIds: bigint[];
+    eligibleProductIds?: bigint[];
+    eligibleProducts?: EligibleProduct[];
     planActive: boolean;
     credits: bigint;
 };
@@ -130,15 +136,21 @@ export type DemoCampaignChain = {
 
 export type BootstrapChain = {
     ownerAddressForIndex(index: number): `0x${string}`;
+    ensureEligibleProducts?: (input: {
+        ownerWalletIndex: number;
+        eligibleProducts: EligibleProduct[];
+    }) => Promise<void>;
     countCafes(): Promise<bigint>;
     inspectCafe(chainCafeId: bigint): Promise<LiveCafe | null>;
     seedCafe(input: {
         ownerWalletIndex: number;
-        eligibleProductIds: bigint[];
+        eligibleProductIds?: bigint[];
+        eligibleProducts?: EligibleProduct[];
     }): Promise<{
         chainCafeId: bigint;
         ownerAddress: `0x${string}`;
-        eligibleProductIds: bigint[];
+        eligibleProductIds?: bigint[];
+        eligibleProducts?: EligibleProduct[];
     }>;
     verifyCafe(input: {
         chainCafeId: bigint;
@@ -404,9 +416,11 @@ export async function bootstrapApprovedSeedCafes(input: {
                 ownerAddress,
                 eligibleProductIds,
             });
-            const recoveredProductIds = live.eligibleProductIds.map((id) =>
-                Number(id),
-            );
+            const recoveredProductIds = (
+                live.eligibleProductIds ??
+                live.eligibleProducts?.map((product) => product.productId) ??
+                []
+            ).map((id) => Number(id));
             const needsBackfill = products.some(
                 (product, index) =>
                     product.chainProductId !== recoveredProductIds[index],
@@ -451,7 +465,10 @@ export async function bootstrapApprovedSeedCafes(input: {
                 eligibleProductIds,
             });
             chainCafeId = seeded.chainCafeId;
-            chainProductIds = seeded.eligibleProductIds;
+            chainProductIds =
+                seeded.eligibleProductIds ??
+                seeded.eligibleProducts?.map((product) => product.productId) ??
+                [];
             await input.chain.verifyCafe({
                 chainCafeId,
                 ownerAddress,

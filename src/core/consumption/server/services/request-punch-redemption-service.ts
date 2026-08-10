@@ -5,7 +5,7 @@ import type {
     RequestPunchRedemption,
 } from "@/core/consumption/domain/types";
 import { canRedeem } from "@/core/punch/domain/progress";
-import { getBalance } from "@/core/punch/server/repository/balance";
+import { getConsumerBalance } from "@/core/purchase/server/services/get-balance-service";
 import {
     AppErrors,
     type AsyncAppResult,
@@ -35,8 +35,18 @@ export async function requestPunchRedemptionService(
     ) {
         return err(AppErrors.unprocessableEntity({ targets: ["productId"] }));
     }
-    const balance = await getBalance(consumerUserId);
-    if (!canRedeem(balance)) {
+    const balanceResult = await getConsumerBalance(consumerUserId);
+    if (!balanceResult.ok) return err(balanceResult.error);
+    if (balanceResult.data.stale) {
+        return err(
+            AppErrors.unprocessableEntity({
+                targets: ["balance"],
+                cause: "El saldo se está actualizando desde la cadena.",
+            }),
+        );
+    }
+    const balance = balanceResult.data.punchBalance;
+    if (balance === null || !canRedeem(balance)) {
         return err(
             AppErrors.unprocessableEntity({
                 targets: ["balance"],
@@ -44,15 +54,41 @@ export async function requestPunchRedemptionService(
             }),
         );
     }
-    const row = await createRedemptionRequest({
-        kind: "punch_reward",
-        consumerUserId,
-        cafeId,
-        productId: input.productId,
-        voucherId: null,
-        status: "pending",
-        rejectionReason: null,
-        decidedByUserId: null,
-    });
-    return ok(toRedemptionRequest(row));
+    try {
+        const row = await createRedemptionRequest({
+            kind: "punch_reward",
+            consumerUserId,
+            cafeId,
+            productId: input.productId,
+            voucherId: null,
+            status: "pending",
+            rejectionReason: null,
+            decidedByUserId: null,
+        });
+        return ok(toRedemptionRequest(row));
+    } catch (cause) {
+        const postgresError =
+            cause && typeof cause === "object" && "cause" in cause
+                ? (cause as { cause?: unknown }).cause
+                : cause;
+        const code =
+            postgresError &&
+            typeof postgresError === "object" &&
+            "code" in postgresError
+                ? (postgresError as { code?: unknown }).code
+                : undefined;
+        const constraint =
+            postgresError &&
+            typeof postgresError === "object" &&
+            "constraint" in postgresError
+                ? (postgresError as { constraint?: unknown }).constraint
+                : undefined;
+        if (
+            code === "23505" &&
+            constraint === "redemption_request_active_punch_uq"
+        ) {
+            return err(AppErrors.conflict({ targets: ["request"] }));
+        }
+        return err(AppErrors.unexpected(cause));
+    }
 }

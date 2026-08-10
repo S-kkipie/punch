@@ -306,6 +306,18 @@ export const useDecideVoucherRedemption = (cafeId: string) => {
         }),
     );
 };
+export const useCafePayouts = (cafeId: string) => {
+    const client = useElysia().consumption;
+    return useQuery({
+        ...(client({ cafeId }).payouts.get.queryOptions() as unknown as Record<
+            string,
+            unknown
+        >),
+        queryKey: ["consumption", "cafe-payouts", cafeId],
+        select: unwrap,
+    });
+};
+
 export const useCafeRedemptionInbox = (cafeId: string) => {
     const client = useElysia().consumption;
     return useQuery({

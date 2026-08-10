@@ -20,6 +20,7 @@ type Request = {
     kind: "punch_reward" | "voucher";
     status: string;
     rejectionReason?: string | null;
+    failureReason?: string | null;
     transactionId?: string | null;
     transactionStatus?: ConsumerTransactionStatus | null;
 };
@@ -189,7 +190,37 @@ export default function CafeRedemptionsPage() {
                                         ? "Canje de PUNCH"
                                         : "Uso de voucher"}
                                 </p>
-                                {!decision && (
+                                {request.status === "confirmed" && (
+                                    <p className="text-sm" role="status">
+                                        Confirmado: S/3.60
+                                    </p>
+                                )}
+                                {request.status === "failed" && (
+                                    <p
+                                        className="text-destructive text-sm"
+                                        role="alert"
+                                    >
+                                        Falló:{" "}
+                                        {request.failureReason ??
+                                            "No se pudo completar el canje."}
+                                    </p>
+                                )}
+                                {request.status === "rejected" && (
+                                    <p
+                                        className="text-muted-foreground text-sm"
+                                        role="status"
+                                    >
+                                        Rechazado:{" "}
+                                        {request.rejectionReason ??
+                                            "Sin motivo indicado."}
+                                    </p>
+                                )}
+                                {request.status === "approved" && !decision && (
+                                    <p className="text-sm" role="status">
+                                        Procesando on-chain
+                                    </p>
+                                )}
+                                {!decision && request.status === "pending" && (
                                     <>
                                         <Input
                                             aria-label="Motivo del rechazo"

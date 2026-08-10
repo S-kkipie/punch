@@ -1,1 +1,0 @@
-ALTER TABLE "relayer_job" ADD COLUMN "signed_tx" text;

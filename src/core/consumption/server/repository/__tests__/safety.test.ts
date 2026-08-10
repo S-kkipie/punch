@@ -24,6 +24,7 @@ import { findProofByNonceOrReceipt } from "../proofs";
 import {
     createRedemptionRequest,
     decideRedemptionRequest,
+    listFulfillmentRequestsForCafe,
     type RedemptionRequestRepositoryError,
 } from "../redemption-requests";
 import {
@@ -178,6 +179,40 @@ describe("redemption request safety", () => {
         expect(insert).toHaveBeenCalledOnce();
         expect(values).toHaveBeenCalledOnce();
         expect(globalDb.insert).not.toHaveBeenCalled();
+    });
+
+    it("limits the café inbox to recent actionable and settled statuses", async () => {
+        let predicate: unknown;
+        let limitValue: number | undefined;
+        const client = {
+            select: () => ({
+                from: () => ({
+                    leftJoin: () => ({
+                        where: (value: unknown) => {
+                            predicate = value;
+                            return {
+                                orderBy: () => ({
+                                    limit: (value: number) => {
+                                        limitValue = value;
+                                        return Promise.resolve([]);
+                                    },
+                                }),
+                            };
+                        },
+                    }),
+                }),
+            }),
+        } as never;
+
+        await listFulfillmentRequestsForCafe("cafe-1", client);
+
+        const text = predicateText(predicate);
+        expect(text).toContain("pending");
+        expect(text).toContain("approved");
+        expect(text).toContain("confirmed");
+        expect(text).toContain("failed");
+        expect(text).not.toContain("rejected");
+        expect(limitValue).toBe(100);
     });
 
     it("throws REQUEST_NOT_FOUND through the injected client when the request is absent", async () => {

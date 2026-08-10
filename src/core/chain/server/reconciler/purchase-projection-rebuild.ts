@@ -5,6 +5,8 @@ import type { DbClient, db } from "@/server/drizzle/db";
 import {
     indexerCursor,
     projectionCafeCredit,
+    projectionCafePayout,
+    projectionChainEvent,
     projectionConsumption,
     projectionPunchBalance,
 } from "@/server/drizzle/schemas/chain-schema";
@@ -127,6 +129,23 @@ export async function clearChainDerivedPurchaseProjections(
                     ),
                 ),
             );
+        await tx
+            .delete(consumerTransaction)
+            .where(
+                and(
+                    eq(consumerTransaction.operation, "punch_redemption"),
+                    like(
+                        consumerTransaction.idempotencyKey,
+                        "chain_redemption:%",
+                    ),
+                ),
+            );
+        // Confirmed voucher/mock redemptions are domain state, not chain
+        // projections. Keep all confirmed history terminal; replay rebuilds
+        // ledger and balance without manufacturing active requests.
+
+        await tx.delete(projectionCafePayout).where(sql`true`);
+        await tx.delete(projectionChainEvent).where(sql`true`);
         await tx
             .update(consumptionProof)
             .set({ status: "submitted" })

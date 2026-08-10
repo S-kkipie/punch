@@ -1,12 +1,18 @@
 import { eq, inArray } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import { applyConfirmedConsumptionProjection } from "@/core/chain/server/indexer/purchase-projection";
+import { applyRewardRedeemedProjection } from "@/core/chain/server/indexer/redemption-projection";
 import { db } from "@/server/drizzle/db";
 import { user } from "@/server/drizzle/schemas/auth-schema";
 import { cafe, cafeProduct } from "@/server/drizzle/schemas/cafe-schema";
 import {
+    projectionCafePayout,
+    projectionPunchBalance,
+} from "@/server/drizzle/schemas/chain-schema";
+import {
     consumerTransaction,
     consumptionProof,
+    redemptionRequest,
 } from "@/server/drizzle/schemas/consumption-schema";
 import {
     campaign,
@@ -17,7 +23,10 @@ import {
     consumerVoucher,
     punchBalanceProjection,
 } from "@/server/drizzle/schemas/punch-schema";
-import { purchaseOrder } from "@/server/drizzle/schemas/purchase-schema";
+import {
+    purchaseOrder,
+    relayerJob,
+} from "@/server/drizzle/schemas/purchase-schema";
 import { installIntegrationDbMutex } from "@/test/integration-db-mutex";
 import { clearChainDerivedPurchaseProjections } from "../purchase-projection-rebuild";
 
@@ -150,6 +159,110 @@ async function seedMinimalCase(options?: {
             .where(eq(consumerVoucher.campaignId, ids.campaignId));
     }
     return { ...ids, txHash };
+}
+
+async function seedRedemptionCase(
+    status: "confirmed" | "failed" = "confirmed",
+) {
+    const suffix = crypto.randomUUID();
+    const ids = {
+        userId: `rebuild-redemption-user-${suffix}`,
+        cafeId: `rebuild-redemption-cafe-${suffix}`,
+        productId: `rebuild-redemption-product-${suffix}`,
+        requestId: `rebuild-redemption-request-${suffix}`,
+    };
+    const walletAddress = `0x${suffix.replaceAll("-", "").padStart(40, "0")}`;
+    const txHash = `0x${suffix.replaceAll("-", "").padStart(64, "0")}`;
+    fixtures.push(ids.userId);
+
+    await db.insert(user).values({
+        id: ids.userId,
+        name: "Redemption Rebuild User",
+        email: `${suffix}@redemption-rebuild.invalid`,
+        walletAddress,
+    });
+    await db.insert(cafe).values({
+        id: ids.cafeId,
+        name: "Redemption Rebuild Cafe",
+        slug: `redemption-${suffix}`,
+        chainCafeId: 992000 + Math.floor(Math.random() * 9000),
+        onboardingStatus: "approved",
+    });
+    await db.insert(cafeProduct).values({
+        id: ids.productId,
+        cafeId: ids.cafeId,
+        name: "Redemption Coffee",
+        priceSoles: "12.00",
+        type: "reward",
+        approvalStatus: "approved",
+        active: true,
+        chainProductId: 992002,
+    });
+    await db.insert(redemptionRequest).values({
+        id: ids.requestId,
+        kind: "punch_reward",
+        consumerUserId: ids.userId,
+        cafeId: ids.cafeId,
+        productId: ids.productId,
+        status,
+        failureReason: status === "failed" ? "permanent revert" : null,
+    });
+    await db.insert(relayerJob).values({
+        id: `rebuild-redemption-job-${suffix}`,
+        kind: "punch_redemption",
+        redemptionRequestId: ids.requestId,
+        payload: {
+            userWallet: walletAddress,
+            chainCafeId:
+                (
+                    await db
+                        .select({ chainCafeId: cafe.chainCafeId })
+                        .from(cafe)
+                        .where(eq(cafe.id, ids.cafeId))
+                )[0]?.chainCafeId ?? 0,
+            chainProductId: 992002,
+        },
+        status: status === "confirmed" ? "confirmed" : "failed",
+        txHash,
+    });
+    await db.insert(projectionPunchBalance).values({
+        userAddress: walletAddress,
+        balance: 12n,
+        lastBlock: 20n,
+    });
+    if (status === "confirmed") {
+        await db.insert(consumerTransaction).values({
+            id: `chain_redemption:${ids.requestId}`,
+            operation: "punch_redemption",
+            consumerUserId: ids.userId,
+            cafeId: ids.cafeId,
+            redemptionRequestId: ids.requestId,
+            chainTxId: txHash,
+            status: "confirmed",
+            idempotencyKey: `chain_redemption:${ids.requestId}`,
+            transactionHash: txHash,
+            chainBlockNumber: 20n,
+            logIndex: 0,
+            modeledHostPayoutCentimos: 360,
+        });
+        await db.insert(projectionCafePayout).values({
+            cafeId: ids.cafeId,
+            totalCentimos: 360,
+            redemptionCount: 1,
+        });
+    }
+    return {
+        ...ids,
+        chainCafeId:
+            (
+                await db
+                    .select({ chainCafeId: cafe.chainCafeId })
+                    .from(cafe)
+                    .where(eq(cafe.id, ids.cafeId))
+            )[0]?.chainCafeId ?? 0,
+        walletAddress,
+        txHash,
+    };
 }
 
 describeIntegration("clearChainDerivedPurchaseProjections", () => {
@@ -550,6 +663,263 @@ describeIntegration("clearChainDerivedPurchaseProjections", () => {
         expect(vouchers).toHaveLength(1);
         expect(vouchers[0]?.status).toBe("available");
     });
+
+    it("leaves confirmed voucher requests and ledgers unchanged", async () => {
+        const ids = await seedMinimalCase();
+        const [voucher] = await db
+            .select()
+            .from(consumerVoucher)
+            .where(eq(consumerVoucher.campaignId, ids.campaignId));
+        if (!voucher) throw new Error("expected seeded campaign voucher");
+        await db
+            .update(consumerVoucher)
+            .set({ status: "redeemed", redeemedAt: new Date() })
+            .where(eq(consumerVoucher.id, voucher.id));
+        const requestId = `rebuild-voucher-request-${crypto.randomUUID()}`;
+        const transactionId = `rebuild-voucher-transaction-${crypto.randomUUID()}`;
+        await db.insert(redemptionRequest).values({
+            id: requestId,
+            kind: "voucher",
+            consumerUserId: ids.userId,
+            cafeId: ids.cafeId,
+            voucherId: voucher.id,
+            status: "confirmed",
+        });
+        await db.insert(consumerTransaction).values({
+            id: transactionId,
+            operation: "voucher_redemption",
+            consumerUserId: ids.userId,
+            cafeId: ids.cafeId,
+            redemptionRequestId: requestId,
+            chainTxId: `mock:voucher:${requestId}`,
+            status: "confirmed",
+            idempotencyKey: `voucher_redemption:${requestId}`,
+        });
+
+        await clearChainDerivedPurchaseProjections(db);
+
+        expect(
+            (
+                await db
+                    .select()
+                    .from(redemptionRequest)
+                    .where(eq(redemptionRequest.id, requestId))
+            )[0]?.status,
+        ).toBe("confirmed");
+        expect(
+            await db
+                .select()
+                .from(consumerTransaction)
+                .where(eq(consumerTransaction.id, transactionId)),
+        ).toHaveLength(1);
+    });
+
+    it("clear preserves confirmed redemption state while clearing chain projections", async () => {
+        const ids = await seedRedemptionCase();
+
+        await clearChainDerivedPurchaseProjections(db);
+
+        expect(
+            (
+                await db
+                    .select()
+                    .from(redemptionRequest)
+                    .where(eq(redemptionRequest.id, ids.requestId))
+            )[0]?.status,
+        ).toBe("confirmed");
+        expect(
+            await db
+                .select()
+                .from(consumerTransaction)
+                .where(
+                    eq(
+                        consumerTransaction.idempotencyKey,
+                        `chain_redemption:${ids.requestId}`,
+                    ),
+                ),
+        ).toEqual([]);
+        expect(
+            await db
+                .select()
+                .from(projectionCafePayout)
+                .where(eq(projectionCafePayout.cafeId, ids.cafeId)),
+        ).toEqual([]);
+        expect(
+            await db
+                .select()
+                .from(projectionPunchBalance)
+                .where(
+                    eq(projectionPunchBalance.userAddress, ids.walletAddress),
+                ),
+        ).toEqual([]);
+
+        await db.transaction(async (tx) => {
+            await applyRewardRedeemedProjection(tx, {
+                userAddress: ids.walletAddress,
+                chainCafeId: ids.chainCafeId,
+                txHash: ids.txHash,
+                logIndex: 0,
+                blockNumber: 20n,
+            });
+        });
+
+        expect(
+            (
+                await db
+                    .select()
+                    .from(redemptionRequest)
+                    .where(eq(redemptionRequest.id, ids.requestId))
+            )[0]?.status,
+        ).toBe("confirmed");
+        expect(
+            await db
+                .select()
+                .from(consumerTransaction)
+                .where(
+                    eq(
+                        consumerTransaction.idempotencyKey,
+                        `chain_redemption:${ids.requestId}`,
+                    ),
+                ),
+        ).toHaveLength(1);
+        expect(
+            await db
+                .select()
+                .from(projectionCafePayout)
+                .where(eq(projectionCafePayout.cafeId, ids.cafeId)),
+        ).toMatchObject([{ totalCentimos: 360, redemptionCount: 1 }]);
+    });
+
+    it("replays multiple historical confirmed PUNCH requests without reopening them", async () => {
+        const first = await seedRedemptionCase();
+        const suffix = crypto.randomUUID();
+        const secondProductId = `rebuild-redemption-product-2-${suffix}`;
+        const secondRequestId = `rebuild-redemption-request-2-${suffix}`;
+        const secondTxHash = `0x${suffix.replaceAll("-", "").padStart(64, "0")}`;
+        await db.insert(cafeProduct).values({
+            id: secondProductId,
+            cafeId: first.cafeId,
+            name: "Second Redemption Coffee",
+            priceSoles: "12.00",
+            type: "reward",
+            approvalStatus: "approved",
+            active: true,
+            chainProductId: 992003,
+        });
+        await db.insert(redemptionRequest).values({
+            id: secondRequestId,
+            kind: "punch_reward",
+            consumerUserId: first.userId,
+            cafeId: first.cafeId,
+            productId: secondProductId,
+            status: "confirmed",
+        });
+        await db.insert(relayerJob).values({
+            id: `rebuild-redemption-job-2-${suffix}`,
+            kind: "punch_redemption",
+            redemptionRequestId: secondRequestId,
+            payload: {
+                userWallet: first.walletAddress,
+                chainCafeId: first.chainCafeId,
+                chainProductId: 992003,
+            },
+            status: "confirmed",
+            txHash: secondTxHash,
+        });
+        await db.insert(consumerTransaction).values({
+            id: `chain_redemption:${secondRequestId}`,
+            operation: "punch_redemption",
+            consumerUserId: first.userId,
+            cafeId: first.cafeId,
+            redemptionRequestId: secondRequestId,
+            chainTxId: secondTxHash,
+            status: "confirmed",
+            idempotencyKey: `chain_redemption:${secondRequestId}`,
+            transactionHash: secondTxHash,
+            chainBlockNumber: 21n,
+            logIndex: 0,
+            modeledHostPayoutCentimos: 360,
+        });
+        await db
+            .update(projectionCafePayout)
+            .set({ totalCentimos: 720, redemptionCount: 2 })
+            .where(eq(projectionCafePayout.cafeId, first.cafeId));
+
+        await clearChainDerivedPurchaseProjections(db);
+        const afterClear = await db
+            .select({
+                id: redemptionRequest.id,
+                status: redemptionRequest.status,
+            })
+            .from(redemptionRequest)
+            .where(
+                inArray(redemptionRequest.id, [
+                    first.requestId,
+                    secondRequestId,
+                ]),
+            );
+        expect(afterClear).toEqual(
+            expect.arrayContaining([
+                { id: first.requestId, status: "confirmed" },
+                { id: secondRequestId, status: "confirmed" },
+            ]),
+        );
+
+        await db.transaction(async (tx) => {
+            await applyRewardRedeemedProjection(tx, {
+                userAddress: first.walletAddress,
+                chainCafeId: first.chainCafeId,
+                chainProductId: 992002,
+                txHash: first.txHash,
+                logIndex: 0,
+                blockNumber: 20n,
+            });
+            await applyRewardRedeemedProjection(tx, {
+                userAddress: first.walletAddress,
+                chainCafeId: first.chainCafeId,
+                chainProductId: 992003,
+                txHash: secondTxHash,
+                logIndex: 0,
+                blockNumber: 21n,
+            });
+        });
+
+        expect(
+            await db
+                .select()
+                .from(consumerTransaction)
+                .where(
+                    inArray(consumerTransaction.redemptionRequestId, [
+                        first.requestId,
+                        secondRequestId,
+                    ]),
+                ),
+        ).toHaveLength(2);
+        expect(
+            await db
+                .select()
+                .from(projectionCafePayout)
+                .where(eq(projectionCafePayout.cafeId, first.cafeId)),
+        ).toMatchObject([{ totalCentimos: 720, redemptionCount: 2 }]);
+    });
+
+    it("failed redemption requests survive the clear untouched", async () => {
+        const ids = await seedRedemptionCase("failed");
+
+        await clearChainDerivedPurchaseProjections(db);
+
+        expect(
+            (
+                await db
+                    .select()
+                    .from(redemptionRequest)
+                    .where(eq(redemptionRequest.id, ids.requestId))
+            )[0],
+        ).toMatchObject({
+            status: "failed",
+            failureReason: "permanent revert",
+        });
+    });
 });
 
 afterEach(async () => {
@@ -563,6 +933,31 @@ afterEach(async () => {
             await db
                 .delete(consumerTransaction)
                 .where(inArray(consumerTransaction.purchaseOrderId, orderIds));
+        await db
+            .delete(consumerTransaction)
+            .where(eq(consumerTransaction.consumerUserId, userId));
+        await db.delete(relayerJob).where(
+            inArray(
+                relayerJob.redemptionRequestId,
+                (
+                    await db
+                        .select({ id: redemptionRequest.id })
+                        .from(redemptionRequest)
+                        .where(eq(redemptionRequest.consumerUserId, userId))
+                ).map((request) => request.id),
+            ),
+        );
+        await db
+            .delete(redemptionRequest)
+            .where(eq(redemptionRequest.consumerUserId, userId));
+        await db
+            .delete(projectionCafePayout)
+            .where(
+                eq(
+                    projectionCafePayout.cafeId,
+                    `rebuild-redemption-cafe-${userId.slice("rebuild-redemption-user-".length)}`,
+                ),
+            );
         if (orderIds.length)
             await db
                 .delete(chainPurchaseEffect)

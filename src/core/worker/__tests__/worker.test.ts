@@ -93,6 +93,31 @@ describe("worker entrypoint", () => {
         await worker.shutdown();
     });
 
+    it("runs the plan runner on its interval", async () => {
+        const runPlanRunnerOnce = vi.fn().mockResolvedValue(undefined);
+        const worker = await startWorker(
+            workerDeps({
+                runPlanRunnerOnce,
+            }),
+        );
+
+        await vi.advanceTimersByTimeAsync(2_000);
+        expect(runPlanRunnerOnce).toHaveBeenCalled();
+        await worker.shutdown();
+    });
+
+    it("recovers stuck plan orders at startup", async () => {
+        const recoverStuckPlanOrders = vi.fn().mockResolvedValue(undefined);
+        const worker = await startWorker(
+            workerDeps({
+                recoverStuckPlanOrders,
+            }),
+        );
+
+        expect(recoverStuckPlanOrders).toHaveBeenCalled();
+        await worker.shutdown();
+    });
+
     it("recovers before scheduling independent loops at their exact intervals", async () => {
         const calls: string[] = [];
         const deps = workerDeps({
@@ -208,7 +233,9 @@ function workerDeps(
 ): WorkerDependencies {
     return {
         recoverStuckJobs: async () => {},
+        recoverStuckPlanOrders: async () => {},
         runRelayerOnce: async () => {},
+        runPlanRunnerOnce: async () => {},
         runIndexerOnce: async () => {},
         expirePurchasesService: async () => {},
         runReconcilerOnce: async () => {},

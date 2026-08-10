@@ -27,7 +27,7 @@ function fixture() {
                 chainProductId: null,
                 type: "reward" as const,
                 approvalStatus: "approved" as const,
-                active: true,
+                active: false,
             },
         ],
     }));
@@ -39,10 +39,11 @@ function fixture() {
         ownerAddressForIndex: (index) => address(String(index)),
         countCafes: vi.fn(async () => 0n),
         inspectCafe: vi.fn(async () => null),
-        seedCafe: vi.fn(async ({ ownerWalletIndex, eligibleProductIds }) => ({
+        ensureEligibleProducts: vi.fn(async () => undefined),
+        seedCafe: vi.fn(async ({ ownerWalletIndex, eligibleProducts }) => ({
             chainCafeId: BigInt(ownerWalletIndex),
             ownerAddress: address(String(ownerWalletIndex)),
-            eligibleProductIds,
+            eligibleProducts,
         })),
         verifyCafe: vi.fn(async () => undefined),
     };
@@ -58,13 +59,36 @@ describe("bootstrapApprovedSeedCafes", () => {
         expect(chain.seedCafe).toHaveBeenCalledTimes(4);
         expect(chain.seedCafe).toHaveBeenNthCalledWith(1, {
             ownerWalletIndex: 1,
-            eligibleProductIds: [1n],
+            eligibleProducts: [{ productId: 1n, kind: 0 }],
         });
         expect(repository.persistCafeMappings).toHaveBeenCalledTimes(4);
         expect(repository.persistCafeMappings).toHaveBeenNthCalledWith(1, {
             cafeId: "cafe-1",
             chainCafeId: 1,
             products: [{ productId: "emission-1", chainProductId: 1 }],
+        });
+    });
+
+    it("registers rewards after emissions with reward kind", async () => {
+        const { repository, chain, cafes } = fixture();
+        cafes[0].products[1].active = true;
+
+        await bootstrapApprovedSeedCafes({ repository, chain });
+
+        expect(chain.seedCafe).toHaveBeenNthCalledWith(1, {
+            ownerWalletIndex: 1,
+            eligibleProducts: [
+                { productId: 1n, kind: 0 },
+                { productId: 2n, kind: 1 },
+            ],
+        });
+        expect(repository.persistCafeMappings).toHaveBeenCalledWith({
+            cafeId: "cafe-1",
+            chainCafeId: 1,
+            products: [
+                { productId: "emission-1", chainProductId: 1 },
+                { productId: "reward-1", chainProductId: 2 },
+            ],
         });
     });
 
@@ -91,7 +115,7 @@ describe("bootstrapApprovedSeedCafes", () => {
 
         expect(chain.seedCafe).toHaveBeenNthCalledWith(1, {
             ownerWalletIndex: 1,
-            eligibleProductIds: [1n],
+            eligibleProducts: [{ productId: 1n, kind: 0 }],
         });
         expect(repository.persistCafeMappings).toHaveBeenCalledWith({
             cafeId: "cafe-1",
@@ -100,6 +124,40 @@ describe("bootstrapApprovedSeedCafes", () => {
         });
         expect(cafes[0].products[1].chainProductId).toBeNull();
         expect(cafes[0].products[2].chainProductId).toBeNull();
+    });
+
+    it("persists reread repaired nonsequential eligibility mappings", async () => {
+        const { repository, chain, cafes } = fixture();
+        cafes[0].chainCafeId = 9;
+        cafes[0].products[0].chainProductId = null;
+        cafes[0].products[1].active = true;
+        let inspections = 0;
+        vi.mocked(chain.inspectCafe).mockImplementation(async () => {
+            inspections += 1;
+            return {
+                chainCafeId: 9n,
+                ownerAddress: address("1"),
+                active: true,
+                eligibleProducts:
+                    inspections === 1
+                        ? [{ productId: 10n, kind: 0 }]
+                        : [
+                              { productId: 10n, kind: 0 },
+                              { productId: 42n, kind: 1 },
+                          ],
+                planActive: true,
+                credits: 100n,
+            };
+        });
+        await bootstrapApprovedSeedCafes({ repository, chain });
+        expect(repository.persistCafeMappings).toHaveBeenCalledWith({
+            cafeId: cafes[0].id,
+            chainCafeId: 9,
+            products: [
+                { productId: "emission-1", chainProductId: 10 },
+                { productId: "reward-1", chainProductId: 42 },
+            ],
+        });
     });
 
     it("rerun verifies existing mappings without duplicate writes", async () => {
@@ -113,7 +171,7 @@ describe("bootstrapApprovedSeedCafes", () => {
             chainCafeId: id,
             ownerAddress: address(String(id)),
             active: true,
-            eligibleProductIds: [1n],
+            eligibleProducts: [{ productId: 1n, kind: 0 }],
             planActive: true,
             credits: 100n,
         }));
@@ -136,7 +194,7 @@ describe("bootstrapApprovedSeedCafes", () => {
             chainCafeId: id,
             ownerAddress: address(String(id)),
             active: true,
-            eligibleProductIds: [1n],
+            eligibleProducts: [{ productId: 1n, kind: 0 }],
             planActive: true,
             credits: 100n,
         }));
@@ -161,7 +219,7 @@ describe("bootstrapApprovedSeedCafes", () => {
                       chainCafeId: 2n,
                       ownerAddress: address("2"),
                       active: true,
-                      eligibleProductIds: [1n],
+                      eligibleProducts: [{ productId: 1n, kind: 0 }],
                       planActive: true,
                       credits: 100n,
                   }
@@ -226,7 +284,7 @@ describe("bootstrapApprovedSeedCafes", () => {
             chainCafeId: 99n,
             ownerAddress: address("999"),
             active: true,
-            eligibleProductIds: [1n],
+            eligibleProducts: [{ productId: 1n, kind: 0 }],
             planActive: true,
             credits: 100n,
         });

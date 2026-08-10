@@ -708,6 +708,20 @@ await waitForWrite(
 
 - [ ] **Step 6: Commit** — `git commit -m "feat(chain): wire vault redeemer to relayer wallet with live redemption journey"`
 
+#### Task 6 addendum (added mid-execution — two gaps the live run exposed)
+
+The first live run failed before reaching the vault, exposing two gaps no earlier task covered. Both are prerequisites for redemption to work at all, so they belong to this task.
+
+**6A — Reward products are never registered on chain.** `bootstrapApprovedSeedCafes` (`src/core/chain/server/bootstrap-local/service.ts`) filters products to `type === "emission"`, so reward products get no `chainProductId` and are never marked eligible in `CafeRegistry`. `PunchVault.redeem` calls `registry.isEligible(hostCafeId, productId, ProductKind.Reward)`, so every redemption would revert with `ProductNotEligibleReward`.
+
+`ProductKind` is `{ Emission = 0, Reward = 1 }` (`packages/contracts/src/interfaces/ICafeRegistry.sol:12-15`). `scripts/dev-chain.ts`'s `seedCafe` currently hardcodes kind `0` in its `setEligibleProduct` loop.
+
+Fix: make the bootstrap chain port kind-aware. Replace the flat `eligibleProductIds: bigint[]` in `BootstrapChain`'s `seedCafe`/`verifyCafe`/`LiveCafe` with a shape that carries the kind per product (e.g. `products: { productId: bigint; kind: 0 | 1 }[]`), register reward products with kind `1`, and persist their `chainProductId` alongside the emission ones. Keep emission product numbering unchanged (ids `1..n` in creation order) and number rewards after them, so existing mappings and the historical-consumption seeding keep working.
+
+**6B — The redemption request service reads the wrong balance table.** `requestPunchRedemptionService` calls `getBalance` from `src/core/punch/server/repository/balance.ts`, which reads `punch_balance_projection` — the mock-era, per-`userId` table that the chain pipeline never writes. The chain-backed balance lives in `projection_punch_balance`, keyed by wallet address, and `getConsumerBalance` (`src/core/purchase/server/services/get-balance-service.ts`) already selects the right source for the active chain mode. So a consumer with 12 real PUNCH on chain is refused with 422 "Necesitas 12 PUNCH para canjear."
+
+Fix: `requestPunchRedemptionService` uses `getConsumerBalance(userId)` and applies `canRedeem` to its `punchBalance`. Treat a null balance (stale projection) as not-yet-redeemable rather than as zero, and keep the check a UX guard — the chain still decides.
+
 ---
 
 ### Task 7: Consumer + café UI
