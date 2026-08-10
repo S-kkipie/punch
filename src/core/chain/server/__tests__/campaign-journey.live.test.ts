@@ -217,7 +217,9 @@ describeLive("live campaign journey and chain projections", () => {
             .from(campaign)
             .where(eq(campaign.id, campaignId));
         expect(created?.chainCampaignId).toEqual(expect.any(Number));
-        chainCampaignId = created?.chainCampaignId ?? 0;
+        if (!created?.chainCampaignId)
+            throw new Error("campaign chain link is missing");
+        chainCampaignId = created.chainCampaignId;
         const funded = await fundCampaignService(
             ownerId,
             cafeId,
@@ -244,11 +246,17 @@ describeLive("live campaign journey and chain projections", () => {
             .from(projectionCampaign)
             .where(eq(projectionCampaign.chainCampaignId, chainCampaignId));
         expect(projection).toMatchObject({
+            chainCampaignId,
             status: "published",
             voucherPayout: payout,
             maxVouchers: cap,
             budget,
+            unlockedCount: 0,
+            redeemedCount: 0,
         });
+        expect(projection?.expiry).toEqual(
+            new Date(Math.floor(created.windowEnd.getTime() / 1000) * 1000),
+        );
     });
 
     it("projects a qualifying voucher only after VoucherUnlocked is confirmed", async () => {
