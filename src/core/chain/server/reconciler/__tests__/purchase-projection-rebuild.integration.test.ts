@@ -38,7 +38,6 @@ const fixtures: string[] = [];
 
 async function seedMinimalCase(options?: {
     manualCampaignVoucher?: boolean;
-    redeemAutoVoucher?: boolean;
     crawl?: boolean;
 }) {
     const suffix = crypto.randomUUID();
@@ -152,12 +151,6 @@ async function seedMinimalCase(options?: {
             blockNumber: 12n,
         });
     });
-    if (options?.redeemAutoVoucher) {
-        await db
-            .update(consumerVoucher)
-            .set({ status: "redeemed", redeemedAt: new Date() })
-            .where(eq(consumerVoucher.campaignId, ids.campaignId));
-    }
     return { ...ids, txHash };
 }
 
@@ -322,19 +315,20 @@ describeIntegration("clearChainDerivedPurchaseProjections", () => {
         const ids = await seedMinimalCase({ crawl: true });
         const replayTxHash =
             `0x${crypto.randomUUID().replaceAll("-", "").padStart(64, "0")}` as `0x${string}`;
-        const [legacyVoucher] = await db
-            .select()
-            .from(consumerVoucher)
-            .where(eq(consumerVoucher.campaignId, ids.campaignId));
         const [legacyProgress] = await db
             .select()
             .from(consumerCrawlProgress)
             .where(eq(consumerCrawlProgress.crawlId, ids.crawlId));
-        expect(legacyVoucher).toBeDefined();
+        expect(
+            await db
+                .select()
+                .from(consumerVoucher)
+                .where(eq(consumerVoucher.campaignId, ids.campaignId)),
+        ).toHaveLength(0);
         expect(legacyProgress?.completedCafeIds).toEqual([ids.cafeId]);
         await db
             .update(chainPurchaseEffect)
-            .set({ createdVoucherId: null, progressId: null })
+            .set({ progressId: null })
             .where(eq(chainPurchaseEffect.purchaseOrderId, ids.orderId));
 
         await clearChainDerivedPurchaseProjections(db);
@@ -351,7 +345,7 @@ describeIntegration("clearChainDerivedPurchaseProjections", () => {
             .select()
             .from(chainPurchaseEffect)
             .where(eq(chainPurchaseEffect.purchaseOrderId, ids.orderId));
-        const [firstReplayVoucher] = await db
+        const firstReplayVouchers = await db
             .select()
             .from(consumerVoucher)
             .where(eq(consumerVoucher.campaignId, ids.campaignId));
@@ -364,7 +358,7 @@ describeIntegration("clearChainDerivedPurchaseProjections", () => {
             expect.arrayContaining([
                 expect.objectContaining({
                     kind: "campaign_qualification",
-                    createdVoucherId: firstReplayVoucher?.id,
+                    createdVoucherId: null,
                 }),
                 expect.objectContaining({
                     kind: "crawl_step",
@@ -372,7 +366,7 @@ describeIntegration("clearChainDerivedPurchaseProjections", () => {
                 }),
             ]),
         );
-        expect(firstReplayVoucher?.id).toBe(legacyVoucher?.id);
+        expect(firstReplayVouchers).toHaveLength(0);
         expect(firstReplayProgress?.id).toBe(legacyProgress?.id);
         expect(firstReplayProgress?.completedCafeIds).toEqual([ids.cafeId]);
 
@@ -390,7 +384,7 @@ describeIntegration("clearChainDerivedPurchaseProjections", () => {
             .select()
             .from(chainPurchaseEffect)
             .where(eq(chainPurchaseEffect.purchaseOrderId, ids.orderId));
-        const [secondReplayVoucher] = await db
+        const secondReplayVouchers = await db
             .select()
             .from(consumerVoucher)
             .where(eq(consumerVoucher.campaignId, ids.campaignId));
@@ -399,12 +393,7 @@ describeIntegration("clearChainDerivedPurchaseProjections", () => {
             .from(consumerCrawlProgress)
             .where(eq(consumerCrawlProgress.crawlId, ids.crawlId));
         expect(secondReplayEffects).toHaveLength(2);
-        expect(secondReplayVoucher).toMatchObject({
-            source: "campaign",
-            campaignId: ids.campaignId,
-            consumerUserId: ids.userId,
-            status: "available",
-        });
+        expect(secondReplayVouchers).toHaveLength(0);
         expect(secondReplayProgress).toMatchObject({
             crawlId: ids.crawlId,
             consumerUserId: ids.userId,
@@ -415,7 +404,7 @@ describeIntegration("clearChainDerivedPurchaseProjections", () => {
             expect.arrayContaining([
                 expect.objectContaining({
                     kind: "campaign_qualification",
-                    createdVoucherId: secondReplayVoucher?.id,
+                    createdVoucherId: null,
                 }),
                 expect.objectContaining({
                     kind: "crawl_step",
@@ -545,13 +534,12 @@ describeIntegration("clearChainDerivedPurchaseProjections", () => {
                 blockNumber: 12n,
             });
         });
-        const autoVoucher = (
+        expect(
             await db
-                .select({ id: consumerVoucher.id })
+                .select()
                 .from(consumerVoucher)
-                .where(eq(consumerVoucher.campaignId, campaignId))
-        )[0];
-        expect(autoVoucher).toBeDefined();
+                .where(eq(consumerVoucher.campaignId, campaignId)),
+        ).toHaveLength(0);
         const [crawlVoucher] = await db
             .select({ id: consumerVoucher.id })
             .from(consumerVoucher)
@@ -568,8 +556,8 @@ describeIntegration("clearChainDerivedPurchaseProjections", () => {
             await db
                 .select()
                 .from(consumerVoucher)
-                .where(eq(consumerVoucher.id, autoVoucher?.id ?? "missing")),
-        ).toEqual([]);
+                .where(eq(consumerVoucher.campaignId, campaignId)),
+        ).toHaveLength(0);
         expect(
             await db
                 .select()
@@ -608,7 +596,7 @@ describeIntegration("clearChainDerivedPurchaseProjections", () => {
                 .select()
                 .from(consumerVoucher)
                 .where(eq(consumerVoucher.campaignId, campaignId)),
-        ).toHaveLength(1);
+        ).toHaveLength(0);
         expect(
             await db
                 .select()
@@ -617,12 +605,21 @@ describeIntegration("clearChainDerivedPurchaseProjections", () => {
         ).toHaveLength(2);
     });
 
-    it("preserves a redeemed effect voucher and does not re-grant it on replay", async () => {
-        const ids = await seedMinimalCase({ redeemAutoVoucher: true });
+    it("preserves a redeemed chain-projected voucher and does not re-grant it on replay", async () => {
+        const ids = await seedMinimalCase();
         const [voucherBefore] = await db
-            .select()
-            .from(consumerVoucher)
-            .where(eq(consumerVoucher.campaignId, ids.campaignId));
+            .insert(consumerVoucher)
+            .values({
+                source: "campaign",
+                campaignId: ids.campaignId,
+                consumerUserId: ids.userId,
+                cafeId: ids.cafeId,
+                status: "redeemed",
+                redeemedAt: new Date(),
+                chainUnlockTxHash: `0x${"aa".repeat(32)}`,
+                expiresAt: new Date(Date.now() + 60_000),
+            })
+            .returning();
         await clearChainDerivedPurchaseProjections(db);
         const [voucherAfter] = await db
             .select()
@@ -667,10 +664,18 @@ describeIntegration("clearChainDerivedPurchaseProjections", () => {
     it("leaves confirmed voucher requests and ledgers unchanged", async () => {
         const ids = await seedMinimalCase();
         const [voucher] = await db
-            .select()
-            .from(consumerVoucher)
-            .where(eq(consumerVoucher.campaignId, ids.campaignId));
-        if (!voucher) throw new Error("expected seeded campaign voucher");
+            .insert(consumerVoucher)
+            .values({
+                source: "campaign",
+                campaignId: ids.campaignId,
+                consumerUserId: ids.userId,
+                cafeId: ids.cafeId,
+                status: "redeemed",
+                redeemedAt: new Date(),
+                chainUnlockTxHash: `0x${"bb".repeat(32)}`,
+                expiresAt: new Date(Date.now() + 60_000),
+            })
+            .returning();
         await db
             .update(consumerVoucher)
             .set({ status: "redeemed", redeemedAt: new Date() })

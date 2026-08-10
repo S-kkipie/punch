@@ -26,7 +26,9 @@ function opsAddress() {
     }).address;
 }
 
-const runIntegration = process.env.PUNCH_RUN_INTEGRATION === "1";
+const runIntegration =
+    process.env.PUNCH_RUN_INTEGRATION === "1" &&
+    process.env.PUNCH_RUN_LIVE_CHAIN === "1";
 const describeIntegration = describe.skipIf(!runIntegration);
 
 const hash =
