@@ -2,7 +2,6 @@ import { eq } from "drizzle-orm";
 import {
     DEMO_APPLICANT_EMAIL,
     DEMO_CRAWL_NAME,
-    demoCampaignValues,
     demoCrawlSteps,
     demoCrawlValues,
 } from "@/core/punch/domain/demo-state";
@@ -20,7 +19,6 @@ import {
     redemptionRequest,
 } from "@/server/drizzle/schemas/consumption-schema";
 import {
-    campaign,
     coffeeCrawl,
     coffeeCrawlStep,
     consumerCrawlProgress,
@@ -178,20 +176,6 @@ async function seedDemoState() {
             target: punchBalanceProjection.userId,
             set: { balance: 11 },
         });
-
-    const [existingCampaign] = await db
-        .select({ id: campaign.id })
-        .from(campaign)
-        .where(eq(campaign.cafeId, targetCafe.id));
-    const campaignValues = demoCampaignValues(Date.now(), targetCafe.id);
-    if (existingCampaign) {
-        await db
-            .update(campaign)
-            .set(campaignValues)
-            .where(eq(campaign.id, existingCampaign.id));
-    } else {
-        await db.insert(campaign).values(campaignValues);
-    }
 
     const [namedCrawl] = await db
         .select({ id: coffeeCrawl.id })
