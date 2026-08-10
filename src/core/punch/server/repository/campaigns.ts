@@ -9,9 +9,7 @@ import { projectionCampaign } from "@/server/drizzle/schemas/chain-schema";
 import { consumerTransaction } from "@/server/drizzle/schemas/consumption-schema";
 import {
     type CampaignRow,
-    type ConsumerVoucherRow,
     campaign,
-    consumerVoucher,
 } from "@/server/drizzle/schemas/punch-schema";
 
 export async function findActiveCampaignForCafe(
@@ -110,45 +108,6 @@ export async function hasPriorPaidPurchase(
             ),
         );
     return rows.length > 0;
-}
-
-/** Legacy mock-chain path; production chain projections use enqueueCampaignUnlock. */
-export async function unlockCampaignVoucher(
-    client: DbClient,
-    input: {
-        campaignId: string;
-        consumerUserId: string;
-        cafeId: string;
-        expiresAt: Date;
-    },
-): Promise<ConsumerVoucherRow | null> {
-    const [row] = await client
-        .insert(consumerVoucher)
-        .values({
-            source: "campaign",
-            campaignId: input.campaignId,
-            consumerUserId: input.consumerUserId,
-            cafeId: input.cafeId,
-            expiresAt: input.expiresAt,
-        })
-        .onConflictDoNothing({
-            target: [
-                consumerVoucher.campaignId,
-                consumerVoucher.consumerUserId,
-            ],
-        })
-        .returning();
-    if (row) return row;
-    const [existing] = await client
-        .select()
-        .from(consumerVoucher)
-        .where(
-            and(
-                eq(consumerVoucher.campaignId, input.campaignId),
-                eq(consumerVoucher.consumerUserId, input.consumerUserId),
-            ),
-        );
-    return existing ?? null;
 }
 
 export async function enqueueCampaignUnlock(

@@ -1,5 +1,4 @@
 import "server-only";
-import { isEligibleForAcquisitionCampaign } from "@/core/punch/domain/campaign";
 import {
     advanceCrawl,
     type CrawlStepDefinition,
@@ -10,11 +9,6 @@ import {
     getBalance,
     incrementBalance,
 } from "@/core/punch/server/repository/balance";
-import {
-    findActiveCampaignForCafe,
-    hasPriorPaidPurchase,
-    unlockCampaignVoucher,
-} from "@/core/punch/server/repository/campaigns";
 import {
     advanceCrawlProgress,
     findActiveCrawlForCafe,
@@ -254,36 +248,6 @@ export class PostgresMockConsumerChain implements ConsumerChainPort {
                 throw new ConsumerChainError("PROOF_NOT_CONFIRMED");
             }
             await incrementBalance(tx, proof.consumerUserId, 1);
-
-            const activeCampaign = await findActiveCampaignForCafe(
-                tx,
-                proof.cafeId,
-            );
-            if (activeCampaign) {
-                const priorPurchase = await hasPriorPaidPurchase(
-                    tx,
-                    proof.consumerUserId,
-                    proof.cafeId,
-                    { id: row.id, createdAt: row.createdAt },
-                );
-                const purchaseAt = new Date();
-                const eligible = isEligibleForAcquisitionCampaign({
-                    campaignCafeId: activeCampaign.cafeId,
-                    purchaseCafeId: proof.cafeId,
-                    hadPriorPaidPurchaseAtCafe: priorPurchase,
-                    purchaseAt,
-                    campaignWindowStart: activeCampaign.windowStart,
-                    campaignWindowEnd: activeCampaign.windowEnd,
-                });
-                if (eligible) {
-                    await unlockCampaignVoucher(tx, {
-                        campaignId: activeCampaign.id,
-                        consumerUserId: proof.consumerUserId,
-                        cafeId: proof.cafeId,
-                        expiresAt: activeCampaign.windowEnd,
-                    });
-                }
-            }
 
             const activeCrawl = await findActiveCrawlForCafe(tx, proof.cafeId);
             if (activeCrawl) {
