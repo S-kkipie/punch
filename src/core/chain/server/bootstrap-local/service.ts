@@ -90,11 +90,13 @@ export type DemoCampaignChain = {
         spender: Address;
         amount: bigint;
         signer: CampaignSigner;
+        ownerWalletIndex: number;
     }): Promise<void>;
     fundCampaign(input: {
         campaignId: bigint;
         amount: bigint;
         signer: CampaignSigner;
+        ownerWalletIndex: number;
     }): Promise<void>;
     publishCampaign(input: {
         campaignId: bigint;
@@ -106,7 +108,17 @@ export type DemoCampaignChain = {
     parseCreatedCampaignId(receipt: {
         logs: readonly unknown[];
     }): bigint | null;
-    addresses: { campaignEscrow: Address };
+    inspectCampaign(input: { campaignId: bigint }): Promise<{
+        sourceCafeId: bigint;
+        budget: bigint;
+        voucherPayout: bigint;
+        maxVouchers: bigint;
+        expiry: bigint;
+        status: "draft" | "published" | "cancelled" | "missing";
+    }>;
+    ownerBalance(input: { owner: Address }): Promise<bigint>;
+    allowance(input: { owner: Address; spender: Address }): Promise<bigint>;
+    addresses: { campaignEscrow: Address; mockPEN: Address };
     opsAddress: Address;
     deployerAddress: Address;
     ownerAddressForIndex(index: number): Address;
@@ -177,25 +189,18 @@ export async function bootstrapDemoCampaign(input: {
 }): Promise<void> {
     const cafe = await input.repository.findCafeForCampaign(input.cafeSlug);
     if (!cafe) throw new Error(`bootstrap ${input.cafeSlug}: café is missing`);
-    if (
-        cafe.campaign?.chainCampaignId !== null &&
-        cafe.campaign?.chainCampaignId !== undefined
-    )
-        return;
-    if (cafe.chainCafeId === null) {
+    if (cafe.chainCafeId === null)
         throw new Error(
             `bootstrap ${input.cafeSlug}: chain café id is missing`,
         );
-    }
-    if (cafe.ownerWalletIndex === null || !cafe.ownerWalletAddress) {
+    if (cafe.ownerWalletIndex === null || !cafe.ownerWalletAddress)
         throw new Error(`bootstrap ${input.cafeSlug}: owner wallet is missing`);
-    }
     const owner = input.chain.ownerAddressForIndex(cafe.ownerWalletIndex);
-    if (!sameAddress(owner, cafe.ownerWalletAddress)) {
+    if (!sameAddress(owner, cafe.ownerWalletAddress))
         throw new Error(
             `bootstrap ${input.cafeSlug}: DB owner does not match derived owner`,
         );
-    }
+
     const insertValues = demoCampaignValues(Date.now(), cafe.id);
     const campaign =
         cafe.campaign ??
@@ -205,49 +210,102 @@ export async function bootstrapDemoCampaign(input: {
             voucherPayout: insertValues.voucherPayout,
             maxVouchers: insertValues.maxVouchers,
         }));
-    if (campaign.chainCampaignId !== null) return;
-    if (campaign.voucherPayout === null || campaign.maxVouchers === null) {
+    if (campaign.voucherPayout === null || campaign.maxVouchers === null)
         throw new Error(
             `bootstrap ${input.cafeSlug}: campaign payout and cap are missing`,
         );
-    }
-    const budget = campaign.voucherPayout * BigInt(campaign.maxVouchers);
-    await input.chain.mint({
-        to: owner,
-        amount: budget,
-        signer: input.chain.deployerAddress,
-    });
-    const created = await input.chain.createCampaign({
-        sourceCafeId: BigInt(cafe.chainCafeId),
-        signer: input.chain.opsAddress,
-    });
-    if (created.receipt.status !== "success")
-        throw new Error("bootstrap campaign create reverted");
-    const chainCampaignId = input.chain.parseCreatedCampaignId(created.receipt);
-    if (chainCampaignId === null || chainCampaignId > 2_147_483_647n) {
+    if (campaign.windowEnd.getTime() <= Date.now())
         throw new Error(
-            "bootstrap campaign create receipt has invalid campaign id",
+            `bootstrap ${input.cafeSlug}: campaign window has expired`,
         );
+    const payout = campaign.voucherPayout;
+    const cap = BigInt(campaign.maxVouchers);
+    const expiry = BigInt(Math.floor(campaign.windowEnd.getTime() / 1000));
+    const required = payout * cap;
+    let campaignId: bigint;
+
+    if (campaign.chainCampaignId === null) {
+        await input.chain.mint({
+            to: owner,
+            amount: required,
+            signer: input.chain.deployerAddress,
+        });
+        const created = await input.chain.createCampaign({
+            sourceCafeId: BigInt(cafe.chainCafeId),
+            signer: input.chain.opsAddress,
+        });
+        if (created.receipt.status !== "success")
+            throw new Error("bootstrap campaign create reverted");
+        campaignId = input.chain.parseCreatedCampaignId(created.receipt) ?? -1n;
+        if (campaignId < 0n || campaignId > 2_147_483_647n)
+            throw new Error(
+                "bootstrap campaign create receipt has invalid campaign id",
+            );
+        await input.repository.linkCampaign({
+            campaignId: campaign.id,
+            chainCampaignId: Number(campaignId),
+        });
+    } else {
+        campaignId = BigInt(campaign.chainCampaignId);
     }
-    await input.repository.linkCampaign({
-        campaignId: campaign.id,
-        chainCampaignId: Number(chainCampaignId),
-    });
-    await input.chain.approve({
-        spender: input.chain.addresses.campaignEscrow,
-        amount: budget,
-        signer: owner,
-    });
-    await input.chain.fundCampaign({
-        campaignId: chainCampaignId,
-        amount: budget,
-        signer: owner,
-    });
+
+    const live = await input.chain.inspectCampaign({ campaignId });
+    if (
+        live.status === "missing" ||
+        live.status === "cancelled" ||
+        live.sourceCafeId !== BigInt(cafe.chainCafeId)
+    )
+        throw new Error(
+            `bootstrap ${input.cafeSlug}: linked on-chain campaign is invalid`,
+        );
+    if (live.status === "published") {
+        if (
+            live.voucherPayout !== payout ||
+            live.maxVouchers !== cap ||
+            live.expiry !== expiry ||
+            live.budget < required
+        )
+            throw new Error(
+                `bootstrap ${input.cafeSlug}: published campaign terms mismatch`,
+            );
+        return;
+    }
+    if (live.voucherPayout !== 0n && live.voucherPayout !== payout)
+        throw new Error(
+            `bootstrap ${input.cafeSlug}: campaign payout mismatch`,
+        );
+    const needed = live.budget >= required ? 0n : required - live.budget;
+    if (needed > 0n) {
+        const balance = await input.chain.ownerBalance({ owner });
+        if (balance < needed)
+            await input.chain.mint({
+                to: owner,
+                amount: needed - balance,
+                signer: input.chain.deployerAddress,
+            });
+        const allowance = await input.chain.allowance({
+            owner,
+            spender: input.chain.addresses.campaignEscrow,
+        });
+        if (allowance < needed)
+            await input.chain.approve({
+                spender: input.chain.addresses.campaignEscrow,
+                amount: needed,
+                signer: owner,
+                ownerWalletIndex: cafe.ownerWalletIndex,
+            });
+        await input.chain.fundCampaign({
+            campaignId,
+            amount: needed,
+            signer: owner,
+            ownerWalletIndex: cafe.ownerWalletIndex,
+        });
+    }
     await input.chain.publishCampaign({
-        campaignId: chainCampaignId,
-        voucherPayout: campaign.voucherPayout,
-        maxVouchers: BigInt(campaign.maxVouchers),
-        expiry: BigInt(Math.floor(campaign.windowEnd.getTime() / 1000)),
+        campaignId,
+        voucherPayout: payout,
+        maxVouchers: cap,
+        expiry,
         signer: input.chain.opsAddress,
     });
 }
