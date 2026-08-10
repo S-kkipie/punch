@@ -97,6 +97,18 @@ describe("RedeemPage voucher safety", () => {
         vi.clearAllMocks();
     });
 
+    it("renders a readable invalid-link state without cafeId", async () => {
+        useSearchParams.mockReturnValue(new URLSearchParams());
+        const container = document.createElement("div");
+        document.body.append(container);
+        const root = createRoot(container);
+        await act(async () => root.render(<RedeemPage />));
+        expect(container.textContent).toContain("enlace de canje no es válido");
+        expect(container.textContent).toContain("falta la cafetería");
+        expect(punchMutate).not.toHaveBeenCalled();
+        await act(async () => root.unmount());
+    });
+
     it("retains the last known balance when a refresh becomes unknown", async () => {
         dashboardBalance.value = 11;
         useSearchParams.mockReturnValue(new URLSearchParams("cafeId=cafe-1"));

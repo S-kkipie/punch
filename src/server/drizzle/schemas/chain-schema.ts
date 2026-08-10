@@ -55,6 +55,22 @@ export const projectionConsumption = pgTable(
     ],
 );
 
+export const projectionChainEvent = pgTable(
+    "projection_chain_event",
+    {
+        txHash: text("tx_hash").notNull(),
+        logIndex: integer("log_index").notNull(),
+        eventName: text("event_name").notNull(),
+        createdAt: timestamp("created_at").defaultNow().notNull(),
+    },
+    (t) => [
+        uniqueIndex("projection_chain_event_tx_log_uq").on(
+            t.txHash,
+            t.logIndex,
+        ),
+    ],
+);
+
 export const indexerCursor = pgTable("indexer_cursor", {
     contract: text("contract").primaryKey(),
     lastProcessedBlock: bigint("last_processed_block", {

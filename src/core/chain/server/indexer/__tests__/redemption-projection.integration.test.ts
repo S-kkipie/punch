@@ -6,6 +6,7 @@ import { user } from "@/server/drizzle/schemas/auth-schema";
 import { cafe, cafeProduct } from "@/server/drizzle/schemas/cafe-schema";
 import {
     projectionCafePayout,
+    projectionChainEvent,
     projectionPunchBalance,
 } from "@/server/drizzle/schemas/chain-schema";
 import {
@@ -240,6 +241,14 @@ run("redemption projection", () => {
                         ),
                     ),
             ).toHaveLength(0);
+            expect(
+                await db
+                    .select()
+                    .from(projectionChainEvent)
+                    .where(
+                        eq(projectionChainEvent.txHash, `0x${"3".repeat(64)}`),
+                    ),
+            ).toHaveLength(1);
         } finally {
             await db
                 .delete(projectionPunchBalance)

@@ -79,6 +79,17 @@ run("redemption request repository", () => {
             expect(jobs[0]?.kind).toBe("punch_redemption");
             expect(jobs[0]?.payload).toEqual(payload);
 
+            await db
+                .delete(relayerJob)
+                .where(eq(relayerJob.redemptionRequestId, requestId));
+            await approveRedemptionAndEnqueueJob(requestId, userId, payload);
+            const repairedJobs = await db
+                .select()
+                .from(relayerJob)
+                .where(eq(relayerJob.redemptionRequestId, requestId));
+            expect(repairedJobs).toHaveLength(1);
+            expect(repairedJobs[0]?.payload).toEqual(payload);
+
             await expect(
                 createRedemptionRequest({
                     kind: "punch_reward",

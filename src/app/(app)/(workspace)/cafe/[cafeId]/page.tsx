@@ -44,10 +44,10 @@ function PayoutSummaryCard({ payouts }: { payouts?: CafePayouts }) {
                 </p>
                 <p>Canjes confirmados: {data?.redemptionCount ?? 0}</p>
                 <p>
-                    Saldo mPEN del propietario:{" "}
+                    Saldo del propietario:{" "}
                     {data?.ownerMpenCentimos == null
                         ? "—"
-                        : `${(data.ownerMpenCentimos / 100).toFixed(2)} mPEN`}
+                        : `S/${(data.ownerMpenCentimos / 100).toFixed(2)}`}
                 </p>
             </CardContent>
         </Card>
