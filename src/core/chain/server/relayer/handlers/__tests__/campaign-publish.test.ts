@@ -58,7 +58,25 @@ describe("campaign_publish handler", () => {
             functionName: "campaigns",
             args: [3n],
         });
-        expect(failure).toMatchObject({ code: "unknown" });
+        expect(failure).toMatchObject({ code: "insufficient_budget" });
+    });
+
+    it("rejects payload terms that exceed a zero-term live draft budget", async () => {
+        const failure = await campaignPublishHandler.preflight?.(
+            job as never,
+            {
+                addresses,
+                pub: {
+                    readContract: vi.fn().mockResolvedValue({
+                        budget: 499n,
+                        voucherPayout: 0n,
+                        maxVouchers: 0n,
+                    }),
+                },
+            } as never,
+        );
+
+        expect(failure).toMatchObject({ code: "insufficient_budget" });
     });
 
     it("allows a live escrow budget that covers every voucher", async () => {

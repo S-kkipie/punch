@@ -8,6 +8,12 @@ describe("handler registry", () => {
         );
     });
 
+    it("maps the legacy consumption kind to the consumption handler", () => {
+        expect(handlerFor("consumption")).toBe(
+            handlerFor("consumption_record"),
+        );
+    });
+
     it("returns the campaign create handler", () => {
         expect(handlerFor("campaign_create").kind).toBe("campaign_create");
     });

@@ -15,6 +15,7 @@ const handlers: Partial<Record<RelayerJobKind, JobHandler>> = {
     campaign_fund_approve: campaignFundApproveHandler,
     campaign_fund: campaignFundHandler,
     campaign_publish: campaignPublishHandler,
+    consumption: consumptionRecordHandler,
     consumption_record: consumptionRecordHandler,
     voucher_unlock: voucherUnlockHandler,
     voucher_redeem: voucherRedeemHandler,

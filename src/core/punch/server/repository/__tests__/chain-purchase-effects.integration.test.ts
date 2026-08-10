@@ -1,6 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import { applyConfirmedConsumptionProjection } from "@/core/chain/server/indexer/purchase-projection";
+import { findActiveCampaignForCafe } from "@/core/punch/server/repository/campaigns";
 import { db } from "@/server/drizzle/db";
 import { user } from "@/server/drizzle/schemas/auth-schema";
 import { cafe, cafeProduct } from "@/server/drizzle/schemas/cafe-schema";
@@ -222,6 +223,40 @@ afterEach(async () => {
 });
 
 describeIntegration("indexed purchase effects", () => {
+    it("uses projected expiry for active campaign eligibility", async () => {
+        const f = await fixture(1);
+        const chainCampaignId = campaignChainId(f);
+        const [createdCampaign] = await db
+            .insert(campaign)
+            .values({
+                id: `effects-campaign-${f.userId}`,
+                kind: "verified_acquisition",
+                cafeId: f.cafeIds[0],
+                name: "Projected Expiry",
+                windowStart: new Date(Date.now() - 60_000),
+                windowEnd: new Date(Date.now() + 120_000),
+                active: true,
+                chainCampaignId,
+            })
+            .returning();
+        f.campaignId = createdCampaign.id;
+        await db.insert(projectionCampaign).values({
+            chainCampaignId,
+            status: "published",
+            budget: 1000n,
+            voucherPayout: 1n,
+            maxVouchers: 10,
+            expiry: new Date(Date.now() - 1_000),
+            unlockedCount: 0,
+            redeemedCount: 0,
+            lastBlock: 0n,
+        });
+
+        await expect(
+            findActiveCampaignForCafe(db, f.cafeIds[0]),
+        ).resolves.toBeNull();
+    });
+
     it("enqueues one unlock job and no voucher exactly once on replay", async () => {
         const f = await fixture(1);
         const chainCampaignId = campaignChainId(f);

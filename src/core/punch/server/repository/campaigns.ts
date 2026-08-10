@@ -30,7 +30,7 @@ export async function findActiveCampaignForCafe(
                 eq(campaign.active, true),
                 eq(projectionCampaign.status, "published"),
                 lte(campaign.windowStart, now),
-                gte(campaign.windowEnd, now),
+                gte(projectionCampaign.expiry, now),
                 lt(
                     projectionCampaign.unlockedCount,
                     projectionCampaign.maxVouchers,

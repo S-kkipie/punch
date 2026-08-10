@@ -567,7 +567,11 @@ async function submitJob(deps: RelayerDeps, job: Job) {
     let hash: Hex;
     let send: () => Promise<Hex>;
     try {
-        if (job.kind === "consumption_record" || job.kind === undefined)
+        if (
+            job.kind === "consumption" ||
+            job.kind === "consumption_record" ||
+            job.kind === undefined
+        )
             submission = parseSubmission(job);
         const signer = resolveSigner(handler.signer(job));
         const wallet = deps.walletForSigner?.(signer) ?? deps.wallet;
