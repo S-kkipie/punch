@@ -172,18 +172,15 @@ describeIntegration("plan repository", () => {
         );
 
         expect(retried).toBeNull();
-        expect((await findInFlightByCafe(base.cafeId))?.status).toBe("submitted");
+        expect((await findInFlightByCafe(base.cafeId))?.status).toBe(
+            "submitted",
+        );
     });
 
     it("starts a fresh receipt-attempt budget when submission begins", async () => {
         const base = await fixture();
         const order = await insertOrderIfIdle(newOrder(base));
-        await markOrderRetry(
-            order.row.id,
-            "rpc unavailable",
-            4,
-            new Date(),
-        );
+        await markOrderRetry(order.row.id, "rpc unavailable", 4, new Date());
 
         const executing = await markOrderExecuting(order.row.id, new Date());
 

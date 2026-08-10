@@ -182,8 +182,7 @@ async function runPending(
             new Date(d.now().getTime() + 2_000),
         );
         if (!submitted) {
-            const message =
-                `transaction submission could not be recorded (tx ${hash})`;
+            const message = `transaction submission could not be recorded (tx ${hash})`;
             const failed = await d.markOrderFailed(
                 order.id,
                 message,
@@ -231,11 +230,7 @@ async function runSubmitted(
         const message = errorText(error);
         const attempts = order.attempts + 1;
         if (attempts >= MAX_PLAN_ATTEMPTS) {
-            await d.markOrderFailed(
-                order.id,
-                message,
-                "needs_reconciliation",
-            );
+            await d.markOrderFailed(order.id, message, "needs_reconciliation");
             return;
         }
         // No receipt yet. Keep it in the submitted lane — an order that was

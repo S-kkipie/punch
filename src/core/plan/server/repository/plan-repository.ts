@@ -215,12 +215,7 @@ export async function markOrderRetry(
     const [row] = await db
         .update(planOrder)
         .set({ status: "pending", lastError: error, attempts, nextRetryAt })
-        .where(
-            and(
-                eq(planOrder.id, id),
-                eq(planOrder.status, "pending"),
-            ),
-        )
+        .where(and(eq(planOrder.id, id), eq(planOrder.status, "pending")))
         .returning();
     return row ?? null;
 }
