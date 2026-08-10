@@ -36,7 +36,16 @@ export async function requestPunchRedemptionService(
         return err(AppErrors.unprocessableEntity({ targets: ["productId"] }));
     }
     const balanceResult = await getConsumerBalance(consumerUserId);
-    const balance = balanceResult.ok ? balanceResult.data.punchBalance : null;
+    if (!balanceResult.ok) return err(balanceResult.error);
+    if (balanceResult.data.stale) {
+        return err(
+            AppErrors.unprocessableEntity({
+                targets: ["balance"],
+                cause: "El saldo se está actualizando desde la cadena.",
+            }),
+        );
+    }
+    const balance = balanceResult.data.punchBalance;
     if (balance === null || !canRedeem(balance)) {
         return err(
             AppErrors.unprocessableEntity({

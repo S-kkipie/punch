@@ -56,7 +56,20 @@ export async function approveRedemptionAndEnqueueJob(
                 `Redemption request ${requestId} not found`,
             );
         }
-        if (existing.status === "approved" || existing.status === "confirmed") {
+        if (existing.status === "confirmed") {
+            return existing;
+        }
+        if (existing.status === "approved") {
+            await tx
+                .insert(relayerJob)
+                .values({
+                    kind: "punch_redemption",
+                    redemptionRequestId: requestId,
+                    payload,
+                })
+                .onConflictDoNothing({
+                    target: relayerJob.redemptionRequestId,
+                });
             return existing;
         }
         if (existing.status !== "pending") {
@@ -163,7 +176,7 @@ export async function listFulfillmentRequestsForCafe(
     cafeId: string,
     client: DbClient = db,
 ) {
-    return client
+    const base = client
         .select({
             request: redemptionRequest,
             transactionId: consumerTransaction.id,
@@ -173,7 +186,17 @@ export async function listFulfillmentRequestsForCafe(
         .leftJoin(
             consumerTransaction,
             eq(consumerTransaction.redemptionRequestId, redemptionRequest.id),
+        );
+    const actionableQuery = base
+        .where(
+            and(
+                eq(redemptionRequest.cafeId, cafeId),
+                inArray(redemptionRequest.status, ["pending", "approved"]),
+            ),
         )
+        .orderBy(desc(redemptionRequest.createdAt));
+    const actionableResult = await actionableQuery;
+    const rows = await base
         .where(
             and(
                 eq(redemptionRequest.cafeId, cafeId),
@@ -187,4 +210,13 @@ export async function listFulfillmentRequestsForCafe(
         )
         .orderBy(desc(redemptionRequest.createdAt))
         .limit(100);
+    const actionable = Array.isArray(actionableResult)
+        ? actionableResult
+        : rows.filter(({ request }) =>
+              ["pending", "approved"].includes(request.status),
+          );
+    const history = rows.filter(({ request }) =>
+        ["confirmed", "failed"].includes(request.status),
+    );
+    return [...actionable, ...history];
 }

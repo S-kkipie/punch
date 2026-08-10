@@ -71,6 +71,30 @@ describe("requestPunchRedemptionService", () => {
         expect(createRedemptionRequest).not.toHaveBeenCalled();
     });
 
+    it("rejects a numeric stale balance", async () => {
+        vi.mocked(getConsumerBalance).mockResolvedValue({
+            ok: true,
+            data: { punchBalance: 12, stale: true },
+        });
+        vi.mocked(findProductById).mockResolvedValue(product as never);
+        const result = await requestPunchRedemptionService("u", "c", {
+            productId: "p",
+        });
+        expect(result.ok).toBe(false);
+        expect(createRedemptionRequest).not.toHaveBeenCalled();
+    });
+
+    it("propagates balance dependency failures", async () => {
+        const error = { code: "unexpected" } as never;
+        vi.mocked(getConsumerBalance).mockResolvedValue({ ok: false, error });
+        vi.mocked(findProductById).mockResolvedValue(product as never);
+        const result = await requestPunchRedemptionService("u", "c", {
+            productId: "p",
+        });
+        expect(result).toEqual({ ok: false, error });
+        expect(createRedemptionRequest).not.toHaveBeenCalled();
+    });
+
     it("allows a reward priced at the S/12 cap", async () => {
         vi.mocked(getConsumerBalance).mockResolvedValue({
             ok: true,

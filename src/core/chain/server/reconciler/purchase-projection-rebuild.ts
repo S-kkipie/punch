@@ -6,13 +6,13 @@ import {
     indexerCursor,
     projectionCafeCredit,
     projectionCafePayout,
+    projectionChainEvent,
     projectionConsumption,
     projectionPunchBalance,
 } from "@/server/drizzle/schemas/chain-schema";
 import {
     consumerTransaction,
     consumptionProof,
-    redemptionRequest,
 } from "@/server/drizzle/schemas/consumption-schema";
 import {
     chainPurchaseEffect,
@@ -140,11 +140,12 @@ export async function clearChainDerivedPurchaseProjections(
                     ),
                 ),
             );
-        await tx
-            .update(redemptionRequest)
-            .set({ status: "approved" })
-            .where(eq(redemptionRequest.status, "confirmed"));
+        // Confirmed voucher/mock redemptions are domain state, not chain
+        // projections. Keep all confirmed history terminal; replay rebuilds
+        // ledger and balance without manufacturing active requests.
+
         await tx.delete(projectionCafePayout).where(sql`true`);
+        await tx.delete(projectionChainEvent).where(sql`true`);
         await tx
             .update(consumptionProof)
             .set({ status: "submitted" })

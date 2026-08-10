@@ -99,6 +99,28 @@ describe("punch redemption relayer", () => {
         });
     });
 
+    it("does not broadcast when submitted CAS loses", async () => {
+        const d = deps();
+        d.markJobSubmitted = vi.fn().mockResolvedValue(null);
+        await runRelayerOnce(d);
+        expect(d.markJobSubmitted).toHaveBeenCalled();
+        expect(d.pub.sendRawTransaction).not.toHaveBeenCalled();
+    });
+
+    it("keeps an ambiguous rebroadcast recoverable while receipt is absent", async () => {
+        const d = deps();
+        d.pub.sendRawTransaction = vi
+            .fn()
+            .mockRejectedValue(new Error("nonce too low"));
+        const missing = Object.assign(new Error("missing"), {
+            name: "TransactionReceiptNotFoundError",
+        });
+        d.pub.getTransactionReceipt = vi.fn().mockRejectedValue(missing);
+        await runRelayerOnce(d);
+        expect(d.markJobPending).toHaveBeenCalledWith("job", expect.any(Date));
+        expect(d.markJobFailed).not.toHaveBeenCalled();
+    });
+
     it("skips send and confirms when redemption ledger already exists", async () => {
         const d = deps();
         d.hasRedemptionLedger = vi.fn().mockResolvedValue(true);

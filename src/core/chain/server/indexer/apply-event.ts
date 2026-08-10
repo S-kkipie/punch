@@ -192,6 +192,7 @@ export async function applyEvent(
             return applyRewardRedeemedProjection(tx, {
                 userAddress: address(event.args.user),
                 chainCafeId: cafeId(event.args.hostCafeId),
+                chainProductId: cafeId(event.args.productId),
                 txHash: event.transactionHash,
                 logIndex: logIndex(event),
                 blockNumber: block(event),

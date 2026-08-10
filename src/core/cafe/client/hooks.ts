@@ -111,6 +111,7 @@ export const useCafeProducts = (cafeId: string) => {
             id: cafeId,
         }).products.get.queryOptions() as unknown as Record<string, unknown>),
         queryKey: ["cafes", cafeId, "products"],
+        enabled: Boolean(cafeId),
         select: unwrapResponse,
     });
 };

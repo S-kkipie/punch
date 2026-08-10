@@ -50,6 +50,12 @@ export default function RedeemPage() {
             window.removeEventListener("offline", goOffline);
         };
     }, []);
+    if (!cafeId)
+        return (
+            <div className="consumer-panel mx-auto max-w-md p-5" role="alert">
+                Este enlace de canje no es válido: falta la cafetería.
+            </div>
+        );
     if (dashboard.isPending || products.isPending || vouchers.isPending)
         return (
             <div className="flex min-h-64 items-center justify-center">

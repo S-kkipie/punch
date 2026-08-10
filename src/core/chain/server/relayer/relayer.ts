@@ -330,6 +330,13 @@ function isMissingReceiptError(error: unknown): boolean {
     );
 }
 
+function isAmbiguousRedemptionBroadcastError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return /already known|already-known|nonce too low|nonce has already been used|replacement transaction underpriced|known transaction/i.test(
+        message,
+    );
+}
+
 function getPersistedSignedTransaction(job: Job): Hex | undefined {
     if (!job.payload || typeof job.payload !== "object") return undefined;
     const value = (job.payload as Record<string, unknown>).signedTransaction;
@@ -380,12 +387,15 @@ async function submitRedemptionJob(deps: RelayerDeps, job: Job) {
         await handleFailure(deps, job, error);
         return;
     }
-    await deps.markJobSubmitted(
+    const persisted = await deps.markJobSubmitted(
         job.id,
         hash,
         new Date(deps.now().getTime() + RELAYER_CLAIM_LEASE_MS),
         { ...(job.payload as Record<string, unknown>), signedTransaction },
     );
+    // A lost pending->submitted CAS means another worker owns this job. Never
+    // broadcast the locally signed transaction after losing that race.
+    if (persisted === null) return;
     try {
         await deps.pub.sendRawTransaction({
             serializedTransaction: signedTransaction,
@@ -403,6 +413,33 @@ async function submitRedemptionJob(deps: RelayerDeps, job: Job) {
                 ),
             );
     } catch (error) {
+        if (isAmbiguousRedemptionBroadcastError(error)) {
+            try {
+                const receipt = await deps.pub.getTransactionReceipt({ hash });
+                if (receipt.status === "success") {
+                    await confirm(deps, job);
+                } else {
+                    await handleFailure(
+                        deps,
+                        job,
+                        await replayRedemptionError(
+                            deps,
+                            submission,
+                            receipt.blockNumber,
+                        ),
+                    );
+                }
+            } catch (receiptError) {
+                if (isMissingReceiptError(receiptError)) {
+                    await deps.markJobPending(job.id, deps.now());
+                } else {
+                    // Keep the persisted transaction recoverable when RPC
+                    // cannot yet answer whether it mined.
+                    await deps.markJobPending(job.id, deps.now());
+                }
+            }
+            return;
+        }
         await handleFailure(deps, job, error);
     }
 }

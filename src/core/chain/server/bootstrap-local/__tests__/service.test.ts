@@ -126,6 +126,40 @@ describe("bootstrapApprovedSeedCafes", () => {
         expect(cafes[0].products[2].chainProductId).toBeNull();
     });
 
+    it("persists reread repaired nonsequential eligibility mappings", async () => {
+        const { repository, chain, cafes } = fixture();
+        cafes[0].chainCafeId = 9;
+        cafes[0].products[0].chainProductId = null;
+        cafes[0].products[1].active = true;
+        let inspections = 0;
+        vi.mocked(chain.inspectCafe).mockImplementation(async () => {
+            inspections += 1;
+            return {
+                chainCafeId: 9n,
+                ownerAddress: address("1"),
+                active: true,
+                eligibleProducts:
+                    inspections === 1
+                        ? [{ productId: 10n, kind: 0 }]
+                        : [
+                              { productId: 10n, kind: 0 },
+                              { productId: 42n, kind: 1 },
+                          ],
+                planActive: true,
+                credits: 100n,
+            };
+        });
+        await bootstrapApprovedSeedCafes({ repository, chain });
+        expect(repository.persistCafeMappings).toHaveBeenCalledWith({
+            cafeId: cafes[0].id,
+            chainCafeId: 9,
+            products: [
+                { productId: "emission-1", chainProductId: 10 },
+                { productId: "reward-1", chainProductId: 42 },
+            ],
+        });
+    });
+
     it("rerun verifies existing mappings without duplicate writes", async () => {
         const { repository, chain, cafes } = fixture();
         cafes.forEach((cafe, i) => {

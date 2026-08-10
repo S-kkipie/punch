@@ -156,7 +156,7 @@ export async function bootstrapApprovedSeedCafes(input: {
 
         if (cafe.chainCafeId !== null) {
             chainCafeId = BigInt(cafe.chainCafeId);
-            const live = await input.chain.inspectCafe(chainCafeId);
+            let live = await input.chain.inspectCafe(chainCafeId);
             if (!live)
                 throw new Error(
                     `bootstrap ${cafe.slug}: mapped café is missing on chain`,
@@ -171,6 +171,11 @@ export async function bootstrapApprovedSeedCafes(input: {
                 ownerWalletIndex: cafe.ownerWalletIndex,
                 eligibleProducts,
             });
+            live = await input.chain.inspectCafe(chainCafeId);
+            if (!live)
+                throw new Error(
+                    `bootstrap ${cafe.slug}: café disappeared after repair`,
+                );
             await input.chain.verifyCafe({
                 chainCafeId,
                 ownerAddress,
@@ -223,12 +228,17 @@ export async function bootstrapApprovedSeedCafes(input: {
         }
         if (recovered) {
             chainCafeId = recovered.chainCafeId;
-            chainProducts = eligibleProducts;
             await input.chain.ensureEligibleProducts({
                 chainCafeId,
                 ownerWalletIndex: cafe.ownerWalletIndex,
                 eligibleProducts,
             });
+            const repaired = await input.chain.inspectCafe(chainCafeId);
+            if (!repaired)
+                throw new Error(
+                    `bootstrap ${cafe.slug}: café disappeared after repair`,
+                );
+            chainProducts = repaired.eligibleProducts;
             await input.chain.verifyCafe({
                 chainCafeId,
                 ownerAddress,

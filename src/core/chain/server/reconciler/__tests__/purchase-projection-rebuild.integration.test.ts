@@ -643,7 +643,7 @@ describeIntegration("clearChainDerivedPurchaseProjections", () => {
         expect(vouchers[0]?.status).toBe("available");
     });
 
-    it("clear resets redemption state so replay reconfirms exactly", async () => {
+    it("clear preserves confirmed redemption state while clearing chain projections", async () => {
         const ids = await seedRedemptionCase();
 
         await clearChainDerivedPurchaseProjections(db);
@@ -655,7 +655,7 @@ describeIntegration("clearChainDerivedPurchaseProjections", () => {
                     .from(redemptionRequest)
                     .where(eq(redemptionRequest.id, ids.requestId))
             )[0]?.status,
-        ).toBe("approved");
+        ).toBe("confirmed");
         expect(
             await db
                 .select()
@@ -710,13 +710,13 @@ describeIntegration("clearChainDerivedPurchaseProjections", () => {
                         `chain_redemption:${ids.requestId}`,
                     ),
                 ),
-        ).toHaveLength(1);
+        ).toHaveLength(0);
         expect(
             await db
                 .select()
                 .from(projectionCafePayout)
                 .where(eq(projectionCafePayout.cafeId, ids.cafeId)),
-        ).toMatchObject([{ totalCentimos: 360, redemptionCount: 1 }]);
+        ).toEqual([]);
     });
 
     it("failed redemption requests survive the clear untouched", async () => {
