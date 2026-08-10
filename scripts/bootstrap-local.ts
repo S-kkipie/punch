@@ -212,7 +212,7 @@ function liveDemoCampaignChain(): DemoCampaignChain {
             address,
             abi,
             chain: foundry,
-            account: account.address,
+            account,
             functionName: functionName as never,
             args: args as never,
         });
