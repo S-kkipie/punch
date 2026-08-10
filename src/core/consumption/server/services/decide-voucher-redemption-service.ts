@@ -1,4 +1,5 @@
 import "server-only";
+import { env } from "@/config/env";
 import type {
     DecideRedemptionRequest,
     RedemptionRequest,
@@ -10,7 +11,8 @@ import {
     err,
     ok,
 } from "@/server/common/responses";
-import type { ChainSubmission } from "../chain-port";
+import { CampaignEscrowChain } from "../campaign-escrow-chain";
+import type { ChainSubmission, ConsumerChainPort } from "../chain-port";
 import { PostgresMockConsumerChain } from "../postgres-mock-chain";
 import {
     decideRedemptionRequest,
@@ -52,7 +54,10 @@ export async function decideVoucherRedemptionService(
         return err(AppErrors.conflict({ targets: ["requestId"] }));
     }
 
-    const chain = new PostgresMockConsumerChain();
+    const chain: ConsumerChainPort =
+        env.CONSUMER_CHAIN_MODE === "local"
+            ? new CampaignEscrowChain()
+            : new PostgresMockConsumerChain();
     if (existing.status === "approved") {
         try {
             return ok(

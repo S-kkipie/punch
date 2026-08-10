@@ -8,6 +8,7 @@ const {
     getBalance,
     incrementBalance,
     decrementBalance,
+    consumerChainMode,
 } = vi.hoisted(() => ({
     requireCafeRole: vi.fn(),
     findRedemptionRequestById: vi.fn(),
@@ -16,8 +17,20 @@ const {
     getBalance: vi.fn(),
     incrementBalance: vi.fn(),
     decrementBalance: vi.fn(),
+    consumerChainMode: { value: undefined as "local" | "mock" | undefined },
 }));
 
+vi.mock("@/config/env", () => ({
+    env: new Proxy(
+        {},
+        {
+            get: (_target, property) =>
+                property === "CONSUMER_CHAIN_MODE"
+                    ? consumerChainMode.value
+                    : undefined,
+        },
+    ),
+}));
 vi.mock("@/server/auth/membership/require-cafe-role", () => ({
     requireCafeRole,
 }));
@@ -33,6 +46,11 @@ vi.mock("../../repository/redemption-requests", () => ({
 }));
 vi.mock("../../postgres-mock-chain", () => ({
     PostgresMockConsumerChain: class {
+        submitVoucherRedemption = submitVoucherRedemption;
+    },
+}));
+vi.mock("../../campaign-escrow-chain", () => ({
+    CampaignEscrowChain: class {
         submitVoucherRedemption = submitVoucherRedemption;
     },
 }));
@@ -54,6 +72,7 @@ const pending = {
 describe("decideVoucherRedemptionService", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        consumerChainMode.value = undefined;
         requireCafeRole.mockResolvedValue({ ok: true, data: {} });
         findRedemptionRequestById.mockResolvedValue(pending);
         decideRedemptionRequest.mockResolvedValue({
@@ -189,6 +208,24 @@ describe("decideVoucherRedemptionService", () => {
         expect(getBalance).not.toHaveBeenCalled();
         expect(incrementBalance).not.toHaveBeenCalled();
         expect(decrementBalance).not.toHaveBeenCalled();
+    });
+
+    it("selects the escrow adapter in local mode", async () => {
+        consumerChainMode.value = "local";
+        const result = await decideVoucherRedemptionService(
+            "barista",
+            "cafe-1",
+            "req-1",
+            { decision: "approved" },
+        );
+        expect(result).toEqual({
+            ok: true,
+            data: { transactionId: "tx-1", status: "pending" },
+        });
+        expect(submitVoucherRedemption).toHaveBeenCalledWith({
+            redemptionRequestId: "req-1",
+            idempotencyKey: "voucher_redemption:req-1",
+        });
     });
 
     it("reuses approved chain submission and rejects approved-to-rejected", async () => {
