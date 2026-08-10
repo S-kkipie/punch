@@ -39,7 +39,6 @@ type Fixture = {
     proofIds: string[];
     campaignId?: string;
     chainCampaignId?: number;
-    unlockJobKeys: string[];
     crawlId?: string;
 };
 const fixtures: Fixture[] = [];
@@ -52,7 +51,6 @@ async function fixture(cafeCount = 3): Promise<Fixture> {
         productIds: [],
         orderIds: [],
         proofIds: [],
-        unlockJobKeys: [],
     };
     await db.insert(user).values({
         id: f.userId,
@@ -96,9 +94,7 @@ function campaignChainId(f: Fixture): number {
 }
 
 function unlockKey(f: Fixture): string {
-    const key = `voucher_unlock:${campaignChainId(f)}:0x1111111111111111111111111111111111111111`;
-    if (!f.unlockJobKeys.includes(key)) f.unlockJobKeys.push(key);
-    return key;
+    return `voucher_unlock:${campaignChainId(f)}:0x1111111111111111111111111111111111111111`;
 }
 
 async function order(f: Fixture, index: number, suffix = "") {
@@ -184,10 +180,10 @@ async function cleanup() {
         await db
             .delete(chainPurchaseEffect)
             .where(inArray(chainPurchaseEffect.purchaseOrderId, f.orderIds));
-        if (f.unlockJobKeys.length > 0)
+        if (f.chainCampaignId !== undefined)
             await db
                 .delete(relayerJob)
-                .where(inArray(relayerJob.idempotencyKey, f.unlockJobKeys));
+                .where(eq(relayerJob.idempotencyKey, unlockKey(f)));
         if (f.chainCampaignId !== undefined)
             await db
                 .delete(projectionCampaign)
