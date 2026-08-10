@@ -1,5 +1,6 @@
 import "server-only";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
+import { DEMO_CAMPAIGN_NAME } from "@/core/punch/domain/demo-state";
 import { db } from "@/server/drizzle/db";
 import { user } from "@/server/drizzle/schemas/auth-schema";
 import {
@@ -125,7 +126,14 @@ export const bootstrapRepository: BootstrapRepository & DemoCampaignRepository =
                     ),
                 )
                 .innerJoin(user, eq(user.id, cafeMember.userId))
-                .leftJoin(campaign, eq(campaign.cafeId, cafe.id))
+                .leftJoin(
+                    campaign,
+                    and(
+                        eq(campaign.cafeId, cafe.id),
+                        eq(campaign.name, DEMO_CAMPAIGN_NAME),
+                        eq(campaign.kind, "verified_acquisition"),
+                    ),
+                )
                 .where(eq(cafe.slug, slug));
             if (!row) return null;
             return {
@@ -149,25 +157,35 @@ export const bootstrapRepository: BootstrapRepository & DemoCampaignRepository =
         },
 
         async insertDemoCampaign(input) {
-            const [inserted] = await db
-                .insert(campaign)
-                .values({
-                    ...input.values,
-                    voucherPayout: input.voucherPayout,
-                    maxVouchers: input.maxVouchers,
-                })
-                .onConflictDoNothing()
-                .returning();
-            if (inserted) return inserted;
-            const [existing] = await db
-                .select()
-                .from(campaign)
-                .where(eq(campaign.cafeId, input.cafeId));
-            if (!existing)
-                throw new Error(
-                    `bootstrap ${input.cafeId}: campaign intent was not created`,
+            return db.transaction(async (tx) => {
+                await tx.execute(
+                    sql`select pg_advisory_xact_lock(hashtextextended(${`${input.cafeId}:${DEMO_CAMPAIGN_NAME}`}, 0))`,
                 );
-            return existing;
+                const [existing] = await tx
+                    .select()
+                    .from(campaign)
+                    .where(
+                        and(
+                            eq(campaign.cafeId, input.cafeId),
+                            eq(campaign.name, DEMO_CAMPAIGN_NAME),
+                            eq(campaign.kind, "verified_acquisition"),
+                        ),
+                    );
+                if (existing) return existing;
+                const [inserted] = await tx
+                    .insert(campaign)
+                    .values({
+                        ...input.values,
+                        voucherPayout: input.voucherPayout,
+                        maxVouchers: input.maxVouchers,
+                    })
+                    .returning();
+                if (!inserted)
+                    throw new Error(
+                        `bootstrap ${input.cafeId}: campaign intent was not created`,
+                    );
+                return inserted;
+            });
         },
 
         async linkCampaign(input) {

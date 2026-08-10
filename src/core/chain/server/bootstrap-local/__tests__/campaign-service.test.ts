@@ -20,6 +20,11 @@ function fixture(
         ? { id: "campaign-1", cafeId: "cafe-1", ...existing }
         : null;
     const calls: string[] = [];
+    let minted = 0n;
+    let funded = 0n;
+    let approved = 0n;
+    let published = false;
+    let publishedExpiry = 0n;
     const repository: DemoCampaignRepository = {
         findCafeForCampaign: vi.fn(async () => ({
             id: "cafe-1",
@@ -50,12 +55,23 @@ function fixture(
         }),
     };
     const chain: DemoCampaignChain = {
-        addresses: { campaignEscrow: address("999") },
+        addresses: { campaignEscrow: address("999"), mockPEN: address("998") },
+        inspectCampaign: vi.fn(async () => ({
+            sourceCafeId: 7n,
+            budget: funded,
+            voucherPayout: published ? 5_000_000n : 0n,
+            maxVouchers: published ? 10n : 0n,
+            expiry: published ? publishedExpiry : 0n,
+            status: published ? ("published" as const) : ("draft" as const),
+        })),
+        ownerBalance: vi.fn(async () => minted),
+        allowance: vi.fn(async () => approved),
         opsAddress: address("1"),
         deployerAddress: address("2"),
         ownerAddressForIndex: vi.fn(() => owner),
-        mint: vi.fn(async () => {
+        mint: vi.fn(async ({ amount }) => {
             calls.push("mint");
+            minted += amount;
         }),
         createCampaign: vi.fn(async () => {
             calls.push("create");
@@ -68,14 +84,18 @@ function fixture(
             };
         }),
         parseCreatedCampaignId: vi.fn(() => 12n),
-        approve: vi.fn(async () => {
+        approve: vi.fn(async ({ amount }) => {
             calls.push("approve");
+            approved = amount;
         }),
-        fundCampaign: vi.fn(async () => {
+        fundCampaign: vi.fn(async ({ amount }) => {
             calls.push("fund");
+            funded += amount;
         }),
-        publishCampaign: vi.fn(async () => {
+        publishCampaign: vi.fn(async ({ expiry }) => {
             calls.push("publish");
+            publishedExpiry = expiry;
+            published = true;
         }),
     };
     return { repository, chain, calls, campaign: () => campaign };
@@ -114,11 +134,13 @@ describe("bootstrapDemoCampaign", () => {
             spender: address("999"),
             amount: 50_000_000n,
             signer: owner,
+            ownerWalletIndex: 4,
         });
         expect(f.chain.fundCampaign).toHaveBeenCalledWith({
             campaignId: 12n,
             amount: 50_000_000n,
             signer: owner,
+            ownerWalletIndex: 4,
         });
         expect(f.chain.publishCampaign).toHaveBeenCalledWith(
             expect.objectContaining({

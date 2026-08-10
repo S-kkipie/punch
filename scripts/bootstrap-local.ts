@@ -193,14 +193,6 @@ function liveDemoCampaignChain(): DemoCampaignChain {
         wallets.set(account.address, client);
         return client;
     };
-    const accountForAddress = (address: `0x${string}`) => {
-        for (let index = 0; index < 100; index++) {
-            const account = deriveAccount(env.WALLET_MASTER_MNEMONIC, index);
-            if (account.address.toLowerCase() === address.toLowerCase())
-                return account;
-        }
-        throw new Error(`bootstrap owner wallet ${address} cannot be derived`);
-    };
     const write = async (
         account: typeof ops,
         address: `0x${string}`,
@@ -222,7 +214,53 @@ function liveDemoCampaignChain(): DemoCampaignChain {
         return receipt;
     };
     return {
-        addresses: { campaignEscrow: addresses.campaignEscrow },
+        addresses: {
+            campaignEscrow: addresses.campaignEscrow,
+            mockPEN: addresses.mockPEN,
+        },
+        inspectCampaign: async ({ campaignId }) => {
+            const raw = (await pub.readContract({
+                address: addresses.campaignEscrow,
+                abi: abis.campaignEscrow,
+                functionName: "campaigns",
+                args: [campaignId],
+            })) as {
+                sourceCafeId: bigint;
+                budget: bigint;
+                voucherPayout: bigint;
+                maxVouchers: bigint;
+                expiry: bigint;
+                status: number;
+            };
+            const status =
+                raw.status === 0
+                    ? "draft"
+                    : raw.status === 1
+                      ? "published"
+                      : "cancelled";
+            return {
+                sourceCafeId: raw.sourceCafeId,
+                budget: raw.budget,
+                voucherPayout: raw.voucherPayout,
+                maxVouchers: raw.maxVouchers,
+                expiry: raw.expiry,
+                status,
+            };
+        },
+        ownerBalance: async ({ owner }) =>
+            (await pub.readContract({
+                address: addresses.mockPEN,
+                abi: abis.mockPEN,
+                functionName: "balanceOf",
+                args: [owner],
+            })) as bigint,
+        allowance: async ({ owner, spender }) =>
+            (await pub.readContract({
+                address: addresses.mockPEN,
+                abi: abis.mockPEN,
+                functionName: "allowance",
+                args: [owner, spender],
+            })) as bigint,
         opsAddress: ops.address,
         deployerAddress: deployer.address,
         ownerAddressForIndex,
@@ -232,14 +270,17 @@ function liveDemoCampaignChain(): DemoCampaignChain {
                 amount,
             ]);
         },
-        approve: async ({ spender, amount, signer }) => {
-            await write(
-                accountForAddress(signer),
-                addresses.mockPEN,
-                abis.mockPEN,
-                "approve",
-                [spender, amount],
+        approve: async ({ spender, amount, signer, ownerWalletIndex }) => {
+            const account = deriveAccount(
+                env.WALLET_MASTER_MNEMONIC,
+                ownerWalletIndex,
             );
+            if (account.address.toLowerCase() !== signer.toLowerCase())
+                throw new Error("bootstrap owner derivation mismatch");
+            await write(account, addresses.mockPEN, abis.mockPEN, "approve", [
+                spender,
+                amount,
+            ]);
         },
         createCampaign: async ({ sourceCafeId }) => {
             const receipt = await write(
@@ -251,9 +292,20 @@ function liveDemoCampaignChain(): DemoCampaignChain {
             );
             return { receipt };
         },
-        fundCampaign: async ({ campaignId, amount, signer }) => {
+        fundCampaign: async ({
+            campaignId,
+            amount,
+            signer,
+            ownerWalletIndex,
+        }) => {
+            const account = deriveAccount(
+                env.WALLET_MASTER_MNEMONIC,
+                ownerWalletIndex,
+            );
+            if (account.address.toLowerCase() !== signer.toLowerCase())
+                throw new Error("bootstrap owner derivation mismatch");
             await write(
-                accountForAddress(signer),
+                account,
                 addresses.campaignEscrow,
                 abis.campaignEscrow,
                 "fundCampaign",
