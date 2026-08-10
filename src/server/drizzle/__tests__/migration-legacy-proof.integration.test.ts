@@ -135,14 +135,14 @@ describeIntegration("legacy proof migration", () => {
         await verify.connect();
         try {
             const result = await verify.query(
-                `SELECT id, status, failure_reason FROM redemption_request WHERE id IN ('dup-old', 'dup-new') ORDER BY id`,
+                `SELECT id, status, rejection_reason FROM redemption_request WHERE id IN ('dup-old', 'dup-new') ORDER BY id`,
             );
             expect(result.rows).toEqual([
-                { id: "dup-new", status: "pending", failure_reason: null },
+                { id: "dup-new", status: "pending", rejection_reason: null },
                 {
                     id: "dup-old",
-                    status: "failed",
-                    failure_reason: "superseded_by_newer_active_request",
+                    status: "rejected",
+                    rejection_reason: "superseded_by_newer_active_request",
                 },
             ]);
         } finally {

@@ -23,7 +23,7 @@ WITH ranked_active AS (
   WHERE kind = 'punch_reward' AND status IN ('pending', 'approved')
 )
 UPDATE redemption_request AS request
-SET status = 'failed', failure_reason = 'superseded_by_newer_active_request'
+SET status = 'rejected', rejection_reason = 'superseded_by_newer_active_request'
 FROM ranked_active
 WHERE request.id = ranked_active.id AND ranked_active.rank > 1;--> statement-breakpoint
 CREATE UNIQUE INDEX "redemption_request_active_punch_uq" ON "redemption_request" USING btree ("consumer_user_id") WHERE "redemption_request"."kind" = 'punch_reward' AND "redemption_request"."status" IN ('pending', 'approved');--> statement-breakpoint

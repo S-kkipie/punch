@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { applyEvent } from "@/core/chain/server/indexer/apply-event";
 import { db } from "@/server/drizzle/db";
@@ -13,7 +13,10 @@ import {
     consumerTransaction,
     redemptionRequest,
 } from "@/server/drizzle/schemas/consumption-schema";
+import { relayerJob } from "@/server/drizzle/schemas/purchase-schema";
+import { installIntegrationDbMutex } from "@/test/integration-db-mutex";
 
+installIntegrationDbMutex();
 const run =
     process.env.PUNCH_RUN_INTEGRATION === "1" ? describe : describe.skip;
 
@@ -203,22 +206,235 @@ run("redemption projection", () => {
         }
     });
 
-    it("without a matching request only decrements balance", async () => {
-        const wallet = "0x0000000000000000000000000000000000000aac";
-        await db
-            .insert(projectionPunchBalance)
-            .values({ userAddress: wallet, balance: 12n, lastBlock: 1n });
+    it("uses exact transaction identity to heal late events without misassigning mismatched products", async () => {
+        const suffix = crypto.randomUUID();
+        const userId = `exact-user-${suffix}`;
+        const cafeId = `exact-cafe-${suffix}`;
+        const productAId = `exact-product-a-${suffix}`;
+        const productBId = `exact-product-b-${suffix}`;
+        const requestAId = `exact-request-a-${suffix}`;
+        const requestBId = `exact-request-b-${suffix}`;
+        const requestCId = `exact-request-c-${suffix}`;
+        const wallet = "0x0000000000000000000000000000000000000aad";
+        const exactTxHash = `0x${"4".repeat(64)}`;
+        const mismatchTxHash = `0x${"5".repeat(64)}`;
+        await db.insert(user).values({
+            id: userId,
+            name: "Exact User",
+            email: `${suffix}@example.test`,
+            walletAddress: wallet,
+        });
+        await db.insert(cafe).values({
+            id: cafeId,
+            name: "Exact Cafe",
+            slug: `exact-${suffix}`,
+            chainCafeId: 3,
+        });
+        await db.insert(cafeProduct).values([
+            {
+                id: productAId,
+                cafeId,
+                name: "Reward A",
+                priceSoles: "12.00",
+                type: "reward",
+                approvalStatus: "approved",
+                chainProductId: 7,
+            },
+            {
+                id: productBId,
+                cafeId,
+                name: "Reward B",
+                priceSoles: "12.00",
+                type: "reward",
+                approvalStatus: "approved",
+                chainProductId: 8,
+            },
+        ]);
+        await db.insert(redemptionRequest).values([
+            {
+                id: requestAId,
+                kind: "punch_reward",
+                consumerUserId: userId,
+                cafeId,
+                productId: productAId,
+                status: "failed",
+                failureReason: "receipt polling exhausted",
+            },
+            {
+                id: requestBId,
+                kind: "punch_reward",
+                consumerUserId: userId,
+                cafeId,
+                productId: productBId,
+                status: "approved",
+            },
+            {
+                id: requestCId,
+                kind: "punch_reward",
+                consumerUserId: userId,
+                cafeId,
+                productId: productAId,
+                status: "failed",
+                failureReason: "receipt polling exhausted",
+            },
+        ]);
+        await db.insert(relayerJob).values([
+            {
+                id: `exact-job-a-${suffix}`,
+                kind: "punch_redemption",
+                redemptionRequestId: requestAId,
+                payload: {
+                    userWallet: wallet,
+                    chainCafeId: 3,
+                    chainProductId: 7,
+                },
+                status: "confirmed",
+                txHash: exactTxHash,
+            },
+            {
+                id: `exact-job-c-${suffix}`,
+                kind: "punch_redemption",
+                redemptionRequestId: requestCId,
+                payload: {
+                    userWallet: wallet,
+                    chainCafeId: 3,
+                    chainProductId: 7,
+                },
+                status: "confirmed",
+                txHash: mismatchTxHash,
+            },
+        ]);
+        await db.insert(projectionPunchBalance).values({
+            userAddress: wallet,
+            balance: 24n,
+            lastBlock: 1n,
+        });
         try {
             await db.transaction((tx) =>
                 applyEvent(tx, {
                     eventName: "RewardRedeemed",
                     args: { user: wallet, hostCafeId: 3n, productId: 7n },
                     blockNumber: 10n,
-                    transactionHash: `0x${"3".repeat(64)}`,
+                    transactionHash: exactTxHash,
                     logIndex: 2,
                     transactionIndex: 0,
                 }),
             );
+            await db.transaction((tx) =>
+                applyEvent(tx, {
+                    eventName: "RewardRedeemed",
+                    args: { user: wallet, hostCafeId: 3n, productId: 8n },
+                    blockNumber: 11n,
+                    transactionHash: mismatchTxHash,
+                    logIndex: 3,
+                    transactionIndex: 0,
+                }),
+            );
+
+            const requests = await db
+                .select({
+                    id: redemptionRequest.id,
+                    status: redemptionRequest.status,
+                })
+                .from(redemptionRequest)
+                .where(
+                    inArray(redemptionRequest.id, [
+                        requestAId,
+                        requestBId,
+                        requestCId,
+                    ]),
+                );
+            expect(requests).toEqual(
+                expect.arrayContaining([
+                    { id: requestAId, status: "confirmed" },
+                    { id: requestBId, status: "approved" },
+                    { id: requestCId, status: "failed" },
+                ]),
+            );
+            expect(
+                await db
+                    .select()
+                    .from(consumerTransaction)
+                    .where(
+                        eq(consumerTransaction.redemptionRequestId, requestAId),
+                    ),
+            ).toHaveLength(1);
+            expect(
+                await db
+                    .select()
+                    .from(consumerTransaction)
+                    .where(
+                        eq(consumerTransaction.redemptionRequestId, requestBId),
+                    ),
+            ).toHaveLength(0);
+            expect(
+                await db
+                    .select()
+                    .from(consumerTransaction)
+                    .where(
+                        eq(consumerTransaction.redemptionRequestId, requestCId),
+                    ),
+            ).toHaveLength(0);
+            expect(
+                await db
+                    .select()
+                    .from(projectionChainEvent)
+                    .where(eq(projectionChainEvent.txHash, mismatchTxHash)),
+            ).toHaveLength(1);
+        } finally {
+            await db
+                .delete(consumerTransaction)
+                .where(eq(consumerTransaction.consumerUserId, userId));
+            await db
+                .delete(projectionChainEvent)
+                .where(eq(projectionChainEvent.txHash, mismatchTxHash));
+            await db
+                .delete(projectionCafePayout)
+                .where(eq(projectionCafePayout.cafeId, cafeId));
+            await db
+                .delete(projectionPunchBalance)
+                .where(eq(projectionPunchBalance.userAddress, wallet));
+            await db
+                .delete(relayerJob)
+                .where(
+                    inArray(relayerJob.redemptionRequestId, [
+                        requestAId,
+                        requestCId,
+                    ]),
+                );
+            await db
+                .delete(redemptionRequest)
+                .where(
+                    inArray(redemptionRequest.id, [
+                        requestAId,
+                        requestBId,
+                        requestCId,
+                    ]),
+                );
+            await db
+                .delete(cafeProduct)
+                .where(inArray(cafeProduct.id, [productAId, productBId]));
+            await db.delete(cafe).where(eq(cafe.id, cafeId));
+            await db.delete(user).where(eq(user.id, userId));
+        }
+    });
+
+    it("without a matching request only decrements balance", async () => {
+        const wallet = "0x0000000000000000000000000000000000000aac";
+        await db
+            .insert(projectionPunchBalance)
+            .values({ userAddress: wallet, balance: 12n, lastBlock: 1n });
+        try {
+            const event = {
+                eventName: "RewardRedeemed" as const,
+                args: { user: wallet, hostCafeId: 3n, productId: 7n },
+                blockNumber: 10n,
+                transactionHash: `0x${"3".repeat(64)}`,
+                logIndex: 2,
+                transactionIndex: 0,
+            };
+            await db.transaction((tx) => applyEvent(tx, event));
+            await db.transaction((tx) => applyEvent(tx, event));
             const [balance] = await db
                 .select()
                 .from(projectionPunchBalance)
@@ -250,6 +466,9 @@ run("redemption projection", () => {
                     ),
             ).toHaveLength(1);
         } finally {
+            await db
+                .delete(projectionChainEvent)
+                .where(eq(projectionChainEvent.txHash, `0x${"3".repeat(64)}`));
             await db
                 .delete(projectionPunchBalance)
                 .where(eq(projectionPunchBalance.userAddress, wallet));
