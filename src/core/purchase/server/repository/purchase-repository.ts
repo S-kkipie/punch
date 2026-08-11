@@ -353,10 +353,15 @@ export async function markJobConfirmed(id: string) {
     return job;
 }
 
+export async function findSubmittedJobs(): Promise<RelayerJobRow[]> {
+    return db.select().from(relayerJob).where(eq(relayerJob.status, "submitted"));
+}
+
 export async function markJobRetry(
     id: string,
     error: string,
     attempts: number,
+    nextRetryAt = new Date(Date.now() + 5_000 * 2 ** attempts),
 ) {
     const [row] = await db
         .update(relayerJob)
@@ -364,7 +369,7 @@ export async function markJobRetry(
             status: "pending",
             lastError: error,
             attempts,
-            nextRetryAt: new Date(Date.now() + 30_000),
+            nextRetryAt,
         })
         .where(eq(relayerJob.id, id))
         .returning();
@@ -407,6 +412,7 @@ export const purchaseRepository = {
     updateOrderAndQueue,
     expirePurchases,
     findJobsToRun,
+    findSubmittedJobs,
     markJobSubmitted,
     markJobConfirmed,
     markJobRetry,
