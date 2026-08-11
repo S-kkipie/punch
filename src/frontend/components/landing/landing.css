@@ -773,10 +773,11 @@ body:has(.pnch) {
 }
 .pnch-dual-cta__grid {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
 }
 .pnch-dual-cta__cafe,
 .pnch-dual-cta__consumer {
+    min-width: 0;
     padding-block: var(--space-3xl);
 }
 .pnch-dual-cta__cafe {
