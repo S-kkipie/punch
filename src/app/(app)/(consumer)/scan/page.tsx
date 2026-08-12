@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { JourneyCard } from "@/frontend/components/guide/journey-card";
+import { PageIntro } from "@/frontend/components/guide/page-intro";
 import { Button } from "@/frontend/components/ui/button";
 import { Input } from "@/frontend/components/ui/input";
 
@@ -97,16 +99,34 @@ export default function ScanPage() {
 
     return (
         <div className="mx-auto grid w-full max-w-md gap-5">
-            <section className="grid gap-2">
-                <span className="consumer-eyebrow">Tu visita cuenta</span>
-                <h1 className="consumer-title text-4xl font-bold">
-                    Escanear compra
-                </h1>
-                <p>
-                    Escanea el código que te dio el barista para registrar tu
-                    visita.
-                </p>
-            </section>
+            <PageIntro
+                eyebrow="Tu visita cuenta"
+                title="Escanear compra"
+                explain="El barista genera un código al cobrarte. Al escanearlo, tu sello queda escrito en la cadena — ni la cafetería ni PUNCH pueden borrarlo."
+            />
+            <ol
+                className="consumer-panel grid gap-3 p-4"
+                aria-label="Cómo registrar tu compra"
+            >
+                <li>
+                    <strong>1. Paga tu compra</strong>
+                    <span className="block text-sm text-[var(--color-ink-2)]">
+                        El barista genera un código al cobrarte.
+                    </span>
+                </li>
+                <li>
+                    <strong>2. Escanea el código</strong>
+                    <span className="block text-sm text-[var(--color-ink-2)]">
+                        Apunta al código del barista.
+                    </span>
+                </li>
+                <li>
+                    <strong>3. Confirma tu sello</strong>
+                    <span className="block text-sm text-[var(--color-ink-2)]">
+                        Tu sello queda escrito en la cadena.
+                    </span>
+                </li>
+            </ol>
             {supportsCamera && cameraActive && !cameraError ? (
                 <video
                     ref={videoRef}
@@ -148,6 +168,7 @@ export default function ScanPage() {
                     Abrir
                 </Button>
             </div>
+            <JourneyCard currentRole="cliente" />
         </div>
     );
 }
