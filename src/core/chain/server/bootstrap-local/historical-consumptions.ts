@@ -1,6 +1,6 @@
 import "server-only";
 
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import {
     createPublicClient,
     createWalletClient,
@@ -12,15 +12,13 @@ import {
 import { foundry } from "viem/chains";
 import { abis } from "@/core/chain/abis";
 import { getAddresses } from "@/core/chain/addresses";
-import {
-    buildReceiptHash,
-    type ConsumptionProof,
-    randomNonce,
-    signProofAs,
-} from "@/core/chain/server/proof/proof";
+import { buildReceiptHash, type ConsumptionProof, signProofAs } from "@/core/chain/server/proof/proof";
 import { deriveUserAccount } from "@/core/chain/server/wallet/derive";
+import { createQuote } from "@/core/consumption/server/repository/proofs";
 import { db } from "@/server/drizzle/db";
 import { user } from "@/server/drizzle/schemas/auth-schema";
+import { consumptionProof } from "@/server/drizzle/schemas/consumption-schema";
+import { purchaseOrder } from "@/server/drizzle/schemas/purchase-schema";
 import { bootstrapRepository } from "./repository";
 
 type ChainIdClient = Pick<PublicClient, "getChainId">;
@@ -37,23 +35,45 @@ export async function assertLocalChain31337(
     }
 }
 
-export type HistoricalScheduleItem = {
+/**
+ * Guard for operations that are legitimate on a public chain (registering real
+ * cafés) as opposed to seeding fabricated history, which stays 31337-only.
+ */
+export async function assertExpectedChain(
+    publicClient: ChainIdClient,
+    expectedChainId: number,
+): Promise<void> {
+    const chainId = await publicClient.getChainId();
+    if (chainId !== expectedChainId) {
+        throw new Error(
+            `chain mismatch: CHAIN_RPC_URL reports chain id ${chainId} but CHAIN_ENV expects ${expectedChainId}`,
+        );
+    }
+}
+
+type HistoricalScheduleItem = {
     cafeId: string;
-    productId: bigint;
+    chainProductId: bigint;
+    productId: string;
     nonce: bigint;
     amount: bigint;
     utcDay: string;
 };
 
 export function buildHistoricalSchedule(input: {
-    cafes: readonly { id: string; emissionProductIds: readonly bigint[] }[];
+    cafes: readonly {
+        id: string;
+        emissionProducts: readonly {
+            chainProductId: bigint;
+            productId: string;
+        }[];
+    }[];
     targetCafeId: string;
     count: number;
 }): HistoricalScheduleItem[] {
     const cafes = input.cafes.filter(
         (cafe) =>
-            cafe.id !== input.targetCafeId &&
-            cafe.emissionProductIds.length > 0,
+            cafe.id !== input.targetCafeId && cafe.emissionProducts.length > 0,
     );
     if (cafes.length === 0 || input.count < 0) {
         throw new Error("historical schedule has no approved source cafes");
@@ -63,10 +83,11 @@ export function buildHistoricalSchedule(input: {
     for (let i = 0; i < input.count; i++) {
         const cafe = cafes[i % cafes.length];
         const utcDay = `2026-01-${String(Math.floor(i / 3) + 1).padStart(2, "0")}`;
+        const product = cafe.emissionProducts[i % cafe.emissionProducts.length];
         schedule.push({
             cafeId: cafe.id,
-            productId:
-                cafe.emissionProductIds[i % cafe.emissionProductIds.length],
+            chainProductId: product.chainProductId,
+            productId: product.productId,
             nonce: BigInt(i + 1),
             amount: 8_000_000n,
             utcDay,
@@ -126,7 +147,7 @@ export async function seedHistoricalConsumptions(input: {
     const schedule = buildHistoricalSchedule({
         cafes: cafes.map((cafe) => ({
             id: cafe.id,
-            emissionProductIds: cafe.products
+            emissionProducts: cafe.products
                 .filter(
                     (product) =>
                         product.type === "emission" &&
@@ -134,11 +155,37 @@ export async function seedHistoricalConsumptions(input: {
                         product.active &&
                         product.chainProductId !== null,
                 )
-                .map((product) => BigInt(product.chainProductId as number)),
+                .map((product) => ({
+                    chainProductId: BigInt(product.chainProductId as number),
+                    productId: product.id,
+                })),
         })),
         targetCafeId: input.targetCafeId,
         count: input.count,
     });
+
+    const ownerWalletIndexes = Array.from(
+        new Set(
+            cafes
+                .map((cafe) => cafe.ownerWalletIndex)
+                .filter((walletIndex): walletIndex is number => walletIndex !== null),
+        ),
+    );
+    if (ownerWalletIndexes.length === 0) {
+        throw new Error("historical seeding has no owner wallets");
+    }
+    const ownerRows = await db
+        .select({ id: user.id, walletIndex: user.walletIndex })
+        .from(user)
+        .where(inArray(user.walletIndex, ownerWalletIndexes));
+    const ownerUserByWalletIndex = new Map<number, string>(
+        ownerRows
+            .filter(
+                (row): row is { id: string; walletIndex: number } =>
+                    row.walletIndex !== null,
+            )
+            .map((row) => [row.walletIndex, row.id]),
+    );
 
     const currentBalance = (await publicClient.readContract({
         address: addresses.punchVault,
@@ -253,23 +300,89 @@ export async function seedHistoricalConsumptions(input: {
                 `historical seeding ${item.cafeId}: operator is missing`,
             );
         }
+
+        const issuedByUserId = ownerUserByWalletIndex.get(cafe.ownerWalletIndex);
+        if (!issuedByUserId) {
+            throw new Error(
+                `historical seeding ${item.cafeId}: owner user id is missing`,
+            );
+        }
+
         const now = (await publicClient.getBlock()).timestamp;
+        const orderId = crypto.randomUUID();
+        const yapeRef = `demo-${item.nonce}`;
+        const receiptHash = buildReceiptHash(orderId, yapeRef);
         const proof: ConsumptionProof = {
             cafeId: BigInt(cafe.chainCafeId),
             user: consumerAccount.address,
-            productId: item.productId,
+            productId: item.chainProductId,
             amount: item.amount,
-            receiptHash: buildReceiptHash(
-                `historical-${input.consumerUserId}-${item.nonce}`,
-                `historical-${item.nonce}`,
-            ),
-            nonce: randomNonce(),
+            receiptHash,
+            nonce: item.nonce,
             expiry: now + 900n,
         };
         const [cafeSignature, userSignature] = await Promise.all([
             signProofAs(cafe.ownerWalletIndex, proof),
             signProofAs(consumer.walletIndex, proof),
         ]);
+
+        await db.transaction(async (tx) => {
+            const quoteRow = await createQuote(
+                {
+                    cafeId: cafe.id,
+                    productId: item.productId,
+                    issuedByUserId,
+                    amountCentimos: Number(item.amount / 10_000n),
+                    yapeRef,
+                    status: "issued",
+                    expiresAt: new Date(Number(now + 900n) * 1000),
+                    receiptHash: null,
+                    nonce: null,
+                    cafeSignature: null,
+                    consumerSignature: null,
+                    consumerUserId: null,
+                    failureReason: null,
+                    purchaseOrderId: null,
+                },
+                tx,
+            );
+
+            const [order] = await tx
+                .insert(purchaseOrder)
+                .values({
+                    id: orderId,
+                    cafeId: cafe.id,
+                    userId: input.consumerUserId,
+                    productId: item.productId,
+                    amount: item.amount,
+                    yapeRef,
+                    receiptHash,
+                    nonce: item.nonce.toString(),
+                    expiry: new Date(Number(now + 900n) * 1000),
+                    status: "queued",
+                })
+                .returning();
+
+            if (!order) {
+                throw new Error(
+                    `historical seeding ${item.cafeId}: queued order was not created`,
+                );
+            }
+
+            await tx
+                .update(consumptionProof)
+                .set({
+                    consumerUserId: input.consumerUserId,
+                    purchaseOrderId: order.id,
+                    receiptHash,
+                    nonce: item.nonce.toString(),
+                    cafeSignature,
+                    consumerSignature: userSignature,
+                    status: "submitted",
+                })
+                .where(eq(consumptionProof.id, quoteRow.id));
+        });
+
         const hash = await submitter.writeContract({
             address: addresses.consumptionLog,
             abi: abis.consumptionLog,
