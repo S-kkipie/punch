@@ -812,3 +812,61 @@
     color: var(--color-ink);
     user-select: all;
 }
+
+/* Etapas de la escritura on-chain: qué ya pasó y qué falta. */
+.chain-receipt__track {
+    display: grid;
+    gap: var(--space-2xs);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    width: 100%;
+}
+.chain-receipt__stage {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-xs);
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+}
+.chain-receipt__stage--done {
+    color: var(--color-ink);
+}
+.chain-receipt__mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 1.35rem;
+    height: 1.35rem;
+    border: var(--rule-hair) solid currentColor;
+    border-radius: 999px;
+    font-family: var(--font-outlier);
+    font-size: var(--text-xs);
+}
+.chain-receipt__stage--current .chain-receipt__mark {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+    animation: chain-receipt-pulse 1.2s ease-in-out infinite;
+}
+.chain-receipt__stage-detail {
+    display: block;
+    color: var(--color-ink-2);
+    font-size: var(--text-xs);
+}
+.chain-receipt__wait {
+    margin: 0;
+    color: var(--color-ink-2);
+    font-family: var(--font-outlier);
+    font-size: var(--text-xs);
+}
+@keyframes chain-receipt-pulse {
+    50% {
+        opacity: 0.35;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .chain-receipt__stage--current .chain-receipt__mark {
+        animation: none;
+    }
+}
