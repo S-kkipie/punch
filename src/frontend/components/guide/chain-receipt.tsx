@@ -1,5 +1,6 @@
 "use client";
 
+import { explorerTxUrl } from "@/config/explorer";
 import { TxHashLink } from "@/frontend/components/tx-hash-link";
 
 export type ChainReceiptState = "queued" | "submitted" | "confirmed" | "failed";
@@ -42,9 +43,21 @@ export function ChainReceipt({
     failureReason?: string | null;
     onRetry?: () => void;
 }) {
-    const { label, hint } = copy[state];
+    const { label: defaultLabel, hint: defaultHint } = copy[state];
+    const hasPublicExplorer = txHash ? explorerTxUrl(txHash) !== null : false;
+    const label =
+        state === "confirmed" && !hasPublicExplorer
+            ? "Confirmado en la cadena local"
+            : defaultLabel;
+    const hint =
+        state === "confirmed" && !hasPublicExplorer
+            ? "Queda escrito en la cadena local de desarrollo."
+            : defaultHint;
     return (
-        <div className={`chain-receipt chain-receipt--${state}`} role="status">
+        <div
+            className={`chain-receipt chain-receipt--${state}`}
+            role={state === "failed" ? "alert" : "status"}
+        >
             <div className="chain-receipt__head">
                 <span className="chain-receipt__label">{label}</span>
                 {txHash ? <TxHashLink txHash={txHash} /> : null}

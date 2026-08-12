@@ -58,6 +58,18 @@ describe("ChainReceipt", () => {
         expect(document.querySelector("a")).not.toBeNull();
     });
 
+    it("makes the public-chain permanence claim when confirmed on Arbitrum", async () => {
+        await render(<ChainReceipt state="confirmed" txHash={HASH} />);
+        expect(document.body.textContent).toContain("Nadie puede borrarlo");
+    });
+
+    it("does not make the permanence claim when confirmed on the local chain", async () => {
+        process.env.NEXT_PUBLIC_CHAIN_ENV = "local";
+        await render(<ChainReceipt state="confirmed" txHash={HASH} />);
+        expect(document.body.textContent).not.toContain("Nadie puede borrarlo");
+        expect(document.body.textContent).toContain("cadena local");
+    });
+
     it("explains the failure and offers a retry", async () => {
         const onRetry = vi.fn();
         await render(
