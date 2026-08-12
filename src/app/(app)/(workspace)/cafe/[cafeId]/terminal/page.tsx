@@ -182,7 +182,10 @@ export default function CafeTerminalPage() {
                             onChange={(event) => setYapeRef(event.target.value)}
                         />
                         <p className="text-muted-foreground text-xs">
-                            Los últimos dígitos que ves en tu app de Yape.
+                            Yape es la app de pagos con la que cobras en Perú.
+                            Cada cobro deja un número de operación: cópialo aquí
+                            para poder conciliar después. En la demo cualquier
+                            número sirve — por ejemplo 0087-4412.
                         </p>
                         <Button
                             className="min-h-11 w-full"
@@ -244,9 +247,6 @@ export default function CafeTerminalPage() {
                 </section>
             </section>
 
-            <p className="text-xs text-muted-foreground">
-                Los últimos dígitos de Yape te sirven para conciliar después.
-            </p>
             <JourneyCard
                 currentRole="cafeteria"
                 actionOverride={{

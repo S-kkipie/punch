@@ -54,6 +54,52 @@ const transferByRole: Record<Role, { label: string; mention: string }> = {
     },
 };
 
+function JourneyStepList({ step }: { step: number }) {
+    return (
+        <>
+            <header className="journey__head">
+                <span className="journey__eyebrow">Recorrido de la demo</span>
+                <span className="journey__count">
+                    Paso {step + 1} de {journeySteps.length}
+                </span>
+            </header>
+            <ol className="journey__list">
+                {journeySteps.map((entry, index) => {
+                    const state =
+                        index < step
+                            ? "done"
+                            : index === step
+                              ? "current"
+                              : "future";
+
+                    return (
+                        <li
+                            key={entry.title}
+                            className={`journey__step journey__step--${state}`}
+                        >
+                            <span className="journey__mark" aria-hidden="true">
+                                {state === "done" ? "✓" : index + 1}
+                            </span>
+                            <span className="journey__body">
+                                {state === "done" ? (
+                                    <s>{entry.title}</s>
+                                ) : (
+                                    <span>{entry.title}</span>
+                                )}
+                                {state === "current" ? (
+                                    <span className="journey__now">
+                                        Estás aquí · completa este paso
+                                    </span>
+                                ) : null}
+                            </span>
+                        </li>
+                    );
+                })}
+            </ol>
+        </>
+    );
+}
+
 function toAction(
     step: number,
     actionOverride?: StepAction,
@@ -98,29 +144,7 @@ export function JourneyCard({
     if (currentStep.role === currentRole) {
         return (
             <section className="journey" aria-label="Guía de avance de la demo">
-                <ol className="journey__list">
-                    {journeySteps.map((entry, index) => {
-                        const statusClass =
-                            index < step
-                                ? "journey__step--done"
-                                : index === step
-                                  ? "journey__step--current"
-                                  : "journey__step--future";
-
-                        return (
-                            <li
-                                key={entry.title}
-                                className={`journey__step ${statusClass}`}
-                            >
-                                {index < step ? (
-                                    <s>{entry.title}</s>
-                                ) : (
-                                    <span>{entry.title}</span>
-                                )}
-                            </li>
-                        );
-                    })}
-                </ol>
+                <JourneyStepList step={step} />
 
                 <a
                     href={action.href}
@@ -143,29 +167,7 @@ export function JourneyCard({
 
     return (
         <section className="journey" aria-label="Guía de avance de la demo">
-            <ol className="journey__list">
-                {journeySteps.map((entry, index) => {
-                    const statusClass =
-                        index < step
-                            ? "journey__step--done"
-                            : index === step
-                              ? "journey__step--current"
-                              : "journey__step--future";
-
-                    return (
-                        <li
-                            key={entry.title}
-                            className={`journey__step ${statusClass}`}
-                        >
-                            {index < step ? (
-                                <s>{entry.title}</s>
-                            ) : (
-                                <span>{entry.title}</span>
-                            )}
-                        </li>
-                    );
-                })}
-            </ol>
+            <JourneyStepList step={step} />
 
             <p className="journey__transfer-text">
                 Este paso lo hace {transfer.mention} · en la demo, ese
