@@ -12,7 +12,14 @@ import {
     type UiPurchaseState,
 } from "@/core/consumption/client/purchase-status";
 import { TransactionStatus } from "@/core/consumption/client/ui/transaction-status";
+import { useDashboard } from "@/core/punch/client/hooks";
 import type { PurchaseOrderStatus } from "@/core/purchase/domain/types";
+import {
+    ChainReceipt,
+    type ChainReceiptState,
+} from "@/frontend/components/guide/chain-receipt";
+import { clearPendingProofUrl } from "@/frontend/components/guide/demo-state";
+import { PageIntro } from "@/frontend/components/guide/page-intro";
 import { Button } from "@/frontend/components/ui/button";
 import { Spinner } from "@/frontend/components/ui/spinner";
 
@@ -35,11 +42,27 @@ type PurchaseQuote = {
     failureReason: string | null;
 };
 
+function receiptStateFromOrder(
+    status: PurchaseOrderStatus | undefined,
+    txHash: string | null | undefined,
+): ChainReceiptState | null {
+    if (!status) return null;
+    if (status === "queued") return "queued";
+    if (status === "submitted") return txHash ? "submitted" : "queued";
+    if (status === "confirmed") return "confirmed";
+    if (status === "failed") return "failed";
+    if (status === "user_confirmed" || status === "cafe_confirmed") {
+        return txHash ? "submitted" : "queued";
+    }
+    return null;
+}
+
 export function PurchaseConfirmPage() {
     const { proofId } = useParams<{ proofId: string }>();
     const router = useRouter();
     const proofQuery = usePurchaseProof(proofId);
     const confirmPurchase = useConfirmPurchase();
+    const dashboard = useDashboard();
     const [orderId, setOrderId] = useState<string>();
     const [localOrder, setLocalOrder] = useState<PurchaseOrder>();
     const [hasSubmitted, setHasSubmitted] = useState(false);
@@ -83,6 +106,22 @@ export function PurchaseConfirmPage() {
 
     const proof = proofQuery.data as PurchaseQuote;
     const order = (orderQuery.data ?? localOrder) as PurchaseOrder | undefined;
+    const dashboardBalance = (
+        dashboard.data as { balance: number | null } | undefined
+    )?.balance;
+    const projectedBalance =
+        dashboardBalance === null || dashboardBalance === undefined
+            ? null
+            : Math.min(dashboardBalance + 1, 12);
+    const unlockedReward = projectedBalance !== null && projectedBalance >= 12;
+    const isPreConfirm =
+        order?.status !== "confirmed" &&
+        order?.status !== "failed" &&
+        order?.status !== "queued" &&
+        order?.status !== "submitted" &&
+        order?.status !== "user_confirmed" &&
+        order?.status !== "cafe_confirmed";
+
     const expired = new Date(proof.expiresAt) < new Date();
     const status: UiPurchaseState = order
         ? toUiPurchaseState({
@@ -92,6 +131,10 @@ export function PurchaseConfirmPage() {
         : expired
           ? "expired"
           : toUiPurchaseState({ quoteStatus: proof.status });
+    const receiptState = order
+        ? receiptStateFromOrder(order.status, order.txHash)
+        : null;
+
     const confirm = () => {
         if (
             !isOnline ||
@@ -115,6 +158,9 @@ export function PurchaseConfirmPage() {
                         }
                     ).response;
                     if (!response?.order) return;
+                    // El código dejó de estar pendiente: a partir de aquí la
+                    // guía avanza con lo que devuelve el historial.
+                    clearPendingProofUrl();
                     setOrderId(response.order.id);
                     setLocalOrder(response.order);
                 },
@@ -128,12 +174,7 @@ export function PurchaseConfirmPage() {
 
     return (
         <div className="mx-auto grid w-full max-w-md gap-5">
-            <section className="grid gap-2">
-                <span className="consumer-eyebrow">Último paso</span>
-                <h1 className="consumer-title text-4xl font-bold">
-                    Confirma tu compra
-                </h1>
-            </section>
+            <PageIntro eyebrow="Casi listo" title="¿Confirmas esta compra?" />
             <div className="consumer-panel grid gap-2 p-5">
                 <p className="font-semibold">Café: {proof.cafeId}</p>
                 <p className="font-semibold">Producto: {proof.productId}</p>
@@ -143,6 +184,15 @@ export function PurchaseConfirmPage() {
                 <p className="text-[var(--color-ink-2)] text-sm">
                     Referencia Yape: {proof.maskedYapeRef}
                 </p>
+                <p className="text-[var(--color-ink-2)] text-sm">
+                    Ganas +1 sello
+                </p>
+                {projectedBalance !== null ? (
+                    <p className="font-semibold text-sm">
+                        Al confirmar quedarás en {projectedBalance}/12
+                        {unlockedReward ? " · Recompensa disponible" : ""}
+                    </p>
+                ) : null}
                 <p className="text-[var(--color-ink-2)] text-sm">
                     Disponible hasta{" "}
                     {new Date(proof.expiresAt).toLocaleTimeString("es-PE")}.
@@ -163,6 +213,13 @@ export function PurchaseConfirmPage() {
                         Reintentar estado
                     </Button>
                 </div>
+            ) : receiptState ? (
+                <ChainReceipt
+                    state={receiptState}
+                    txHash={order?.txHash}
+                    failureReason={order?.failureReason ?? proof.failureReason}
+                    onRetry={undefined}
+                />
             ) : status !== "issued" ? (
                 <TransactionStatus
                     status={status}
@@ -184,16 +241,29 @@ export function PurchaseConfirmPage() {
                 >
                     {confirmPurchase.isPending
                         ? "Confirmando…"
-                        : "Confirmar compra"}
+                        : "Confirmar y sellar"}
                 </Button>
             )}
-            {order?.txHash ? (
-                <p className="text-muted-foreground text-xs">
-                    Código de operación: {order.txHash.slice(0, 8)}…
-                    {order.txHash.slice(-6)}
+            {isPreConfirm && status === "issued" ? (
+                <p className="text-sm text-center">
+                    Se escribe en Arbitrum · verificable después
                 </p>
             ) : null}
-            {status === "confirmed" && (
+            {status === "confirmed" && unlockedReward ? (
+                <section className="consumer-panel grid gap-2 p-5 text-center">
+                    <span className="consumer-eyebrow">
+                        Recompensa disponible
+                    </span>
+                    <h2 className="consumer-title text-2xl font-bold">
+                        Sello 12 de 12
+                    </h2>
+                    <p className="text-sm">
+                        Tienes un café gratis para canjear en cualquiera de las
+                        cafeterías.
+                    </p>
+                </section>
+            ) : null}
+            {status === "confirmed" ? (
                 <Button
                     variant="outline"
                     className="w-full"
@@ -201,7 +271,7 @@ export function PurchaseConfirmPage() {
                 >
                     Volver a Inicio
                 </Button>
-            )}
+            ) : null}
         </div>
     );
 }

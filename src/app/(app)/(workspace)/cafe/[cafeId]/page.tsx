@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
+
 import {
     useCafe,
     useCafeFund,
@@ -23,6 +23,9 @@ import type { CafeAdmin, ProductAdmin } from "@/core/cafe/domain/types";
 import { useCafePayouts } from "@/core/consumption/client/hooks";
 import type { CafePayouts } from "@/core/consumption/server/services/get-cafe-payouts-service";
 import { CreditsBadge } from "@/core/plan/client/ui/credits-badge";
+import { JourneyCard } from "@/frontend/components/guide/journey-card";
+import { PageIntro } from "@/frontend/components/guide/page-intro";
+import { Stat } from "@/frontend/components/guide/stat";
 import { Button } from "@/frontend/components/ui/button";
 import {
     Card,
@@ -31,30 +34,6 @@ import {
     CardTitle,
 } from "@/frontend/components/ui/card";
 import { Spinner } from "@/frontend/components/ui/spinner";
-
-function PayoutSummaryCard({ payouts }: { payouts?: CafePayouts }) {
-    const data = payouts;
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Pagos por canjes PUNCH</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-1 text-sm">
-                <p>
-                    Total confirmado: S/
-                    {((data?.totalCentimos ?? 0) / 100).toFixed(2)}
-                </p>
-                <p>Canjes confirmados: {data?.redemptionCount ?? 0}</p>
-                <p>
-                    Saldo del propietario:{" "}
-                    {data?.ownerMpenCentimos == null
-                        ? "—"
-                        : `S/${(data.ownerMpenCentimos / 100).toFixed(2)}`}
-                </p>
-            </CardContent>
-        </Card>
-    );
-}
 
 type CafeFundView = {
     epoch: number;
@@ -72,6 +51,66 @@ type CafeFundView = {
 const formatMpen = (value: string) =>
     `S/${(Number(value) / 1_000_000).toFixed(2)}`;
 
+function PayoutSummaryCard({
+    payouts,
+    fund,
+}: {
+    payouts?: CafePayouts;
+    fund?: CafeFundView;
+}) {
+    const data = payouts;
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Tus ganancias con PUNCH</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3">
+                <div className="guide-stat-row">
+                    <Stat
+                        label="Por canjes entregados"
+                        value={`S/${((data?.totalCentimos ?? 0) / 100).toFixed(2)}`}
+                        hint={`${data?.redemptionCount ?? 0} ${
+                            data?.redemptionCount === 1 ? "canje" : "canjes"
+                        } · S/3.60 cada uno`}
+                        lead
+                    />
+                    <Stat
+                        label="Del fondo común"
+                        value={
+                            fund ? formatMpen(fund.pendingCreditMpen) : "S/0.00"
+                        }
+                        hint={
+                            fund && !fund.estimated
+                                ? "Listo para reclamar"
+                                : "Estimado · el mes no cerró"
+                        }
+                    />
+                    <Stat
+                        label="En tu billetera"
+                        value={
+                            data?.ownerMpenCentimos == null
+                                ? "—"
+                                : `S/${(data.ownerMpenCentimos / 100).toFixed(2)}`
+                        }
+                        hint="Saldo on-chain del propietario"
+                    />
+                </div>
+                <p className="text-muted-foreground text-sm">
+                    Cada canje te transfiere S/3.60 en el momento en que lo
+                    entregas: no hay nada que reclamar. La venta del café la
+                    sigues cobrando por Yape — esto es lo que la red te paga
+                    encima.
+                </p>
+                <p className="text-muted-foreground text-xs">
+                    El paso a soles en tu banco todavía no está integrado: en
+                    esta versión el saldo vive como mPEN, la moneda de prueba de
+                    la red.
+                </p>
+            </CardContent>
+        </Card>
+    );
+}
+
 function CafeFundCard({
     fund,
     isPending,
@@ -81,12 +120,22 @@ function CafeFundCard({
     isPending: boolean;
     isError: boolean;
 }) {
+    const refsText = fund
+        ? fund.referrals === 0
+            ? "Sin referencias este mes"
+            : `${fund.referrals} referencias este mes`
+        : "";
+
+    const commonHint = fund
+        ? `Época ${fund.epoch} · ${refsText}${fund.estimated ? " · estimado" : ""}`
+        : "";
+
     return (
         <Card>
             <CardHeader>
                 <CardTitle>Fondo común</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 text-sm">
+            <CardContent className="space-y-3">
                 {isPending ? (
                     <p className="text-muted-foreground">
                         Cargando fondo común…
@@ -99,31 +148,47 @@ function CafeFundCard({
                     <p className="text-muted-foreground">
                         Aún no hay datos del fondo este mes.
                     </p>
+                ) : Number(fund.buckets.origin) === 0 &&
+                  Number(fund.buckets.acquisition) === 0 &&
+                  Number(fund.buckets.crawl) === 0 &&
+                  Number(fund.buckets.contingency) === 0 ? (
+                    <p className="text-muted-foreground text-sm">
+                        La época {fund.epoch} todavía no se financió: el fondo
+                        se reparte en cuatro bolsas cuando cierra el mes y se
+                        presupuesta lo aportado por los planes. Por eso aquí aún
+                        no hay montos.
+                    </p>
                 ) : (
                     <>
-                        <div className="space-y-1">
-                            <p>
-                                {fund.referrals === 0
-                                    ? "Aún sin referencias este mes"
-                                    : `${fund.referrals} referencias este mes`}
-                            </p>
-                            <p>
-                                Crédito de origen:{" "}
-                                {formatMpen(fund.pendingCreditMpen)}
-                                {fund.estimated ? " (estimado)" : ""}
-                            </p>
+                        <div className="guide-stat-row">
+                            <Stat
+                                label="Fondo común · tu parte"
+                                value={formatMpen(fund.pendingCreditMpen)}
+                                hint={commonHint}
+                                lead
+                            />
                         </div>
-                        <div className="grid gap-2 sm:grid-cols-2">
-                            <p>Origen: {formatMpen(fund.buckets.origin)}</p>
-                            <p>
-                                Adquisición:{" "}
-                                {formatMpen(fund.buckets.acquisition)}
-                            </p>
-                            <p>Rastreo: {formatMpen(fund.buckets.crawl)}</p>
-                            <p>
-                                Contingencia:{" "}
-                                {formatMpen(fund.buckets.contingency)}
-                            </p>
+                        <div className="guide-stat-row">
+                            <Stat
+                                label="Origen"
+                                value={formatMpen(fund.buckets.origin)}
+                                hint="Clientes que entraron a la red por tu cafetería"
+                            />
+                            <Stat
+                                label="Adquisición"
+                                value={formatMpen(fund.buckets.acquisition)}
+                                hint="Campañas que trajeron gente nueva"
+                            />
+                            <Stat
+                                label="Rutas"
+                                value={formatMpen(fund.buckets.crawl)}
+                                hint='Tu paso en "Vuelta por Barranco"'
+                            />
+                            <Stat
+                                label="Contingencia"
+                                value={formatMpen(fund.buckets.contingency)}
+                                hint="Reserva de la red"
+                            />
                         </div>
                     </>
                 )}
@@ -163,6 +228,7 @@ export default function CafePanelPage() {
                 : [],
         [cafe, products],
     );
+
     const serverGaps = responseTargets(submitCafe.error);
     const gaps = serverGaps.length > 0 ? serverGaps : localGaps;
     const gapLabels: Record<string, string> = {
@@ -185,6 +251,7 @@ export default function CafePanelPage() {
             </div>
         );
     }
+
     if (cafeQuery.isError || !cafe) {
         return (
             <p className="p-6 text-destructive">No se pudo cargar el café.</p>
@@ -201,6 +268,7 @@ export default function CafePanelPage() {
             ruc: values.ruc || null,
             photoUrl: values.photoUrl || null,
         };
+
         if (cafe.onboardingStatus === "approved") {
             updateCafe.mutate({
                 description: patch.description,
@@ -209,8 +277,10 @@ export default function CafePanelPage() {
             });
             return;
         }
+
         updateCafe.mutate(patch);
     };
+
     const addProduct = (values: ProductFormValues) =>
         createProduct.mutate({
             ...values,
@@ -219,137 +289,131 @@ export default function CafePanelPage() {
 
     return (
         <div className="mx-auto w-full max-w-5xl space-y-6 p-6">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                    <h1 className="font-semibold text-2xl">{cafe.name}</h1>
-                    <p className="text-muted-foreground">Panel del café</p>
-                </div>
+            <div className="grid gap-3">
+                <PageIntro
+                    eyebrow="Tu cafetería en la red"
+                    title={cafe.name}
+                    explain="Cada venta que sellas alimenta el fondo común. El fondo
+                    devuelve dinero a las cafeterías que traen clientes nuevos a la red
+                    — no solo a las que los atienden."
+                />
                 <div className="flex flex-wrap items-center gap-2">
                     <StatusBadge status={cafe.onboardingStatus} />
                     <CreditsBadge cafeId={cafeId} />
-                    <Link
-                        href={`/cafe/${cafeId}/plan`}
-                        className="text-sm underline"
-                    >
-                        Plan y créditos
-                    </Link>
-                    {cafe.onboardingStatus === "approved" && (
-                        <>
-                            <Button
-                                asChild
-                                className="min-h-11"
-                                variant="outline"
-                            >
-                                <Link href={`/cafe/${cafeId}/terminal`}>
-                                    Terminal de compras
-                                </Link>
-                            </Button>
-                            <Button
-                                asChild
-                                className="min-h-11"
-                                variant="outline"
-                            >
-                                <Link href={`/cafe/${cafeId}/redemptions`}>
-                                    Bandeja de canjes
-                                </Link>
-                            </Button>
-                        </>
-                    )}
                 </div>
             </div>
+
             {cafe.onboardingStatus === "rejected" && cafe.reviewNote && (
                 <p className="rounded-md border border-red-200 bg-red-50 p-3 text-red-800 text-sm">
                     Motivo del rechazo: {cafe.reviewNote}
                 </p>
             )}
-            <PayoutSummaryCard
-                payouts={payoutsQuery.data as CafePayouts | undefined}
-            />
+
             <CafeFundCard
                 fund={fundQuery.data as CafeFundView | undefined}
                 isPending={fundQuery.isPending}
                 isError={fundQuery.isError}
             />
-            <Card>
-                <CardHeader>
-                    <CardTitle>Perfil del café</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <CafeForm
-                        defaultValues={{
-                            name: cafe.name,
-                            description: cafe.description ?? "",
-                            address: cafe.address ?? "",
-                            district: cafe.district ?? "",
-                            contactPhone: cafe.contactPhone ?? "",
-                            ruc: cafe.ruc ?? "",
-                            photoUrl: cafe.photoUrl ?? "",
-                        }}
-                        onSubmit={saveCafe}
-                        disabled={
-                            updateCafe.isPending ||
-                            cafe.onboardingStatus === "submitted"
-                        }
-                        fields={
-                            cafe.onboardingStatus === "approved"
-                                ? ["description", "contactPhone", "photoUrl"]
-                                : undefined
-                        }
-                    />
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader>
-                    <CardTitle>Catálogo</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    <ProductList cafeId={cafeId} products={products} />
-                    <div className="border-t pt-6">
-                        <ProductForm
-                            onSubmit={addProduct}
-                            disabled={
-                                createProduct.isPending ||
-                                cafe.onboardingStatus === "submitted"
-                            }
-                        />
-                    </div>
-                </CardContent>
-            </Card>
-            {cafe.onboardingStatus !== "approved" &&
-                cafe.onboardingStatus !== "submitted" && (
+
+            <div className="grid gap-4 lg:grid-cols-2">
+                <JourneyCard currentRole="cafeteria" />
+                <PayoutSummaryCard
+                    payouts={payoutsQuery.data as CafePayouts | undefined}
+                    fund={fundQuery.data as CafeFundView | undefined}
+                />
+            </div>
+
+            <details className="consumer-panel p-5">
+                <summary className="font-semibold">Perfil y catálogo</summary>
+                <div className="grid gap-4 pt-4">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Enviar a revisión</CardTitle>
+                            <CardTitle>Perfil del café</CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-4">
-                            {gaps.length > 0 && (
-                                <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-amber-900 text-sm">
-                                    <p className="font-medium">
-                                        Completa estos datos antes de enviar:
-                                    </p>
-                                    <ul className="mt-2 list-inside list-disc">
-                                        {gaps.map((gap) => (
-                                            <li key={gap}>
-                                                {gapLabels[gap] ??
-                                                    "Dato requerido"}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-                            <Button
+                        <CardContent>
+                            <CafeForm
+                                defaultValues={{
+                                    name: cafe.name,
+                                    description: cafe.description ?? "",
+                                    address: cafe.address ?? "",
+                                    district: cafe.district ?? "",
+                                    contactPhone: cafe.contactPhone ?? "",
+                                    ruc: cafe.ruc ?? "",
+                                    photoUrl: cafe.photoUrl ?? "",
+                                }}
+                                onSubmit={saveCafe}
                                 disabled={
-                                    gaps.length > 0 || submitCafe.isPending
+                                    updateCafe.isPending ||
+                                    cafe.onboardingStatus === "submitted"
                                 }
-                                onClick={() => submitCafe.mutate()}
-                            >
-                                {submitCafe.isPending
-                                    ? "Enviando…"
-                                    : "Enviar a revisión"}
-                            </Button>
+                                fields={
+                                    cafe.onboardingStatus === "approved"
+                                        ? [
+                                              "description",
+                                              "contactPhone",
+                                              "photoUrl",
+                                          ]
+                                        : undefined
+                                }
+                            />
                         </CardContent>
                     </Card>
-                )}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Catálogo</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <ProductList cafeId={cafeId} products={products} />
+                            <div className="border-t pt-6">
+                                <ProductForm
+                                    onSubmit={addProduct}
+                                    disabled={
+                                        createProduct.isPending ||
+                                        cafe.onboardingStatus === "submitted"
+                                    }
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
+                    {cafe.onboardingStatus !== "approved" &&
+                        cafe.onboardingStatus !== "submitted" && (
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Enviar a revisión</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    {gaps.length > 0 && (
+                                        <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-amber-900 text-sm">
+                                            <p className="font-medium">
+                                                Completa estos datos antes de
+                                                enviar:
+                                            </p>
+                                            <ul className="mt-2 list-inside list-disc">
+                                                {gaps.map((gap) => (
+                                                    <li key={gap}>
+                                                        {gapLabels[gap] ??
+                                                            "Dato requerido"}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+                                    <Button
+                                        disabled={
+                                            gaps.length > 0 ||
+                                            submitCafe.isPending
+                                        }
+                                        onClick={() => submitCafe.mutate()}
+                                    >
+                                        {submitCafe.isPending
+                                            ? "Enviando…"
+                                            : "Enviar a revisión"}
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        )}
+                </div>
+            </details>
         </div>
     );
 }

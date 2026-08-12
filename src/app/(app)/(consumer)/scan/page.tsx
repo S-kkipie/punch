@@ -2,6 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { hasPublicExplorer } from "@/config/explorer";
+import { DemoOnly } from "@/frontend/components/guide/demo-only";
+import { useDemoState } from "@/frontend/components/guide/demo-state";
+import { JourneyCard } from "@/frontend/components/guide/journey-card";
+import { PageIntro } from "@/frontend/components/guide/page-intro";
 import { Button } from "@/frontend/components/ui/button";
 import { Input } from "@/frontend/components/ui/input";
 
@@ -16,6 +21,7 @@ export default function ScanPage() {
     routerRef.current = router;
     const videoRef = useRef<HTMLVideoElement>(null);
     const [pastedCode, setPastedCode] = useState("");
+    const { pendingProofUrl } = useDemoState();
     const [cameraError, setCameraError] = useState<string | null>(null);
     const [cameraSession, setCameraSession] = useState(0);
     const cameraActive = cameraSession > 0;
@@ -97,16 +103,60 @@ export default function ScanPage() {
 
     return (
         <div className="mx-auto grid w-full max-w-md gap-5">
-            <section className="grid gap-2">
-                <span className="consumer-eyebrow">Tu visita cuenta</span>
-                <h1 className="consumer-title text-4xl font-bold">
-                    Escanear compra
-                </h1>
-                <p>
-                    Escanea el código que te dio el barista para registrar tu
-                    visita.
-                </p>
-            </section>
+            <PageIntro
+                eyebrow="Tu visita cuenta"
+                title="Escanear compra"
+                explain={
+                    hasPublicExplorer()
+                        ? "El barista genera un código al cobrarte. Al escanearlo, tu sello queda escrito en la cadena — ni la cafetería ni PUNCH pueden borrarlo."
+                        : "El barista genera un código al cobrarte. Al escanearlo, tu sello queda registrado en la cadena local de desarrollo."
+                }
+            />
+            {pendingProofUrl ? (
+                <section className="consumer-panel grid gap-3 p-5">
+                    <span className="consumer-eyebrow">
+                        Código listo para escanear
+                    </span>
+                    <p className="text-sm">
+                        La cafetería acaba de generar este código. Ábrelo para
+                        confirmar tu compra.
+                    </p>
+                    <code className="guide-copy__value">{pendingProofUrl}</code>
+                    <Button
+                        className="min-h-11"
+                        onClick={() => {
+                            const proofId = extractProofId(pendingProofUrl);
+                            if (proofId) router.push(`/purchase/${proofId}`);
+                        }}
+                    >
+                        Abrir la compra →
+                    </Button>
+                    <DemoOnly />
+                </section>
+            ) : null}
+            <ol
+                className="consumer-panel grid gap-3 p-4"
+                aria-label="Cómo registrar tu compra"
+            >
+                <li>
+                    <strong>1. Paga tu compra</strong>
+                    <span className="block text-sm text-[var(--color-ink-2)]">
+                        El barista genera un código al cobrarte.
+                    </span>
+                </li>
+                <li>
+                    <strong>2. Escanea el código</strong>
+                    <span className="block text-sm text-[var(--color-ink-2)]">
+                        Apunta al código del barista.
+                    </span>
+                </li>
+                <li>
+                    <strong>3. Confirma tu sello</strong>
+                    <span className="block text-sm text-[var(--color-ink-2)]">
+                        Tu sello queda escrito en la cadena.
+                    </span>
+                </li>
+            </ol>
             {supportsCamera && cameraActive && !cameraError ? (
                 <video
                     ref={videoRef}
@@ -148,6 +198,7 @@ export default function ScanPage() {
                     Abrir
                 </Button>
             </div>
+            <JourneyCard currentRole="cliente" />
         </div>
     );
 }

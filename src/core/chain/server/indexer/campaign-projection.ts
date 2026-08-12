@@ -307,6 +307,33 @@ async function applyRedeemed(tx: IndexerTransaction, event: IndexerEvent) {
         );
 }
 
+/**
+ * Cancelar un borrador devuelve todo el presupuesto al dueño del café, así que
+ * la proyección queda en cero: dejarlo con saldo mostraría dinero que ya no
+ * está en el escrow.
+ */
+async function applyCancelled(tx: IndexerTransaction, event: IndexerEvent) {
+    const chainCampaignId = chainInt(
+        event.args.campaignId,
+        "chain campaign id",
+    );
+    await tx
+        .update(projectionCampaign)
+        .set({
+            status: "cancelled",
+            budget: 0n,
+            lastBlock: block(event),
+            lastTransactionIndex: transactionIndex(event),
+            lastLogIndex: logIndex(event),
+        })
+        .where(
+            and(
+                eq(projectionCampaign.chainCampaignId, chainCampaignId),
+                eventIsAtOrAfter(event),
+            ),
+        );
+}
+
 export async function applyCampaignEvent(
     tx: IndexerTransaction,
     event: IndexerEvent,
@@ -318,6 +345,8 @@ export async function applyCampaignEvent(
             return applyFunded(tx, event);
         case "CampaignPublished":
             return applyPublished(tx, event);
+        case "CampaignCancelled":
+            return applyCancelled(tx, event);
         case "VoucherUnlocked":
             return applyUnlocked(tx, event);
         case "VoucherRedeemed":

@@ -19,7 +19,7 @@ vi.mock("@/core/plan/client/hooks", () => ({
     useCreatePlanOrder: (...args: unknown[]) => useCreatePlanOrder(...args),
 }));
 
-import PlanPage from "../page";
+import PlanPage, { calculateWeeksAtCurrentPace } from "../page";
 
 function setup(status: Record<string, unknown>, orders: unknown[] = []) {
     usePlanStatus.mockReturnValue({ data: status, isLoading: false });
@@ -161,5 +161,58 @@ describe("plan page", () => {
         await renderPage();
         expect(document.body.textContent).toMatch(/Plan/);
         expect(document.body.textContent).toMatch(/0xdead/);
+    });
+});
+
+describe("calculateWeeksAtCurrentPace", () => {
+    it("derives weeks left from confirmed history", () => {
+        const weeks = calculateWeeksAtCurrentPace(150, [
+            {
+                createdAt: "2026-01-01T00:00:00.000Z",
+                kind: "plan",
+                status: "confirmed",
+            },
+            {
+                createdAt: "2026-01-15T00:00:00.000Z",
+                kind: "pack",
+                status: "confirmed",
+            },
+            {
+                createdAt: "2026-01-29T00:00:00.000Z",
+                kind: "plan",
+                status: "confirmed",
+            },
+        ]);
+
+        expect(weeks).toBe(4);
+    });
+
+    it("returns null when history is too short", () => {
+        expect(
+            calculateWeeksAtCurrentPace(80, [
+                {
+                    createdAt: "2026-01-01T00:00:00.000Z",
+                    kind: "plan",
+                    status: "confirmed",
+                },
+            ]),
+        ).toBeNull();
+    });
+
+    it("returns null when burn is zero", () => {
+        expect(
+            calculateWeeksAtCurrentPace(200, [
+                {
+                    createdAt: "2026-01-01T00:00:00.000Z",
+                    kind: "plan",
+                    status: "confirmed",
+                },
+                {
+                    createdAt: "2026-01-15T00:00:00.000Z",
+                    kind: "plan",
+                    status: "confirmed",
+                },
+            ]),
+        ).toBeNull();
     });
 });

@@ -130,34 +130,57 @@ describe("campaign API routes", () => {
     });
     it("serializes list bigint values as decimal strings and maps service errors", async () => {
         vi.mocked(listCafeCampaignsService).mockResolvedValue(
-            ok([
-                {
-                    id: "campaign-1",
-                    cafeId: "cafe-1",
-                    name: "x",
-                    windowStart: new Date("2026-08-09T00:00:00.000Z"),
-                    windowEnd: new Date("2026-08-10T00:00:00.000Z"),
-                    voucherPayout: 9n,
-                    maxVouchers: 2,
-                    lifecycle: "draft",
-                    required: 18n,
-                    funded: 9n,
-                    missing: 9n,
-                    canPublish: false,
-                },
-            ]),
+            ok({
+                walletBalance: 3_600_000n,
+                campaigns: [
+                    {
+                        id: "campaign-1",
+                        cafeId: "cafe-1",
+                        name: "x",
+                        windowStart: new Date("2026-08-09T00:00:00.000Z"),
+                        windowEnd: new Date("2026-08-10T00:00:00.000Z"),
+                        voucherPayout: 9n,
+                        maxVouchers: 2,
+                        lifecycle: "draft",
+                        required: 18n,
+                        funded: 9n,
+                        missing: 9n,
+                        canPublish: false,
+                        chainOps: [
+                            {
+                                kind: "campaign_publish",
+                                status: "submitted" as const,
+                                txHash: "0xabc",
+                                error: null,
+                                createdAt: new Date("2026-08-12T00:00:00.000Z"),
+                            },
+                        ],
+                    },
+                ],
+            }),
         );
         const response = await authed("/api/v1/cafe/cafe-1/campaigns");
         expect(response.status).toBe(200);
         expect(await response.json()).toMatchObject({
-            response: [
-                {
-                    voucherPayout: "9",
-                    required: "18",
-                    funded: "9",
-                    missing: "9",
-                },
-            ],
+            response: {
+                walletBalance: "3600000",
+                campaigns: [
+                    {
+                        voucherPayout: "9",
+                        required: "18",
+                        funded: "9",
+                        missing: "9",
+                        chainOps: [
+                            {
+                                kind: "campaign_publish",
+                                status: "submitted",
+                                txHash: "0xabc",
+                                createdAt: "2026-08-12T00:00:00.000Z",
+                            },
+                        ],
+                    },
+                ],
+            },
         });
         vi.mocked(publishCampaignService).mockResolvedValue(
             err({ type: "ForbiddenError", code: "FORBIDDEN", status: 403 }),

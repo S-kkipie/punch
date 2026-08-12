@@ -14,9 +14,24 @@ describe("historical consumption bootstrap", () => {
     it("builds eleven deterministic approved emissions excluding the target cafe", () => {
         const schedule = buildHistoricalSchedule({
             cafes: [
-                { id: "cafe-a", emissionProductIds: [11n] },
-                { id: "cafe-b", emissionProductIds: [12n] },
-                { id: "target", emissionProductIds: [13n] },
+                {
+                    id: "cafe-a",
+                    emissionProducts: [
+                        { chainProductId: 11n, productId: "prod-a" },
+                    ],
+                },
+                {
+                    id: "cafe-b",
+                    emissionProducts: [
+                        { chainProductId: 12n, productId: "prod-b" },
+                    ],
+                },
+                {
+                    id: "target",
+                    emissionProducts: [
+                        { chainProductId: 13n, productId: "prod-target" },
+                    ],
+                },
             ],
             targetCafeId: "target",
             count: 11,
@@ -27,7 +42,14 @@ describe("historical consumption bootstrap", () => {
         expect(schedule.every((item) => item.cafeId !== "target")).toBe(true);
         expect(
             schedule.every(
-                (item) => item.productId === 11n || item.productId === 12n,
+                (item) =>
+                    item.chainProductId === 11n || item.chainProductId === 12n,
+            ),
+        ).toBe(true);
+        expect(
+            schedule.every(
+                (item) =>
+                    item.productId === "prod-a" || item.productId === "prod-b",
             ),
         ).toBe(true);
         const perDay = new Map<string, number>();

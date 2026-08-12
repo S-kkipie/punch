@@ -9,17 +9,28 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mutate, usePurchaseProof, useConfirmPurchase, usePurchaseOrder } =
-    vi.hoisted(() => ({
-        mutate: vi.fn(),
-        usePurchaseProof: vi.fn(),
-        useConfirmPurchase: vi.fn(),
-        usePurchaseOrder: vi.fn(),
-    }));
+const {
+    mutate,
+    useDashboard,
+    usePurchaseProof,
+    useConfirmPurchase,
+    usePurchaseOrder,
+} = vi.hoisted(() => ({
+    mutate: vi.fn(),
+    useDashboard: vi.fn(),
+    usePurchaseProof: vi.fn(),
+    useConfirmPurchase: vi.fn(),
+    usePurchaseOrder: vi.fn(),
+}));
 const push = vi.hoisted(() => vi.fn());
+
 vi.mock("next/navigation", () => ({
     useParams: () => ({ proofId: "proof-123" }),
     useRouter: () => ({ push }),
+}));
+
+vi.mock("@/core/punch/client/hooks", () => ({
+    useDashboard,
 }));
 vi.mock("@/core/consumption/client/hooks", () => ({
     usePurchaseProof,
@@ -47,7 +58,37 @@ vi.mock("@/frontend/components/ui/spinner", () => ({
 
 import PurchaseConfirmPage from "@/core/consumption/client/ui/purchase-confirm-page";
 
-const proof = {
+const HASH =
+    "0x8f2ad41c00000000000000000000000000000000000000000000000000e07b92";
+
+type MockProof = {
+    id: string;
+    cafeId: string;
+    productId: string;
+    amountCentimos: number;
+    expiresAt: string;
+    status: "issued" | "submitted" | "confirmed" | "failed" | "expired";
+    maskedYapeRef: string;
+    purchaseOrderId: string | null;
+    failureReason: string | null;
+    createdAt: string;
+};
+
+type MockOrder = {
+    id: string;
+    status:
+        | "user_confirmed"
+        | "cafe_confirmed"
+        | "queued"
+        | "submitted"
+        | "confirmed"
+        | "failed"
+        | "expired";
+    failureReason?: string | null;
+    txHash?: string | null;
+};
+
+const proofBase: MockProof = {
     id: "proof-123",
     cafeId: "cafe-1",
     productId: "product-1",
@@ -60,6 +101,10 @@ const proof = {
     createdAt: "2099-08-08T11:00:00.000Z",
 };
 
+let proof: MockProof = { ...proofBase };
+let order: MockOrder | undefined;
+let dashboardBalance: number | null = 11;
+
 const renderPage = async () => {
     const container = document.createElement("div");
     document.body.append(container);
@@ -71,30 +116,45 @@ const renderPage = async () => {
 afterEach(() => {
     document.body.innerHTML = "";
     vi.clearAllMocks();
+    usePurchaseProof.mockReset();
+    usePurchaseOrder.mockReset();
+    useDashboard.mockReset();
+    useConfirmPurchase.mockReset();
+    proof = { ...proofBase };
+    order = undefined;
+    dashboardBalance = 11;
+    process.env.NEXT_PUBLIC_CHAIN_ENV = "local";
 });
 
 beforeEach(() => {
-    mutate.mockReset();
-    usePurchaseProof.mockReturnValue({
+    process.env.NEXT_PUBLIC_CHAIN_ENV = "arbitrumSepolia";
+    usePurchaseProof.mockImplementation(() => ({
         isPending: false,
         isError: false,
         data: proof,
-    });
-    usePurchaseOrder.mockReturnValue({ data: undefined, isError: false });
+    }));
+    usePurchaseOrder.mockImplementation(() => ({
+        data: order,
+        isError: false,
+    }));
+    useDashboard.mockImplementation(() => ({
+        isPending: false,
+        isError: false,
+        data: {
+            balance: dashboardBalance,
+            stale: dashboardBalance === null,
+        },
+    }));
     useConfirmPurchase.mockReturnValue({ isPending: false, mutate });
 });
 
 describe("PurchaseConfirmPage rendered behavior", () => {
     it("resumes polling an order linked by the safe quote after a reload", async () => {
-        usePurchaseProof.mockReturnValue({
-            isPending: false,
-            isError: false,
-            data: {
-                ...proof,
-                status: "submitted",
-                purchaseOrderId: "order-123",
-            },
-        });
+        proof = {
+            ...proof,
+            status: "submitted",
+            purchaseOrderId: "order-123",
+        };
         await renderPage();
         expect(usePurchaseOrder).toHaveBeenCalledWith("order-123");
     });
@@ -106,7 +166,7 @@ describe("PurchaseConfirmPage rendered behavior", () => {
         );
         const { container, root } = await renderPage();
         await act(async () => container.querySelector("button")?.click());
-        expect(container.textContent).toContain("Confirmar compra");
+        expect(container.textContent).toContain("Confirmar y sellar");
         expect(
             (container.querySelector("button") as HTMLButtonElement).disabled,
         ).toBe(false);
@@ -114,41 +174,46 @@ describe("PurchaseConfirmPage rendered behavior", () => {
     });
 
     it("clears a previous linked order when navigating to an unlinked quote", async () => {
-        usePurchaseProof
-            .mockReturnValueOnce({
-                isPending: false,
-                isError: false,
-                data: {
-                    ...proof,
-                    purchaseOrderId: "order-old",
-                    status: "submitted",
-                },
-            })
-            .mockReturnValue({ isPending: false, isError: false, data: proof });
-        usePurchaseOrder.mockImplementation((id?: string) => ({
-            data: id ? { id: "order-old", status: "confirmed" } : undefined,
-            isError: false,
-        }));
+        proof = {
+            ...proof,
+            status: "issued",
+            purchaseOrderId: "order-old",
+        };
+        order = {
+            id: "order-old",
+            status: "confirmed",
+            txHash: HASH,
+        };
+        proof = {
+            ...proof,
+            purchaseOrderId: null,
+        };
+        order = undefined;
         const { container, root } = await renderPage();
         await act(async () => root.render(<PurchaseConfirmPage />));
-        expect(container.textContent).toContain("Confirmar compra");
+        expect(container.textContent).toContain("Confirmar y sellar");
+        expect(container.textContent).toContain(
+            "Al confirmar quedarás en 12/12",
+        );
         await act(async () => root.unmount());
     });
 
-    it("shows only the masked Yape reference and disables repeated confirmation", async () => {
+    it("shows only the masked Yape reference and allows one confirmation click", async () => {
         const { container, root } = await renderPage();
         expect(container.textContent).toContain("•••••••34");
         expect(container.textContent).not.toContain("YAPE-1234");
         const button = Array.from(container.querySelectorAll("button")).find(
-            (candidate) => candidate.textContent === "Confirmar compra",
+            (candidate) => candidate.textContent === "Confirmar y sellar",
         ) as HTMLButtonElement;
+
         await act(async () => {
             button.click();
-            button.click();
         });
+
         expect(mutate).toHaveBeenCalledTimes(1);
         await act(async () => root.unmount());
     });
+
     it("shows immediate pending status and removes confirm action before polling", async () => {
         mutate.mockImplementation(
             (
@@ -157,7 +222,10 @@ describe("PurchaseConfirmPage rendered behavior", () => {
             ) => {
                 options.onSuccess({
                     response: {
-                        order: { id: "order-123", status: "queued" },
+                        order: {
+                            id: "order-123",
+                            status: "queued",
+                        },
                         quote: {
                             ...proof,
                             status: "submitted",
@@ -172,18 +240,18 @@ describe("PurchaseConfirmPage rendered behavior", () => {
 
         await act(async () => container.querySelector("button")?.click());
 
-        expect(container.textContent).toContain("Confirmación en cola");
-        expect(container.textContent).not.toContain("Confirmar compra");
+        expect(container.textContent).toContain("Preparando la operación");
+        expect(container.textContent).not.toContain("Confirmar y sellar");
         await act(async () => root.unmount());
     });
 
     it("offers recovery when status polling errors", async () => {
         const refetch = vi.fn();
-        usePurchaseOrder.mockReturnValue({
+        usePurchaseOrder.mockImplementation(() => ({
             isError: true,
             refetch,
             data: undefined,
-        });
+        }));
         const { container, root } = await renderPage();
 
         expect(container.textContent).toContain(
@@ -197,7 +265,7 @@ describe("PurchaseConfirmPage rendered behavior", () => {
         await act(async () => root.unmount());
     });
 
-    it("renders rejected status and keeps the retry action wired", async () => {
+    it("renders failed status and shows the chain receipt failure reason", async () => {
         mutate.mockImplementation(
             (
                 _input: unknown,
@@ -224,13 +292,75 @@ describe("PurchaseConfirmPage rendered behavior", () => {
 
         await act(async () => container.querySelector("button")?.click());
 
-        expect(container.textContent).toContain("Reintento disponible");
-        expect(
-            Array.from(container.querySelectorAll("button")).find(
-                (button) => button.textContent === "Reintentar",
-            ),
-        ).toBeUndefined();
+        expect(container.textContent).toContain("No se pudo completar");
+        expect(container.textContent).not.toContain("Reintentar");
         expect(mutate).toHaveBeenCalledTimes(1);
+        await act(async () => root.unmount());
+    });
+
+    it("shows the balance consequence line for 11/12 before confirming", async () => {
+        dashboardBalance = 11;
+        const { container, root } = await renderPage();
+        expect(container.textContent).toContain(
+            "Al confirmar quedarás en 12/12",
+        );
+        await act(async () => root.unmount());
+    });
+
+    it("maps a pre-confirm state without hash to ChainReceipt queued state", async () => {
+        proof = {
+            ...proof,
+            status: "submitted",
+            purchaseOrderId: "order-123",
+        };
+        order = {
+            id: "order-123",
+            status: "user_confirmed",
+            txHash: null,
+        };
+
+        const { container, root } = await renderPage();
+
+        expect(container.textContent).toContain("Preparando la operación");
+        expect(document.querySelector("a")).toBeNull();
+        await act(async () => root.unmount());
+    });
+
+    it("maps a pre-confirm state with hash to ChainReceipt submitted state", async () => {
+        proof = {
+            ...proof,
+            status: "submitted",
+            purchaseOrderId: "order-123",
+        };
+        order = {
+            id: "order-123",
+            status: "user_confirmed",
+            txHash: HASH,
+        };
+
+        const { container, root } = await renderPage();
+
+        expect(container.textContent).toContain("Confirmando en la cadena");
+        expect(document.querySelector("a")?.getAttribute("href")).toBe(
+            `https://sepolia.arbiscan.io/tx/${HASH}`,
+        );
+        await act(async () => root.unmount());
+    });
+
+    it("maps confirmed state to ChainReceipt confirmed with hash", async () => {
+        order = {
+            id: "order-123",
+            status: "confirmed",
+            txHash: HASH,
+        };
+
+        const { container, root } = await renderPage();
+
+        expect(container.textContent).toContain("Confirmado en Arbitrum");
+        expect(document.querySelector("a")?.getAttribute("href")).toBe(
+            `https://sepolia.arbiscan.io/tx/${HASH}`,
+        );
+        expect(container.textContent).toContain("Sello 12 de 12");
         await act(async () => root.unmount());
     });
 });

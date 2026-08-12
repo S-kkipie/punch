@@ -1,0 +1,12 @@
+{
+    "extends": "../../tsconfig.json",
+    "compilerOptions": {
+        "lib": ["ES2022"],
+        "jsx": "preserve",
+        "plugins": [],
+        "incremental": false,
+        "paths": { "@/*": ["../../src/*"] }
+    },
+    "include": ["./**/*.ts", "../../worker-configuration.d.ts"],
+    "exclude": []
+}

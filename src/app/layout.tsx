@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Fraunces, IBM_Plex_Sans, JetBrains_Mono } from "next/font/google";
 import type { PropsWithChildren } from "react";
+import { ReactGrab } from "@/frontend/components/dev/react-grab";
 import { Providers } from "@/frontend/providers/providers";
 import { PwaRegister } from "./pwa-register";
 import "./globals.css";
@@ -47,6 +48,7 @@ export default function RootLayout({ children }: PropsWithChildren) {
         >
             <body className="min-h-svh antialiased">
                 <PwaRegister />
+                <ReactGrab />
                 <Providers>{children}</Providers>
             </body>
         </html>

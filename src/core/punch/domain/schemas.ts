@@ -37,8 +37,20 @@ export const campaignSchema = z.object({
     windowStart: z.string(),
     windowEnd: z.string(),
     active: z.boolean(),
+    /** Opcional por campaña histórica/legacy. */
+    voucherPayout: z.string().nullable().optional(),
+    maxVouchers: z.number().int().nonnegative().nullable().optional(),
+    /** `voucherPayout` ya convertido a soles: la pantalla nunca divide por 1e6. */
+    voucherPayoutSoles: z.number().nullable(),
+    cafeName: z.string().nullable(),
+    /**
+     * Vouchers ya desbloqueados según la proyección de la cadena. Es 0 mientras
+     * la campaña no esté publicada on-chain.
+     */
+    unlockedCount: z.number().int().nonnegative(),
+    /** La campaña existe en la cadena y ya acepta vouchers. */
+    published: z.boolean(),
 });
-
 export const consumerVoucherSchema = z.object({
     id: z.string(),
     source: z.enum(["campaign", "crawl"]),

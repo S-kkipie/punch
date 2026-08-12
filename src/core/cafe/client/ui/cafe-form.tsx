@@ -2,6 +2,7 @@
 
 import type { AnyFieldApi } from "@tanstack/react-form";
 import { z } from "zod";
+import { photoUrlSchema } from "@/core/cafe/domain/schemas";
 import { Button } from "@/frontend/components/ui/button";
 import { Field, FieldError } from "@/frontend/components/ui/field";
 import { Input } from "@/frontend/components/ui/input";
@@ -16,7 +17,7 @@ export const cafeFormSchema = z.object({
     district: z.string().max(80),
     contactPhone: z.string().trim().min(6).max(20),
     ruc: z.string().regex(/^$|^\d{11}$/, "RUC de 11 dígitos"),
-    photoUrl: z.union([z.literal(""), z.url("URL inválida")]),
+    photoUrl: z.union([z.literal(""), photoUrlSchema]),
 });
 
 export type CafeFormValues = z.infer<typeof cafeFormSchema>;

@@ -4,13 +4,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCafe, useCafeProducts } from "@/core/cafe/client/hooks";
 import type { Cafe, Product } from "@/core/cafe/domain/types";
+import { PageIntro } from "@/frontend/components/guide/page-intro";
 import { Button } from "@/frontend/components/ui/button";
-import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle,
-} from "@/frontend/components/ui/card";
 import { Spinner } from "@/frontend/components/ui/spinner";
 
 function ProductSection({
@@ -29,42 +24,58 @@ function ProductSection({
     cafeId?: string;
 }) {
     return (
-        <section className="space-y-4">
-            <h2 className="font-semibold text-xl">{title}</h2>
+        <section className="grid gap-3">
+            <h2 className="consumer-title text-2xl">{title}</h2>
             {products.length === 0 ? (
-                <p className="text-muted-foreground text-sm">{emptyMessage}</p>
+                <p className="text-[var(--color-ink-2)] text-sm">
+                    {emptyMessage}
+                </p>
             ) : (
                 <div className="grid gap-4 sm:grid-cols-2">
                     {products.map((product) => {
-                        const card = (
-                            <Card key={product.id}>
-                                <CardHeader>
-                                    <CardTitle>{product.name}</CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-2">
-                                    {product.description && (
-                                        <p className="text-muted-foreground text-sm">
-                                            {product.description}
+                        if (linkToRedeem && cafeId) {
+                            return (
+                                <Link
+                                    key={product.id}
+                                    href={`/redeem/${product.id}?cafeId=${cafeId}`}
+                                >
+                                    <article className="consumer-panel grid gap-2 p-4">
+                                        <h3 className="font-semibold">
+                                            {product.name}
+                                        </h3>
+                                        <p className="text-[var(--color-ink-2)] text-sm">
+                                            {product.description ||
+                                                "Sin descripción"}
                                         </p>
-                                    )}
-                                    <p className="font-medium">
-                                        S/ {product.priceSoles}
-                                    </p>
-                                    <p className="text-muted-foreground text-sm">
-                                        {caption}
-                                    </p>
-                                </CardContent>
-                            </Card>
-                        );
-                        return linkToRedeem && cafeId ? (
-                            <Link
+                                        <p className="font-medium">
+                                            S/{product.priceSoles}
+                                        </p>
+                                        <p className="text-[var(--color-ink-2)] text-xs">
+                                            {caption}
+                                        </p>
+                                    </article>
+                                </Link>
+                            );
+                        }
+
+                        return (
+                            <article
                                 key={product.id}
-                                href={`/redeem/${product.id}?cafeId=${cafeId}`}
+                                className="consumer-panel grid gap-2 p-4"
                             >
-                                {card}
-                            </Link>
-                        ) : (
-                            <div key={product.id}>{card}</div>
+                                <h3 className="font-semibold">
+                                    {product.name}
+                                </h3>
+                                <p className="text-[var(--color-ink-2)] text-sm">
+                                    {product.description || "Sin descripción"}
+                                </p>
+                                <p className="font-medium">
+                                    S/{product.priceSoles}
+                                </p>
+                                <p className="text-[var(--color-ink-2)] text-xs">
+                                    {caption}
+                                </p>
+                            </article>
                         );
                     })}
                 </div>
@@ -95,52 +106,57 @@ export default function DiscoverCafePage() {
     const products = ((productsQuery.data ?? []) as Product[]).filter(
         (product) => product.approvalStatus === "approved" && product.active,
     );
+    const emissionProducts = products.filter(
+        (product) => product.type === "emission",
+    );
+    const rewardProducts = products.filter(
+        (product) => product.type === "reward",
+    );
 
     return (
         <div className="mx-auto w-full max-w-5xl space-y-6 p-6">
             <Button asChild variant="ghost">
                 <Link href="/discover">Volver a descubrir</Link>
             </Button>
-            <Card className="overflow-hidden">
-                {cafe.photoUrl && (
+            <article className="consumer-panel grid gap-0 overflow-hidden">
+                {cafe.photoUrl ? (
                     // biome-ignore lint/performance/noImgElement: Café photos use user-provided external URLs.
                     <img
                         src={cafe.photoUrl}
                         alt={cafe.name}
                         className="h-64 w-full object-cover"
                     />
-                )}
-                <CardHeader>
-                    <CardTitle className="text-3xl">{cafe.name}</CardTitle>
-                    <p className="text-muted-foreground">
-                        {cafe.district || "Distrito pendiente"}
-                    </p>
-                </CardHeader>
-                <CardContent>
-                    <p>
+                ) : null}
+                <div className="grid gap-2 p-6">
+                    <div className="flex items-start justify-between gap-2">
+                        <h1 className="consumer-title text-4xl">{cafe.name}</h1>
+                        <span className="consumer-eyebrow">Aliada</span>
+                    </div>
+                    <p className="text-[var(--color-ink-2)]">
                         {cafe.description ||
                             "Café independiente de la red PUNCH."}
                     </p>
                     {cafe.address && (
-                        <p className="mt-2 text-muted-foreground text-sm">
+                        <p className="text-[var(--color-ink-2)] text-sm">
                             {cafe.address}
                         </p>
                     )}
-                </CardContent>
-            </Card>
+                </div>
+            </article>
+            <PageIntro
+                eyebrow="Productos"
+                title={cafe.name}
+                explain="Elige en qué comprar para sumar sellos y avanzar en tus campañas."
+            />
             <ProductSection
                 title="Productos que dan PUNCH"
-                products={products.filter(
-                    (product) => product.type === "emission",
-                )}
+                products={emissionProducts}
                 emptyMessage="Sin productos de emisión por ahora."
                 caption="Emite 1 PUNCH"
             />
             <ProductSection
                 title="Recompensas (12 PUNCH)"
-                products={products.filter(
-                    (product) => product.type === "reward",
-                )}
+                products={rewardProducts}
                 emptyMessage="Sin recompensas publicadas por ahora."
                 caption="Costo fijo: 12 PUNCH"
                 linkToRedeem

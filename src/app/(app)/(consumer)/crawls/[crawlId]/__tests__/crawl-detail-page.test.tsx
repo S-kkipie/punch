@@ -3,10 +3,15 @@ import { describe, expect, it, vi } from "vitest";
 
 const useCrawl = vi.hoisted(() => vi.fn());
 const useVouchers = vi.hoisted(() => vi.fn());
+const useDashboard = vi.hoisted(() => vi.fn());
 vi.mock("next/navigation", () => ({
     useParams: () => ({ crawlId: "crawl-1" }),
 }));
-vi.mock("@/core/punch/client/hooks", () => ({ useCrawl, useVouchers }));
+vi.mock("@/core/punch/client/hooks", () => ({
+    useCrawl,
+    useVouchers,
+    useDashboard,
+}));
 vi.mock("@/frontend/components/ui/spinner", () => ({
     Spinner: () => <span>Cargando</span>,
 }));
@@ -26,6 +31,22 @@ describe("CrawlDetailPage voucher provenance", () => {
                 ],
             },
         });
+        useDashboard.mockReturnValue({
+            isPending: false,
+            data: {
+                activeCrawl: {
+                    id: "crawl-1",
+                    name: "Ruta",
+                    completedSteps: 1,
+                    totalSteps: 2,
+                },
+                activeCampaign: null,
+                balance: null,
+                stale: false,
+                chainMode: "mock",
+                progress: null,
+            },
+        });
         useVouchers.mockReturnValue({
             data: [
                 {
@@ -40,5 +61,6 @@ describe("CrawlDetailPage voucher provenance", () => {
         const markup = renderToStaticMarkup(<CrawlDetailPage />);
         expect(markup).toContain("voucherId=crawl-voucher");
         expect(markup).toContain("cafeId=cafe-1");
+        expect(markup).toContain("<s>");
     });
 });

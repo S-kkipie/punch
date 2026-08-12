@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { type AsyncAppResult, ok } from "@/server/common/responses";
 import { db } from "@/server/drizzle/db";
 import { cafe, cafeProduct } from "@/server/drizzle/schemas/cafe-schema";
@@ -82,21 +82,75 @@ export async function listHistoryService(
         )
         .orderBy(desc(consumerTransaction.createdAt));
 
+    // Un canje pedido todavía no tiene transacción: el indexador crea la fila
+    // de `consumer_transaction` recién cuando lee el evento en la cadena. Sin
+    // esto, el canje desaparece del historial hasta que la cafetería lo
+    // entrega, justo cuando la persona quiere saber en qué va.
+    const pendingRequests = await db
+        .select({
+            id: redemptionRequest.id,
+            kind: redemptionRequest.kind,
+            cafeId: redemptionRequest.cafeId,
+            cafeName: cafe.name,
+            productName: cafeProduct.name,
+            campaignName: campaign.name,
+            crawlName: coffeeCrawl.name,
+            createdAt: redemptionRequest.createdAt,
+        })
+        .from(redemptionRequest)
+        .leftJoin(cafe, eq(redemptionRequest.cafeId, cafe.id))
+        .leftJoin(cafeProduct, eq(cafeProduct.id, redemptionRequest.productId))
+        .leftJoin(
+            consumerVoucher,
+            eq(redemptionRequest.voucherId, consumerVoucher.id),
+        )
+        .leftJoin(campaign, eq(consumerVoucher.campaignId, campaign.id))
+        .leftJoin(coffeeCrawl, eq(consumerVoucher.crawlId, coffeeCrawl.id))
+        .where(
+            and(
+                eq(redemptionRequest.consumerUserId, consumerUserId),
+                inArray(redemptionRequest.status, ["pending", "approved"]),
+            ),
+        )
+        .orderBy(desc(redemptionRequest.createdAt));
+
+    const pendingEntries: HistoryEntry[] = pendingRequests.map((row) => ({
+        id: row.id,
+        operation:
+            row.kind === "punch_reward"
+                ? ("punch_redemption" as const)
+                : ("voucher_redemption" as const),
+        cafeId: row.cafeId,
+        cafeName: row.cafeName ?? null,
+        productName: row.productName ?? null,
+        campaignName: row.campaignName ?? null,
+        crawlName: row.crawlName ?? null,
+        status: "pending" as const,
+        rejectionReason: null,
+        createdAt: row.createdAt.toISOString(),
+        purchaseOrderId: null,
+        transactionHash: null,
+        logIndex: null,
+    }));
+
     return ok(
-        rows.map((row) => ({
-            id: row.id,
-            operation: row.operation,
-            cafeId: row.cafeId,
-            cafeName: row.cafeName ?? null,
-            productName: row.productName ?? null,
-            campaignName: row.campaignName ?? null,
-            crawlName: row.crawlName ?? null,
-            status: row.status,
-            rejectionReason: row.rejectionReason,
-            createdAt: row.createdAt.toISOString(),
-            purchaseOrderId: row.purchaseOrderId ?? null,
-            transactionHash: row.transactionHash ?? null,
-            logIndex: row.logIndex ?? null,
-        })),
+        [
+            ...pendingEntries,
+            ...rows.map((row) => ({
+                id: row.id,
+                operation: row.operation,
+                cafeId: row.cafeId,
+                cafeName: row.cafeName ?? null,
+                productName: row.productName ?? null,
+                campaignName: row.campaignName ?? null,
+                crawlName: row.crawlName ?? null,
+                status: row.status,
+                rejectionReason: row.rejectionReason,
+                createdAt: row.createdAt.toISOString(),
+                purchaseOrderId: row.purchaseOrderId ?? null,
+                transactionHash: row.transactionHash ?? null,
+                logIndex: row.logIndex ?? null,
+            })),
+        ].sort((left, right) => right.createdAt.localeCompare(left.createdAt)),
     );
 }

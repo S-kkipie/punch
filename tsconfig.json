@@ -23,5 +23,7 @@
         ".next/types/**/*.ts",
         ".next/dev/types/**/*.ts"
     ],
-    "exclude": ["node_modules"]
+    // src/worker targets the Workers runtime, whose globals conflict with the
+    // DOM lib Next needs. It is typechecked by src/worker/tsconfig.json.
+    "exclude": ["node_modules", "src/worker", "worker-configuration.d.ts"]
 }

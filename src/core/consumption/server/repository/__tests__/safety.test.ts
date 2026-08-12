@@ -192,23 +192,23 @@ describe("redemption request safety", () => {
         };
         const client = {
             select: () => ({
-                from: () => ({
-                    leftJoin: (...args: unknown[]) => {
-                        leftJoinCalls.push(args);
-                        return {
-                            leftJoin: (...args: unknown[]) => {
-                                leftJoinCalls.push(args);
-                                return { where };
-                            },
-                        };
-                    },
-                }),
+                from: () => {
+                    const chain = {
+                        leftJoin: (...args: unknown[]) => {
+                            leftJoinCalls.push(args);
+                            return chain;
+                        },
+                        where,
+                    };
+                    return chain;
+                },
             }),
         } as never;
 
         await listFulfillmentRequestsForCafe("cafe-1", client);
 
-        expect(leftJoinCalls).toHaveLength(2);
+        // request → user, consumer_transaction, relayer_job
+        expect(leftJoinCalls).toHaveLength(3);
         const text = predicateText(predicate);
         expect(text).toContain("pending");
         expect(text).toContain("approved");

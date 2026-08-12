@@ -11,8 +11,8 @@ import {
     parseUnits,
     toBytes,
 } from "viem";
-import { mnemonicToAccount } from "viem/accounts";
-import { foundry } from "viem/chains";
+import { mnemonicToAccount, privateKeyToAccount } from "viem/accounts";
+import { arbitrumSepolia, foundry } from "viem/chains";
 import { abis } from "../src/core/chain/abis";
 import type { EligibleProduct } from "../src/core/chain/server/bootstrap-local/service";
 
@@ -20,8 +20,34 @@ const RPC = process.env.CHAIN_RPC_URL ?? "http://127.0.0.1:8545";
 const ANVIL_MNEMONIC =
     "test test test test test test test test test test test junk";
 const appMnemonic = process.env.WALLET_MASTER_MNEMONIC ?? ANVIL_MNEMONIC;
-const deployer = mnemonicToAccount(ANVIL_MNEMONIC, { addressIndex: 0 });
 
+const isLocal = (process.env.CHAIN_ENV ?? "local") === "local";
+
+// Anvil prefunds its own mnemonic; a public testnet needs a real funded key.
+export const targetChain = isLocal ? foundry : arbitrumSepolia;
+
+function resolveDeployer() {
+    const key = process.env.DEPLOYER_PRIVATE_KEY;
+    if (key) return privateKeyToAccount(key as Hex);
+    if (!isLocal) {
+        throw new Error(
+            "DEPLOYER_PRIVATE_KEY is required when CHAIN_ENV is not local: the Anvil mnemonic holds no funds on a public chain",
+        );
+    }
+    return mnemonicToAccount(ANVIL_MNEMONIC, { addressIndex: 0 });
+}
+
+const deployer = resolveDeployer();
+
+// Anvil hands out 10000 ETH per account, so local seeding can be generous.
+// On Arbitrum Sepolia every wei comes from a rate-limited faucet.
+const gasGrants = isLocal
+    ? { ops: parseEther("10"), cafeOwner: parseEther("1") }
+    : { ops: parseEther("0.01"), cafeOwner: parseEther("0.002") };
+
+// The registrar/minter account. Anvil's prefunded key locally, the funded
+// DEPLOYER_PRIVATE_KEY on a public chain.
+export const deployerAccount = deployer;
 export const anvilDeployerAddress = deployer.address;
 export function ownerAddressForIndex(index: number, mnemonic = appMnemonic) {
     return mnemonicToAccount(mnemonic, { addressIndex: index }).address;
@@ -70,10 +96,13 @@ export async function waitForWrite(
 export async function deployAll(rpcUrl = RPC): Promise<AddressMap> {
     const wallet = createWalletClient({
         account: deployer,
-        chain: foundry,
+        chain: targetChain,
         transport: http(rpcUrl),
     });
-    const pub = createPublicClient({ chain: foundry, transport: http(rpcUrl) });
+    const pub = createPublicClient({
+        chain: targetChain,
+        transport: http(rpcUrl),
+    });
 
     async function deploy(
         name: string,
@@ -197,7 +226,7 @@ export async function deployAll(rpcUrl = RPC): Promise<AddressMap> {
         pub,
         await wallet.sendTransaction({
             to: opsAccount.address,
-            value: parseEther("10"),
+            value: gasGrants.ops,
         } as never),
         "fund ops wallet",
     );
@@ -245,10 +274,13 @@ export async function seedCafe(opts: {
     eligibleProductIds?: readonly bigint[];
 }): Promise<{ chainCafeId: bigint; ownerAddress: `0x${string}` }> {
     const rpcUrl = opts.rpcUrl ?? RPC;
-    const pub = createPublicClient({ chain: foundry, transport: http(rpcUrl) });
+    const pub = createPublicClient({
+        chain: targetChain,
+        transport: http(rpcUrl),
+    });
     const deployerWallet = createWalletClient({
         account: deployer,
-        chain: foundry,
+        chain: targetChain,
         transport: http(rpcUrl),
     });
     const owner = mnemonicToAccount(appMnemonic, {
@@ -257,7 +289,7 @@ export async function seedCafe(opts: {
     const ownerAddress = owner.address as `0x${string}`;
     const ownerWallet = createWalletClient({
         account: owner,
-        chain: foundry,
+        chain: targetChain,
         transport: http(rpcUrl),
     });
     const products = opts.eligibleProducts ??
@@ -271,7 +303,7 @@ export async function seedCafe(opts: {
             pub,
             await deployerWallet.sendTransaction({
                 to: ownerAddress,
-                value: parseEther("1"),
+                value: gasGrants.cafeOwner,
             }),
             "fund cafe owner",
         );
@@ -348,9 +380,10 @@ export async function seedCafe(opts: {
 
 if (process.argv[1]?.endsWith("dev-chain.ts")) {
     const map = await deployAll();
+    const target = isLocal ? "local" : "arbitrumSepolia";
     writeFileSync(
-        join(import.meta.dirname, "../src/core/chain/addresses.local.json"),
+        join(import.meta.dirname, `../src/core/chain/addresses.${target}.json`),
         `${JSON.stringify(map, null, 4)}\n`,
     );
-    console.log("deployed:", map);
+    console.log(`deployed to ${targetChain.name}:`, map);
 }

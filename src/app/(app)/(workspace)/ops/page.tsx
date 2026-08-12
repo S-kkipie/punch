@@ -3,7 +3,7 @@
 import { usePendingProducts, useReviewQueue } from "@/core/cafe/client/hooks";
 import { ReviewCard } from "@/core/cafe/client/ui/review-card";
 import type { CafeAdmin, Product } from "@/core/cafe/domain/types";
-import { Card, CardContent } from "@/frontend/components/ui/card";
+import { PageIntro } from "@/frontend/components/guide/page-intro";
 import { Spinner } from "@/frontend/components/ui/spinner";
 
 function errorStatus(error: unknown): number | undefined {
@@ -12,6 +12,10 @@ function errorStatus(error: unknown): number | undefined {
         value?: { status?: number };
     } | null;
     return value?.status ?? value?.value?.status;
+}
+
+function pluralHint(count: number, singular: string, plural: string): string {
+    return count === 1 ? singular : plural;
 }
 
 export default function OpsPage() {
@@ -32,20 +36,21 @@ export default function OpsPage() {
         const unauthorized = status === 403;
         return (
             <div className="mx-auto w-full max-w-5xl p-6">
-                <Card>
-                    <CardContent className="p-6">
-                        <p className="font-medium">
-                            {unauthorized
-                                ? "No autorizado"
-                                : "No se pudo cargar la consola"}
-                        </p>
-                        <p className="mt-1 text-muted-foreground text-sm">
-                            {unauthorized
-                                ? "Esta consola está disponible únicamente para operaciones."
-                                : "Intenta nuevamente en unos momentos."}
-                        </p>
-                    </CardContent>
-                </Card>
+                <section className="consumer-panel grid gap-2 p-4">
+                    <span className="consumer-eyebrow">
+                        Consola de operaciones
+                    </span>
+                    <p className="font-medium">
+                        {unauthorized
+                            ? "No autorizado"
+                            : "No se pudo cargar la consola"}
+                    </p>
+                    <p className="mt-1 text-[var(--color-ink-2)] text-sm">
+                        {unauthorized
+                            ? "Esta consola está disponible únicamente para operaciones."
+                            : "Intenta nuevamente en unos momentos."}
+                    </p>
+                </section>
             </div>
         );
     }
@@ -54,59 +59,53 @@ export default function OpsPage() {
     const products = (productsQuery.data ?? []) as Product[];
 
     return (
-        <div className="mx-auto w-full max-w-5xl space-y-8 p-6">
-            <div>
-                <h1 className="font-semibold text-2xl">
-                    Consola de operaciones
-                </h1>
-                <p className="text-muted-foreground">
-                    Revisa y aprueba los cafés y productos enviados por la red.
-                </p>
-            </div>
-            <section className="space-y-4">
-                <div>
-                    <h2 className="font-semibold text-xl">Cafés por revisar</h2>
-                    <p className="text-muted-foreground text-sm">
-                        {cafes.length}{" "}
-                        {cafes.length === 1
-                            ? "café pendiente"
-                            : "cafés pendientes"}
-                    </p>
-                </div>
+        <div className="mx-auto grid w-full max-w-5xl gap-8 p-6">
+            <PageIntro
+                eyebrow="Cola de revisión"
+                title="Consola de operaciones"
+                explain="Aprueba las cafeterías y productos que la red envía."
+            />
+
+            <section className="guide-stat-row">
+                <article className="guide-stat">
+                    <span className="guide-stat__label">Cafeterías</span>
+                    <span className="guide-stat__value">{cafes.length}</span>
+                    <span className="guide-stat__hint">
+                        {pluralHint(cafes.length, "pendiente", "pendientes")}
+                    </span>
+                </article>
+                <article className="guide-stat">
+                    <span className="guide-stat__label">Productos</span>
+                    <span className="guide-stat__value">{products.length}</span>
+                    <span className="guide-stat__hint">
+                        {pluralHint(products.length, "pendiente", "pendientes")}
+                    </span>
+                </article>
+            </section>
+
+            <section className="consumer-panel grid gap-3 p-4">
+                <span className="consumer-eyebrow">Cafés por revisar</span>
                 {cafes.length === 0 ? (
-                    <Card>
-                        <CardContent className="p-6 text-muted-foreground">
-                            No hay cafés pendientes.
-                        </CardContent>
-                    </Card>
+                    <p className="text-[var(--color-ink-2)]">
+                        No hay cafés pendientes.
+                    </p>
                 ) : (
-                    <div className="grid gap-4 md:grid-cols-2">
+                    <div className="grid gap-4">
                         {cafes.map((cafe) => (
                             <ReviewCard key={cafe.id} kind="cafe" item={cafe} />
                         ))}
                     </div>
                 )}
             </section>
-            <section className="space-y-4">
-                <div>
-                    <h2 className="font-semibold text-xl">
-                        Productos por revisar
-                    </h2>
-                    <p className="text-muted-foreground text-sm">
-                        {products.length}{" "}
-                        {products.length === 1
-                            ? "producto pendiente"
-                            : "productos pendientes"}
-                    </p>
-                </div>
+
+            <section className="consumer-panel grid gap-3 p-4">
+                <span className="consumer-eyebrow">Productos por revisar</span>
                 {products.length === 0 ? (
-                    <Card>
-                        <CardContent className="p-6 text-muted-foreground">
-                            No hay productos pendientes.
-                        </CardContent>
-                    </Card>
+                    <p className="text-[var(--color-ink-2)]">
+                        No hay productos pendientes.
+                    </p>
                 ) : (
-                    <div className="grid gap-4 md:grid-cols-2">
+                    <div className="grid gap-4">
                         {products.map((product) => (
                             <ReviewCard
                                 key={product.id}

@@ -8,6 +8,18 @@ const positiveDecimal = decimalString.refine((v) => Number(v) > 0, {
     message: "El precio debe ser mayor a 0",
 });
 
+/**
+ * Una foto es una URL absoluta (la que sube la cafetería) o una ruta servida
+ * por la propia app, como `/cafes/brujula-cafe.jpg` para las fotos del demo.
+ */
+export const photoUrlSchema = z
+    .string()
+    .trim()
+    .refine(
+        (value) => value.startsWith("/") || URL.canParse(value),
+        "URL inválida",
+    );
+
 export const cafeOnboardingStatusSchema = z.enum([
     "draft",
     "submitted",
@@ -33,7 +45,7 @@ export const updateCafeSchema = z.object({
     district: z.string().trim().max(80).nullish(),
     lat: z.string().nullish(),
     lng: z.string().nullish(),
-    photoUrl: z.url().nullish(),
+    photoUrl: photoUrlSchema.nullish(),
     ruc: z
         .string()
         .trim()

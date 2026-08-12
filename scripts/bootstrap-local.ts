@@ -6,13 +6,13 @@ import {
     createWalletClient,
     decodeEventLog,
     http,
+    type LocalAccount,
 } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
-import { foundry } from "viem/chains";
 import { env } from "../src/config/env";
 import { abis } from "../src/core/chain/abis";
 import {
-    assertLocalChain31337,
+    assertExpectedChain,
     seedHistoricalConsumptions,
 } from "../src/core/chain/server/bootstrap-local/historical-consumptions";
 import { bootstrapRepository } from "../src/core/chain/server/bootstrap-local/repository";
@@ -30,26 +30,36 @@ import { deriveOpsAccount } from "../src/core/chain/server/wallet/ops-account";
 import { db } from "../src/server/drizzle/db";
 import { user } from "../src/server/drizzle/schemas/auth-schema";
 import { cafe } from "../src/server/drizzle/schemas/cafe-schema";
-import { type AddressMap, ownerAddressForIndex, seedCafe } from "./dev-chain";
+import {
+    type AddressMap,
+    deployerAccount,
+    ownerAddressForIndex,
+    seedCafe,
+    targetChain,
+} from "./dev-chain";
 
 const rpcUrl = process.env.CHAIN_RPC_URL ?? "http://127.0.0.1:8545";
+const addressesFile =
+    (process.env.CHAIN_ENV ?? "local") === "local"
+        ? "addresses.local.json"
+        : "addresses.arbitrumSepolia.json";
 const addresses = JSON.parse(
     readFileSync(
-        join(import.meta.dirname, "../src/core/chain/addresses.local.json"),
+        join(import.meta.dirname, `../src/core/chain/${addressesFile}`),
         "utf8",
     ),
 ) as AddressMap;
 function liveChain(): BootstrapChain {
-    const pub = createPublicClient({ chain: foundry, transport: http(rpcUrl) });
+    const pub = createPublicClient({
+        chain: targetChain,
+        transport: http(rpcUrl),
+    });
     const relayer = mnemonicToAccount(
         process.env.WALLET_MASTER_MNEMONIC ??
             "test test test test test test test test test test test junk",
         { addressIndex: Number(process.env.RELAYER_WALLET_INDEX ?? 0) },
     );
-    const deployer = mnemonicToAccount(
-        "test test test test test test test test test test test junk",
-        { addressIndex: 0 },
-    );
+    const deployer = deployerAccount;
     return {
         ownerAddressForIndex: (index) => ownerAddressForIndex(index),
         relayerAddress: relayer.address,
@@ -62,7 +72,7 @@ function liveChain(): BootstrapChain {
         setReferralRecorder: async ({ recorder }) => {
             const wallet = createWalletClient({
                 account: deployer,
-                chain: foundry,
+                chain: targetChain,
                 transport: http(rpcUrl),
             });
             const hash = await wallet.writeContract({
@@ -144,7 +154,7 @@ function liveChain(): BootstrapChain {
             );
             const wallet = createWalletClient({
                 account: owner,
-                chain: foundry,
+                chain: targetChain,
                 transport: http(rpcUrl),
             });
             for (const product of eligibleProducts) {
@@ -249,26 +259,26 @@ async function thisInspect(
 }
 
 function liveDemoCampaignChain(): DemoCampaignChain {
-    const pub = createPublicClient({ chain: foundry, transport: http(rpcUrl) });
+    const pub = createPublicClient({
+        chain: targetChain,
+        transport: http(rpcUrl),
+    });
     const ops = deriveOpsAccount();
-    const deployer = mnemonicToAccount(
-        "test test test test test test test test test test test junk",
-        { addressIndex: 0 },
-    );
+    const deployer = deployerAccount;
     const wallets = new Map<string, ReturnType<typeof createWalletClient>>();
-    const wallet = (account: typeof ops) => {
+    const wallet = (account: LocalAccount) => {
         const existing = wallets.get(account.address);
         if (existing) return existing;
         const client = createWalletClient({
             account,
-            chain: foundry,
+            chain: targetChain,
             transport: http(rpcUrl),
         });
         wallets.set(account.address, client);
         return client;
     };
     const write = async (
-        account: typeof ops,
+        account: LocalAccount,
         address: `0x${string}`,
         abi: readonly unknown[],
         functionName: string,
@@ -277,7 +287,7 @@ function liveDemoCampaignChain(): DemoCampaignChain {
         const hash = await wallet(account).writeContract({
             address,
             abi,
-            chain: foundry,
+            chain: targetChain,
             account,
             functionName: functionName as never,
             args: args as never,
@@ -420,10 +430,10 @@ function liveDemoCampaignChain(): DemoCampaignChain {
 
 async function main() {
     const publicClient = createPublicClient({
-        chain: foundry,
+        chain: targetChain,
         transport: http(rpcUrl),
     });
-    await assertLocalChain31337(publicClient);
+    await assertExpectedChain(publicClient, targetChain.id);
     await bootstrapApprovedSeedCafes({
         repository: bootstrapRepository,
         chain: liveChain(),

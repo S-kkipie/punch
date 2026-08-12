@@ -22,13 +22,15 @@ const {
     consumerChainMode: { value: undefined as "local" | "mock" | undefined },
 }));
 
-vi.mock("@/config/env", () => ({
-    env: new Proxy(
+// El servicio lee el modo ya resuelto por ServerConfig, que fuera de tests
+// cae en "local" cuando la variable no está puesta.
+vi.mock("@/config/server-config", () => ({
+    ServerConfig: new Proxy(
         {},
         {
             get: (_target, property) =>
-                property === "CONSUMER_CHAIN_MODE"
-                    ? consumerChainMode.value
+                property === "consumerChainMode"
+                    ? (consumerChainMode.value ?? "local")
                     : undefined,
         },
     ),
@@ -74,7 +76,9 @@ const pending = {
 describe("decideVoucherRedemptionService", () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        consumerChainMode.value = undefined;
+        // Explícito: cada caso dice qué adaptador espera, y el de la variable
+        // sin poner lo prueba aparte.
+        consumerChainMode.value = "mock";
         requireCafeRole.mockResolvedValue({ ok: true, data: {} });
         findRedemptionRequestById.mockResolvedValue(pending);
         decideRedemptionRequest.mockResolvedValue({
@@ -232,6 +236,23 @@ describe("decideVoucherRedemptionService", () => {
             redemptionRequestId: "req-1",
             idempotencyKey: "voucher_redemption:req-1",
         });
+    });
+
+    it("uses the escrow when the chain mode variable is not set", async () => {
+        // Regresión: leer la variable cruda daba undefined y mandaba el canje
+        // al mock, así que la cafetería nunca cobraba su payout.
+        consumerChainMode.value = undefined;
+        const result = await decideVoucherRedemptionService(
+            "barista",
+            "cafe-1",
+            "req-1",
+            { decision: "approved" },
+        );
+        expect(result).toEqual({
+            ok: true,
+            data: { transactionId: "escrow-tx-1", status: "pending" },
+        });
+        expect(escrowSubmitVoucherRedemption).toHaveBeenCalled();
     });
 
     it("reuses approved chain submission and rejects approved-to-rejected", async () => {

@@ -1,0 +1,994 @@
+@import "../../../../tokens.css";
+
+/* Capa de guía. Compartida por el shell de consumidor y el de workspace:
+   un solo sistema de color, tipografía y espacio para los dos mundos. */
+
+.page-intro {
+    display: grid;
+    gap: var(--space-2xs);
+}
+
+.page-intro__title {
+    margin: 0;
+    font-size: var(--text-xl);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+}
+
+.consumer-title {
+    font-family: var(--font-display);
+    text-wrap: balance;
+}
+
+.page-intro__explain {
+    margin: var(--space-3xs) 0 0;
+    border-left: var(--rule-thick) solid var(--color-accent-wash);
+    padding-left: var(--space-sm);
+    color: var(--color-ink-2);
+    font-size: var(--text-sm);
+}
+
+.consumer-eyebrow {
+    color: var(--color-accent);
+    font-family: var(--font-outlier);
+    font-size: var(--text-xs);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+@media (min-width: 768px) {
+    .page-intro__title {
+        font-size: var(--text-2xl);
+    }
+}
+
+/* ── EmptyState ──────────────────────────────────────────────────── */
+.empty-state {
+    display: grid;
+    justify-items: start;
+    gap: var(--space-xs);
+    border: var(--rule-hair) dashed var(--color-rule);
+    border-radius: var(--radius-sm);
+    background: var(--color-paper-3);
+    padding: var(--space-lg) var(--space-md);
+}
+.empty-state__mark {
+    font-size: var(--text-lg);
+    line-height: 1;
+}
+.empty-state__title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-md);
+}
+.empty-state__cause {
+    margin: 0;
+    color: var(--color-ink-2);
+    font-size: var(--text-sm);
+}
+
+/* ── StateStrip ──────────────────────────────────────────────────── */
+.state-strip {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    margin: 0;
+    border: var(--rule-hair) solid var(--color-rule);
+    border-radius: var(--radius-sm);
+    background: var(--color-paper-2);
+    padding: var(--space-xs) var(--space-sm);
+    font-family: var(--font-outlier);
+    font-size: var(--text-xs);
+    letter-spacing: 0.05em;
+}
+.state-strip--chain {
+    border-color: var(--color-sun);
+    background: color-mix(in srgb, var(--color-sun) 22%, var(--color-paper));
+}
+.state-strip--offline {
+    border-color: var(--color-cafe-blue);
+    background: color-mix(
+        in srgb,
+        var(--color-cafe-blue) 10%,
+        var(--color-paper)
+    );
+}
+
+.state-strip--saved {
+    border-style: dashed;
+    border-color: var(--color-neutral);
+    color: var(--color-ink-2);
+}
+
+/* ── Botón de la capa de guía ────────────────────────────────────── */
+.guide-btn {
+    display: inline-flex;
+    min-height: 2.75rem;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2xs);
+    border: var(--rule-thick) solid var(--color-ink);
+    border-radius: var(--radius-sm);
+    padding-inline: var(--space-md);
+    color: var(--color-accent-ink);
+    background: var(--color-accent);
+    box-shadow: var(--shadow-print-sm);
+    font: inherit;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+}
+.guide-btn--ghost {
+    color: var(--color-ink);
+    background: var(--color-paper-3);
+    box-shadow: none;
+}
+.guide-btn:disabled,
+.guide-btn[aria-disabled="true"] {
+    border-color: var(--color-rule);
+    color: var(--color-muted);
+    background: var(--color-paper-2);
+    box-shadow: none;
+    cursor: not-allowed;
+}
+
+/* ── LoadingState ────────────────────────────────────────────────── */
+.guide-loading {
+    display: grid;
+    gap: var(--space-xs);
+}
+.guide-skeleton {
+    display: block;
+    height: 1.25rem;
+    border-radius: var(--radius-xs);
+    background: linear-gradient(
+        90deg,
+        var(--color-paper-2),
+        var(--color-rule-2),
+        var(--color-paper-2)
+    );
+    background-size: 200% 100%;
+    animation: guide-shimmer 1.4s linear infinite;
+}
+.guide-skeleton:first-child {
+    width: 40%;
+}
+.guide-skeleton:last-child {
+    width: 70%;
+}
+@keyframes guide-shimmer {
+    to {
+        background-position: -200% 0;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .guide-skeleton {
+        animation: none;
+    }
+}
+
+/* ── ErrorState ──────────────────────────────────────────────────── */
+.guide-error {
+    display: grid;
+    justify-items: start;
+    gap: var(--space-xs);
+    border: var(--rule-hair) solid var(--color-rule);
+    border-left: var(--rule-thick) solid var(--color-accent);
+    border-radius: var(--radius-sm);
+    background: var(--color-paper-3);
+    padding: var(--space-md);
+}
+.guide-error__title {
+    font-weight: 700;
+}
+.guide-error__detail {
+    margin: 0;
+    color: var(--color-ink-2);
+    font-size: var(--text-sm);
+}
+
+/* ── Stat ────────────────────────────────────────────────────────── */
+.guide-stat-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: var(--space-sm);
+}
+.guide-stat {
+    display: grid;
+    gap: var(--space-3xs);
+    border: var(--rule-hair) solid var(--color-rule);
+    border-radius: var(--radius-sm);
+    background: var(--color-paper-3);
+    padding: var(--space-sm) var(--space-md);
+    box-shadow: var(--shadow-print-sm);
+}
+.guide-stat--lead {
+    border-color: var(--color-ink);
+    background: var(--color-accent-wash);
+}
+.guide-stat__label {
+    color: var(--color-accent);
+    font-family: var(--font-outlier);
+    font-size: var(--text-xs);
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+}
+.guide-stat__value {
+    color: var(--color-ink);
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.03em;
+}
+.guide-stat__hint {
+    color: var(--color-ink-2);
+    font-size: var(--text-sm);
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+/* ── TxHashLink ──────────────────────────────────────────────────── */
+.tx-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2xs);
+    color: var(--color-cafe-blue-deep);
+    font-family: var(--font-outlier);
+    font-size: var(--text-xs);
+    text-decoration: none;
+}
+.tx-link:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+.tx-link--plain {
+    color: var(--color-muted);
+}
+.tx-link__chain {
+    border: var(--rule-hair) solid currentColor;
+    border-radius: var(--radius-full);
+    padding-inline: var(--space-2xs);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
+
+/* ── ChainReceipt ────────────────────────────────────────────────── */
+.chain-receipt {
+    display: grid;
+    justify-items: start;
+    gap: var(--space-2xs);
+    border: var(--rule-hair) solid var(--color-rule);
+    border-radius: var(--radius-sm);
+    background: var(--color-paper-3);
+    padding: var(--space-sm) var(--space-md);
+}
+.chain-receipt__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-xs);
+}
+.chain-receipt__label {
+    font-family: var(--font-outlier);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
+.chain-receipt__hint,
+.chain-receipt__block {
+    margin: 0;
+    color: var(--color-ink-2);
+    font-size: var(--text-sm);
+}
+.chain-receipt__block {
+    font-family: var(--font-outlier);
+    font-size: var(--text-xs);
+}
+.chain-receipt--submitted {
+    border-color: var(--color-sun);
+    background: color-mix(in srgb, var(--color-sun) 18%, var(--color-paper));
+}
+.chain-receipt--confirmed {
+    border-color: var(--color-ink);
+    background: var(--color-accent-wash);
+}
+.chain-receipt--failed {
+    border-left: var(--rule-thick) solid var(--color-accent);
+}
+
+/* ── History badges ─────────────────────────────────────────────── */
+.history-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: var(--rule-hair) solid var(--color-rule);
+    border-radius: 999px;
+    padding: 0.15rem 0.65rem;
+    font-family: var(--font-outlier);
+    font-size: var(--text-xs);
+    line-height: 1;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.history-badge--ok {
+    border-color: var(--color-ink);
+    color: var(--color-ink);
+    background: color-mix(in srgb, var(--color-accent-wash) 80%, transparent);
+}
+
+.history-badge--pending {
+    border-color: var(--color-sun);
+    color: var(--color-ink);
+    background: color-mix(in srgb, var(--color-sun) 25%, transparent);
+}
+
+.history-badge--rejected,
+.history-badge--failed {
+    border-color: var(--color-accent);
+    color: var(--color-accent-ink);
+    background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+}
+
+.history-badge--unknown {
+    border-color: var(--color-rule);
+    color: var(--color-ink-2);
+    background: var(--color-paper-2);
+}
+
+/* ── Shell del workspace ─────────────────────────────────────────── */
+.ws-shell {
+    min-height: 100svh;
+    color: var(--color-ink);
+    background: var(--color-paper);
+    font-family: var(--font-body);
+    line-height: 1.5;
+}
+.ws-shell :focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: 3px;
+}
+.ws-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-md);
+    border-bottom: var(--rule-thick) solid var(--color-ink);
+    padding: var(--space-sm) var(--page-gutter);
+}
+.ws-header__brand {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-sm);
+}
+.ws-header__brand b {
+    font-family: var(--font-display);
+    font-size: var(--text-md);
+    letter-spacing: -0.04em;
+}
+.ws-header__brand span {
+    color: var(--color-muted);
+    font-family: var(--font-outlier);
+    font-size: var(--text-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+.ws-header__nav {
+    display: flex;
+    gap: var(--space-md);
+    font-size: var(--text-sm);
+    font-weight: 600;
+}
+.ws-header__nav a {
+    color: var(--color-ink-2);
+    text-decoration: none;
+}
+.ws-header__nav a:hover {
+    color: var(--color-accent);
+}
+.ws-header__meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-inline-start: auto;
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+}
+.ws-main {
+    width: min(100% - 2rem, 72rem);
+    margin-inline: auto;
+    padding: var(--space-lg) 0 var(--space-xl);
+    display: grid;
+    gap: var(--space-md);
+    align-content: start;
+}
+
+/* ── Pestañas de cafetería ───────────────────────────────────────── */
+.ws-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3xs);
+    border-bottom: var(--rule-hair) solid var(--color-rule);
+}
+.ws-tabs__link {
+    min-height: 2.75rem;
+    display: inline-flex;
+    align-items: center;
+    border-bottom: 3px solid transparent;
+    padding: var(--space-xs) var(--space-sm);
+    color: var(--color-ink-2);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    text-decoration: none;
+}
+.ws-tabs__link[aria-current="page"] {
+    border-bottom-color: var(--color-accent);
+    color: var(--color-ink);
+}
+
+/* ── DemoOnly marker ──────────────────────────────────────────────── */
+.demo-only {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2xs);
+    width: fit-content;
+    color: var(--color-accent);
+    font-family: var(--font-outlier);
+    font-size: var(--text-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: help;
+    border-bottom: var(--rule-hair) dashed var(--color-rule);
+}
+
+.demo-only__label {
+    white-space: nowrap;
+}
+
+.demo-only__message {
+    position: absolute;
+    left: 0;
+    top: 100%;
+    z-index: var(--z-dropdown);
+    margin-top: var(--space-xs);
+    width: 16rem;
+    border: var(--rule-hair) solid var(--color-rule);
+    border-radius: var(--radius-sm);
+    background: var(--color-paper);
+    padding: var(--space-sm);
+    color: var(--color-ink);
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    letter-spacing: normal;
+    text-transform: none;
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+    transform: translateY(-0.2rem);
+    transition:
+        opacity var(--dur-short) var(--ease-out),
+        transform var(--dur-short) var(--ease-out),
+        visibility var(--dur-short);
+    box-shadow: var(--shadow-print-sm);
+}
+
+.demo-only:hover .demo-only__message,
+.demo-only:focus-within .demo-only__message {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+/* ── Demo bar ────────────────────────────────────────────────────── */
+.app-shell {
+    min-height: 100svh;
+}
+
+.app-shell__content {
+    min-height: 100svh;
+}
+
+.demo-bar {
+    position: sticky;
+    inset-block-start: 0;
+    inset-inline: 0;
+    z-index: var(--z-sticky);
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    border-bottom: var(--rule-thick) solid var(--color-ink);
+    background: var(--color-sun);
+    color: var(--color-sun-ink);
+    padding: 0.3rem 0.7rem;
+    font-family: var(--font-outlier);
+    font-size: 0.6rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.demo-bar__line {
+    width: min(100% - 2rem, 72rem);
+    margin-inline: auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.demo-bar__role {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-weight: 700;
+}
+
+.demo-bar__role strong {
+    color: var(--color-sun-ink);
+}
+
+.demo-bar__dot {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: var(--color-accent);
+}
+
+.demo-bar__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-inline-start: auto;
+}
+
+.demo-bar__switch {
+    display: flex;
+    border: 1px solid var(--color-sun-ink);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.demo-bar__switch button {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    padding: 0.22rem 0.6rem;
+    font: inherit;
+    letter-spacing: 0.06em;
+}
+
+.demo-bar__switch button[aria-pressed="true"] {
+    background: var(--color-sun-ink);
+    color: var(--color-sun);
+    font-weight: 700;
+}
+
+.demo-bar__role-btn,
+.demo-bar__confirm,
+.demo-bar__skip {
+    min-height: 2rem;
+    border: var(--rule-hair) solid var(--color-rule);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2xs) var(--space-xs);
+    color: var(--color-sun-ink);
+    background: var(--color-sun);
+    font-family: var(--font-outlier);
+    font-size: 0.6rem;
+    font-weight: 600;
+}
+
+.demo-bar__role-btn:disabled,
+.demo-bar__confirm:disabled,
+.demo-bar__skip:disabled {
+    border-color: var(--color-rule);
+    color: var(--color-muted);
+    background: var(--color-paper-2);
+    cursor: not-allowed;
+}
+
+.demo-bar__error {
+    width: min(100% - 2rem, 72rem);
+    margin-inline: auto;
+    margin-top: 0;
+    color: var(--color-sun-ink);
+    font-size: 0.6rem;
+}
+
+.demo-bar__panel {
+    width: min(100% - 2rem, 72rem);
+    margin-inline: auto;
+    display: grid;
+    gap: var(--space-xs);
+    border: var(--rule-hair) solid var(--color-rule);
+    border-radius: var(--radius-sm);
+    background: var(--color-paper-3);
+    padding: var(--space-sm);
+    font-family: var(--font-body);
+    box-shadow: var(--shadow-print-sm);
+}
+
+.demo-bar__panel p {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--color-ink-2);
+}
+
+.demo-bar__panel-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+}
+
+@media (max-width: 680px) {
+    .demo-bar {
+        padding: 0.2rem 0.5rem;
+    }
+
+    .demo-bar__line,
+    .demo-bar__error,
+    .demo-bar__panel {
+        width: 100%;
+    }
+
+    .demo-bar__actions {
+        width: auto;
+        min-width: 0;
+    }
+
+    .demo-bar__switch {
+        flex: 1 1 auto;
+    }
+
+    .demo-bar__switch button {
+        flex: 1;
+        text-overflow: ellipsis;
+        overflow: hidden;
+        white-space: nowrap;
+        padding-inline: 0.4rem;
+    }
+
+    .demo-bar__actions > .demo-only {
+        margin-inline-start: auto;
+    }
+}
+
+/* ── Journey card ──────────────────────────────────────────────────── */
+.journey {
+    display: grid;
+    gap: var(--space-sm);
+    border: var(--rule-hair) solid var(--color-rule);
+    border-radius: var(--radius-sm);
+    background: var(--color-paper-3);
+    padding: var(--space-md);
+}
+
+.journey__list {
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: var(--space-xs);
+    list-style: none;
+}
+
+.journey__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-xs);
+}
+
+.journey__eyebrow {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+}
+
+.journey__count {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--color-ink-2);
+}
+
+.journey__step {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: start;
+    gap: var(--space-xs);
+    border-left: var(--rule-thick) solid transparent;
+    padding-left: var(--space-sm);
+}
+
+.journey__mark {
+    display: inline-flex;
+    width: 1.5rem;
+    height: 1.5rem;
+    align-items: center;
+    justify-content: center;
+    border: var(--rule-hair) solid var(--color-rule);
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    line-height: 1;
+}
+
+.journey__body {
+    display: grid;
+    gap: 0.15rem;
+}
+
+.journey__step--done {
+    border-left-color: var(--color-rule-2);
+    color: var(--color-ink-2);
+}
+
+.journey__step--done .journey__mark {
+    border-color: var(--color-rule-2);
+    color: var(--color-ink-2);
+}
+
+.journey__step--done s {
+    text-decoration: line-through;
+}
+
+.journey__step--current {
+    border-left-color: var(--color-accent);
+    border-radius: var(--radius-sm);
+    background: var(--color-paper-2);
+    padding-block: var(--space-2xs);
+    font-weight: 700;
+}
+
+.journey__step--current .journey__mark {
+    border-color: var(--color-accent);
+    background: var(--color-accent);
+    color: var(--color-accent-ink);
+    font-weight: 700;
+}
+
+.journey__now {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    font-weight: 400;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+}
+
+.journey__step--future {
+    border-left-color: var(--color-rule);
+    color: var(--color-muted);
+}
+
+.journey__step--future .journey__mark {
+    color: var(--color-muted);
+}
+
+.journey__transfer-text {
+    color: var(--color-ink-2);
+    font-size: var(--text-sm);
+}
+
+/* Enlace de compra: lo que el jurado tiene que copiar debe verse copiable. */
+.guide-copy {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    border: 1px dashed var(--color-accent);
+    border-radius: 0.75rem;
+    background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+    text-align: left;
+}
+
+.guide-copy__label {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+}
+
+.guide-copy__value {
+    display: block;
+    overflow-wrap: anywhere;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    line-height: 1.5;
+    color: var(--color-ink);
+    user-select: all;
+}
+
+/* Etapas de la escritura on-chain: qué ya pasó y qué falta. */
+.chain-receipt__track {
+    display: grid;
+    gap: var(--space-2xs);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    width: 100%;
+}
+.chain-receipt__stage {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-xs);
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+}
+.chain-receipt__stage--done {
+    color: var(--color-ink);
+}
+.chain-receipt__mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 1.35rem;
+    height: 1.35rem;
+    border: var(--rule-hair) solid currentColor;
+    border-radius: 999px;
+    font-family: var(--font-outlier);
+    font-size: var(--text-xs);
+}
+.chain-receipt__stage--current .chain-receipt__mark {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+    animation: chain-receipt-pulse 1.2s ease-in-out infinite;
+}
+.chain-receipt__stage-detail {
+    display: block;
+    color: var(--color-ink-2);
+    font-size: var(--text-xs);
+}
+.chain-receipt__wait {
+    margin: 0;
+    color: var(--color-ink-2);
+    font-family: var(--font-outlier);
+    font-size: var(--text-xs);
+}
+@keyframes chain-receipt-pulse {
+    50% {
+        opacity: 0.35;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .chain-receipt__stage--current .chain-receipt__mark {
+        animation: none;
+    }
+}
+
+/* Camino recomendado de la demo: la única cafetería que el jurado puede operar. */
+.demo-pick {
+    border-left: var(--rule-thick) solid var(--color-accent);
+    padding-left: var(--space-sm);
+}
+.demo-pick__tag,
+.demo-pick__tag--muted {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.1rem 0.55rem;
+    font-family: var(--font-outlier);
+    font-size: var(--text-xs);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+.demo-pick__tag {
+    background: var(--color-accent);
+    color: var(--color-accent-ink, var(--color-paper));
+}
+.demo-pick__tag--muted {
+    border: var(--rule-hair) solid var(--color-rule);
+    color: var(--color-muted);
+}
+
+/* Código corto de canje: barista y cliente confirman que es el mismo. */
+.redemption-code {
+    display: inline-flex;
+    align-items: center;
+    border: var(--rule-hair) solid var(--color-accent);
+    border-radius: var(--radius-sm);
+    background: var(--color-accent-wash);
+    padding: 0.1rem 0.5rem;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    letter-spacing: 0.12em;
+}
+
+/* Nota explicativa dentro de una tarjeta: la regla del dominio en palabras. */
+.guide-note {
+    display: grid;
+    gap: 0.35rem;
+    padding: 0.75rem 0.85rem;
+    border-left: 3px solid var(--color-accent);
+    border-radius: 0 0.5rem 0.5rem 0;
+    background: var(--color-paper-2);
+    text-align: left;
+}
+
+.guide-note__label {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+}
+
+.guide-note p {
+    margin: 0;
+    color: var(--color-ink);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+}
+
+/* Rastro on-chain de una operación: en qué etapa va y su hash verificable. */
+.chain-trail {
+    display: grid;
+    gap: 0.6rem;
+}
+
+.chain-trail__now {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+}
+
+.chain-trail__list {
+    display: grid;
+    gap: 0.35rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.chain-trail__item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.4rem 0;
+    border-top: 1px solid var(--color-rule);
+    font-size: var(--text-sm);
+}
+
+.chain-trail__kind {
+    color: var(--color-ink);
+}
+
+.chain-trail__meta {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.6rem;
+}
+
+.chain-trail__pending,
+.chain-trail__time {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--color-ink-2);
+}
+
+.chain-trail__attempts {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--color-ink-2);
+}

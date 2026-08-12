@@ -24,11 +24,6 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock("next/navigation", () => ({ useParams: () => ({ cafeId: "cafe-1" }) }));
-vi.mock("next/link", () => ({
-    default: ({ children, ...props }: React.ComponentProps<"a">) => (
-        <a {...props}>{children}</a>
-    ),
-}));
 vi.mock("@/core/cafe/client/hooks", () => ({
     useCafe: () => ({
         isPending: false,
@@ -97,6 +92,11 @@ vi.mock("@/frontend/components/ui/card", () => ({
 vi.mock("@/frontend/components/ui/spinner", () => ({
     Spinner: () => <span>Cargando</span>,
 }));
+vi.mock("@/frontend/components/guide/journey-card", () => ({
+    JourneyCard: ({ currentRole }: { currentRole: string }) => (
+        <div>JourneyCard · {currentRole}</div>
+    ),
+}));
 
 import CafePanelPage from "../page";
 
@@ -115,22 +115,35 @@ describe("café common fund card", () => {
         vi.clearAllMocks();
     });
 
-    it("shows referrals and estimated origin credit", async () => {
+    it("renders fund as guided stats with bucket explanations", async () => {
         const { node, root } = await renderPage();
 
-        expect(node.textContent).toContain("Fondo común");
-        expect(node.textContent).toContain("3 referencias");
+        expect(node.textContent).toContain("Tu cafetería en la red");
+        expect(node.textContent).toContain("Fondo común · tu parte");
         expect(node.textContent).toContain("S/0.60");
-        expect(node.textContent).toContain("estimado");
+        expect(node.textContent).toContain(
+            "Época 202608 · 3 referencias este mes · estimado",
+        );
+        expect(node.textContent).toContain(
+            "Clientes que entraron a la red por tu cafetería",
+        );
+        expect(node.textContent).toContain("Campañas que trajeron gente nueva");
+        expect(node.textContent).toContain('Tu paso en "Vuelta por Barranco"');
+        expect(node.textContent).toContain("Reserva de la red");
+        expect(node.textContent).toContain("JourneyCard · cafeteria");
+
+        // 5 del fondo + 3 de la card de ganancias.
+        const stats = node.querySelectorAll(".guide-stat");
+        expect(stats.length).toBe(8);
 
         await act(async () => root.unmount());
     });
 
-    it("shows an empty message when there are no referrals", async () => {
+    it("handles zero referrals in the fund bucket lead line", async () => {
         state.fund.referrals = 0;
         const { node, root } = await renderPage();
 
-        expect(node.textContent).toContain("Aún sin referencias este mes");
+        expect(node.textContent).toContain("Sin referencias este mes");
 
         await act(async () => root.unmount());
     });

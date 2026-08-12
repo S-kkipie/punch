@@ -2,11 +2,17 @@
 
 import { useParams } from "next/navigation";
 import QRCode from "qrcode";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
 import { useCafeProducts } from "@/core/cafe/client/hooks";
 import type { Product } from "@/core/cafe/domain/types";
 import { useCreatePurchaseProof } from "@/core/consumption/client/hooks";
-import { CreditsBadge } from "@/core/plan/client/ui/credits-badge";
+import { useDemoSignIn } from "@/frontend/components/auth/use-demo-sign-in";
+import { ChainReceipt } from "@/frontend/components/guide/chain-receipt";
+import { setPendingProofUrl } from "@/frontend/components/guide/demo-state";
+import { FirstTimeHere } from "@/frontend/components/guide/first-time-here";
+import { JourneyCard } from "@/frontend/components/guide/journey-card";
+import { PageIntro } from "@/frontend/components/guide/page-intro";
 import { Button } from "@/frontend/components/ui/button";
 import {
     Card,
@@ -22,12 +28,41 @@ import {
     SelectValue,
 } from "@/frontend/components/ui/select";
 
+type TerminalProof = {
+    deepLink?: string;
+    txHash?: string | null;
+    blockNumber?: number | null;
+    failureReason?: string | null;
+    state?: "queued" | "submitted" | "confirmed" | "failed";
+};
+
+const getProof = (response: unknown): TerminalProof | null => {
+    const raw = (response ?? null) as
+        | null
+        | (TerminalProof & { response?: TerminalProof });
+
+    if (!raw) return null;
+
+    const data = raw.response ?? raw;
+    if (!data || typeof data !== "object") return null;
+
+    return {
+        deepLink: data.deepLink,
+        txHash: data.txHash,
+        blockNumber: data.blockNumber,
+        failureReason: data.failureReason,
+        state: data.state,
+    };
+};
+
 export default function CafeTerminalPage() {
     const { cafeId } = useParams<{ cafeId: string }>();
     const productsQuery = useCafeProducts(cafeId);
     const createProof = useCreatePurchaseProof(cafeId);
     const [productId, setProductId] = useState("");
     const [yapeRef, setYapeRef] = useState("");
+    const [copied, setCopied] = useState(false);
+    const { signInAs, pending: signInPending } = useDemoSignIn();
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const products = (productsQuery.data ?? []) as Product[];
     const emissionProducts = products.filter(
@@ -36,23 +71,61 @@ export default function CafeTerminalPage() {
             product.approvalStatus === "approved" &&
             product.active,
     );
-    const proof = ((
-        createProof.data as { response?: { deepLink?: string } } | undefined
-    )?.response ?? createProof.data) as { deepLink?: string } | undefined;
+
+    const proof = getProof(createProof.data);
+    const proofUrl =
+        proof?.deepLink && typeof window !== "undefined"
+            ? `${window.location.origin}${proof.deepLink}`
+            : null;
+
+    const selectedProduct = useMemo(
+        () => emissionProducts.find((product) => product.id === productId),
+        [emissionProducts, productId],
+    );
+    const selectedProductName =
+        selectedProduct?.name ?? "Producto no seleccionado";
+    const selectedProductPrice =
+        selectedProduct === undefined
+            ? null
+            : `S/ ${Number(selectedProduct.priceSoles).toFixed(2)}`;
+
+    const isGenerateDisabled =
+        !productId ||
+        yapeRef.trim().length < 4 ||
+        yapeRef.trim().length > 120 ||
+        createProof.isPending;
+
+    const chainReceiptState = proof?.txHash
+        ? (proof.state ?? (proof.blockNumber ? "confirmed" : "submitted"))
+        : null;
 
     useEffect(() => {
-        if (!proof?.deepLink || !canvasRef.current) return;
-        const deepLink = `${window.location.origin}${proof.deepLink}`;
-        void QRCode.toCanvas(canvasRef.current, deepLink);
-    }, [proof?.deepLink]);
+        if (!proofUrl || !canvasRef.current) return;
+        void QRCode.toCanvas(canvasRef.current, proofUrl);
+    }, [proofUrl]);
+
+    // El código pertenece al cliente: la guía necesita saber aquí mismo que
+    // este paso ya se hizo, porque la sesión de cafetería no puede verlo.
+    useEffect(() => {
+        if (!proofUrl) return;
+        setPendingProofUrl(proofUrl);
+    }, [proofUrl]);
+
+    const copyProofUrl = () => {
+        if (!proofUrl) return;
+        void navigator.clipboard
+            ?.writeText(proofUrl)
+            .then(() => {
+                setCopied(true);
+            })
+            .catch(() => {
+                setCopied(false);
+            });
+    };
 
     const generate = () => {
-        if (
-            !productId ||
-            yapeRef.trim().length < 4 ||
-            yapeRef.trim().length > 120
-        )
-            return;
+        if (isGenerateDisabled) return;
+        setCopied(false);
         createProof.mutate(
             { productId, yapeRef },
             { onSuccess: () => setYapeRef("") },
@@ -60,69 +133,194 @@ export default function CafeTerminalPage() {
     };
 
     return (
-        <div className="mx-auto w-full max-w-md space-y-4 p-6">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Generar compra</CardTitle>
-                    <CreditsBadge cafeId={cafeId} />
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    {productsQuery.isError ? (
-                        <p className="text-destructive text-sm">
-                            No se pudo cargar el catálogo.
-                        </p>
-                    ) : (
-                        <Select value={productId} onValueChange={setProductId}>
-                            <SelectTrigger aria-label="Producto de emisión">
-                                <SelectValue placeholder="Elige un producto de emisión" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {emissionProducts.map((product) => (
-                                    <SelectItem
-                                        key={product.id}
-                                        value={product.id}
-                                    >
-                                        {product.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    )}
-                    <input
-                        aria-label="Referencia Yape"
-                        className="min-h-11 w-full rounded-md border px-3 text-sm"
-                        placeholder="Referencia Yape"
-                        maxLength={120}
-                        value={yapeRef}
-                        onChange={(event) => setYapeRef(event.target.value)}
-                    />
-                    <Button
-                        className="min-h-11 w-full"
-                        disabled={
-                            !productId ||
-                            yapeRef.trim().length < 4 ||
-                            yapeRef.trim().length > 120 ||
-                            createProof.isPending
-                        }
-                        onClick={generate}
-                    >
-                        {createProof.isPending ? "Generando…" : "Generar QR"}
-                    </Button>
-                </CardContent>
-            </Card>
-            {proof && (
-                <Card>
-                    <CardContent className="flex flex-col items-center gap-3 p-4">
-                        <canvas
-                            ref={canvasRef}
-                            aria-label="Código QR de compra"
+        <div className="mx-auto w-full max-w-3xl space-y-4 p-6">
+            <FirstTimeHere />
+            <PageIntro
+                eyebrow="Mostrador"
+                title="Cobrar una compra"
+                explain="Cobras por Yape como siempre. Aquí solo generas el código que el cliente escanea para llevarse su sello."
+            />
+
+            <section
+                aria-label="Flujo de cobro"
+                className="grid gap-4 md:grid-cols-2"
+                id="flujo-de-cobro"
+            >
+                <div className="grid gap-4">
+                    <section className="consumer-panel grid gap-3 p-5">
+                        <span
+                            className="mono xs"
+                            style={{ color: "var(--color-accent)" }}
+                        >
+                            PASO 1
+                        </span>
+                        <p className="text-sm font-semibold">Producto</p>
+                        {productsQuery.isError ? (
+                            <p className="text-destructive text-sm">
+                                No se pudo cargar el catálogo.
+                            </p>
+                        ) : (
+                            <Select
+                                value={productId}
+                                onValueChange={setProductId}
+                            >
+                                <SelectTrigger
+                                    aria-label="Producto de emisión"
+                                    className="w-full"
+                                >
+                                    <SelectValue placeholder="Elige un producto de emisión" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {emissionProducts.map((product) => (
+                                        <SelectItem
+                                            key={product.id}
+                                            value={product.id}
+                                        >
+                                            {product.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        )}
+                    </section>
+
+                    <section className="consumer-panel grid gap-3 p-5">
+                        <span
+                            className="mono xs"
+                            style={{ color: "var(--color-accent)" }}
+                        >
+                            PASO 2
+                        </span>
+                        <label
+                            className="text-sm font-semibold"
+                            htmlFor="yape-reference"
+                        >
+                            Referencia Yape
+                        </label>
+                        <input
+                            id="yape-reference"
+                            aria-label="Referencia Yape"
+                            className="min-h-11 w-full rounded-md border px-3 text-sm"
+                            placeholder="0087-4412"
+                            maxLength={120}
+                            value={yapeRef}
+                            onChange={(event) => setYapeRef(event.target.value)}
                         />
-                        <p className="break-all text-muted-foreground text-xs">
-                            {proof.deepLink}
+                        <p className="text-muted-foreground text-xs">
+                            Yape es la app de pagos con la que cobras en Perú.
+                            Cada cobro deja un número de operación: cópialo aquí
+                            para poder conciliar después. En la demo cualquier
+                            número sirve — por ejemplo 0087-4412.
                         </p>
-                    </CardContent>
-                </Card>
-            )}
+                        <Button
+                            className="min-h-11 w-full"
+                            disabled={isGenerateDisabled}
+                            onClick={generate}
+                        >
+                            {createProof.isPending
+                                ? "Generando…"
+                                : "Generar código"}
+                        </Button>
+                    </section>
+                </div>
+
+                <section className="consumer-panel grid gap-3 p-5 text-center">
+                    <span
+                        className="mono xs"
+                        style={{ color: "var(--color-accent)" }}
+                    >
+                        PASO 3
+                    </span>
+                    <p className="font-semibold">Muéstralo al cliente</p>
+                    {proof ? (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>
+                                    {selectedProductName}
+                                    {selectedProductPrice
+                                        ? ` · ${selectedProductPrice}`
+                                        : ""}
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="grid gap-3">
+                                <canvas
+                                    ref={canvasRef}
+                                    aria-label="Código QR de compra"
+                                />
+                                <div className="guide-copy">
+                                    <span className="guide-copy__label">
+                                        Enlace de la compra
+                                    </span>
+                                    <code
+                                        className="guide-copy__value"
+                                        data-testid="proof-link"
+                                    >
+                                        {proofUrl ?? proof.deepLink}
+                                    </code>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="min-h-11 w-full"
+                                        onClick={copyProofUrl}
+                                    >
+                                        {copied
+                                            ? "Enlace copiado ✓"
+                                            : "Copiar enlace"}
+                                    </Button>
+                                    <p className="text-muted-foreground text-xs">
+                                        El cliente escanea el QR. En la demo
+                                        también puedes copiar este enlace y
+                                        pegarlo en la pantalla de escaneo.
+                                    </p>
+                                </div>
+                                <Button
+                                    type="button"
+                                    className="min-h-11 w-full"
+                                    disabled={signInPending !== null}
+                                    onClick={() =>
+                                        void signInAs(
+                                            "demo-consumer@punch.pe",
+                                            "/scan",
+                                        )
+                                    }
+                                >
+                                    {signInPending !== null
+                                        ? "Cambiando…"
+                                        : "Ir al cliente y escanear →"}
+                                </Button>
+                                {chainReceiptState ? (
+                                    <ChainReceipt
+                                        state={chainReceiptState}
+                                        txHash={proof.txHash ?? undefined}
+                                        blockNumber={
+                                            proof.blockNumber ?? undefined
+                                        }
+                                        failureReason={
+                                            proof.failureReason ?? undefined
+                                        }
+                                    />
+                                ) : null}
+                            </CardContent>
+                        </Card>
+                    ) : (
+                        <p className="text-sm text-[var(--color-ink-2)]">
+                            Genera el código para mostrarle el QR al cliente.
+                        </p>
+                    )}
+                </section>
+            </section>
+
+            <JourneyCard
+                currentRole="cafeteria"
+                actionOverride={
+                    proof
+                        ? undefined
+                        : {
+                              label: "Generar el código aquí arriba",
+                              href: "#flujo-de-cobro",
+                          }
+                }
+            />
         </div>
     );
 }

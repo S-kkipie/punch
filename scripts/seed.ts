@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import {
     DEMO_APPLICANT_EMAIL,
     DEMO_CRAWL_NAME,
@@ -25,6 +25,7 @@ import {
     consumerVoucher,
     punchBalanceProjection,
 } from "@/server/drizzle/schemas/punch-schema";
+import { relayerJob } from "@/server/drizzle/schemas/purchase-schema";
 import { isDemoSeedEnabled } from "./seed-mode";
 
 export const DEMO_ACCOUNTS = [
@@ -34,6 +35,13 @@ export const DEMO_ACCOUNTS = [
     { email: "nube@punch.pe", name: "Nube Tostada", isOps: false },
     { email: "esquinasur@punch.pe", name: "Esquina Sur", isOps: false },
     { email: "demo-consumer@punch.pe", name: "Consumidor Demo", isOps: false },
+    // Sin historial en ninguna cafetería: es el único perfil que califica para
+    // una campaña de captación, que premia justamente al cliente nuevo.
+    {
+        email: "cliente-nuevo@punch.pe",
+        name: "Cliente Nuevo",
+        isOps: false,
+    },
     { email: "quinto@punch.pe", name: "Solicitante Quinto Café", isOps: false },
 ] as const;
 
@@ -231,6 +239,19 @@ async function seedDemoState() {
     await db
         .delete(consumerTransaction)
         .where(eq(consumerTransaction.consumerUserId, consumer.id));
+    // Los canjes que ya llegaron a la cadena dejan un job apuntando a ellos:
+    // sin borrarlo primero, la reposición del demo choca con la foreign key.
+    await db
+        .delete(relayerJob)
+        .where(
+            inArray(
+                relayerJob.redemptionRequestId,
+                db
+                    .select({ id: redemptionRequest.id })
+                    .from(redemptionRequest)
+                    .where(eq(redemptionRequest.consumerUserId, consumer.id)),
+            ),
+        );
     await db
         .delete(redemptionRequest)
         .where(eq(redemptionRequest.consumerUserId, consumer.id));
@@ -308,6 +329,9 @@ async function main() {
                 address: seedCafe.address,
                 description: seedCafe.description,
                 onboardingStatus: seedCafe.status,
+                // Cada foto vive en `public/cafes/<slug>.jpg`; ver
+                // `public/cafes/ATTRIBUTION.md` para la procedencia.
+                photoUrl: `/cafes/${seedCafe.slug}.jpg`,
                 contactPhone: "+51 900 000 000",
                 ruc: `2060000000${SEED_CAFES.indexOf(seedCafe) + 1}`,
             })

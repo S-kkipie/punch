@@ -2,17 +2,79 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useCafes } from "@/core/cafe/client/hooks";
-import type { Cafe } from "@/core/cafe/domain/types";
+import { useCafeProducts, useCafes } from "@/core/cafe/client/hooks";
+import type { Cafe, Product } from "@/core/cafe/domain/types";
 import { sortCafesByDistance } from "@/frontend/components/consumer/discovery-distance";
+import { EmptyState } from "@/frontend/components/guide/empty-state";
+import { PageIntro } from "@/frontend/components/guide/page-intro";
 import { Button } from "@/frontend/components/ui/button";
-import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle,
-} from "@/frontend/components/ui/card";
 import { Spinner } from "@/frontend/components/ui/spinner";
+
+function formatProductLine(products: Product[]) {
+    const shown = products
+        .filter(
+            (product) =>
+                product.approvalStatus === "approved" && product.active,
+        )
+        .slice(0, 2)
+        .map((product) => `${product.name} S/${product.priceSoles}`);
+
+    return shown.length > 0 ? shown.join(" · ") : "Sin productos disponibles";
+}
+
+function DiscoverCafeCard({ cafe }: { cafe: Cafe }) {
+    const productsQuery = useCafeProducts(cafe.id);
+    const products = (productsQuery.data ?? []) as Product[];
+    const productLine = useMemo(() => {
+        if (productsQuery.isPending) return "Cargando productos";
+        if (productsQuery.isError || !productsQuery.data) {
+            return "Sin productos cargados";
+        }
+        return formatProductLine(products);
+    }, [
+        productsQuery.data,
+        productsQuery.isError,
+        productsQuery.isPending,
+        products,
+    ]);
+
+    return (
+        <Link
+            className="grid gap-0 overflow-hidden"
+            href={`/discover/${cafe.id}`}
+        >
+            <div className="consumer-panel p-0">
+                {cafe.photoUrl ? (
+                    // biome-ignore lint/performance/noImgElement: Café photos use user-provided external URLs.
+                    <img
+                        src={cafe.photoUrl}
+                        alt={cafe.name}
+                        className="h-44 w-full border-b border-[var(--color-rule)] object-cover"
+                    />
+                ) : (
+                    <div className="flex h-44 items-center justify-center bg-[var(--color-paper-2)] text-[var(--color-ink-2)] text-sm">
+                        Sin foto
+                    </div>
+                )}
+                <div className="grid gap-3 p-4">
+                    <div className="flex items-start justify-between gap-2">
+                        <span className="consumer-title text-xl">
+                            {cafe.name}
+                        </span>
+                        <span className="consumer-eyebrow">Aliada</span>
+                    </div>
+                    <p className="text-[var(--color-ink-2)] text-sm">
+                        {cafe.description ||
+                            "Café independiente de la red PUNCH."}
+                    </p>
+                    <span className="mono sm text-[var(--color-accent)]">
+                        {productLine}
+                    </span>
+                </div>
+            </div>
+        </Link>
+    );
+}
 
 export default function DiscoverPage() {
     const cafesQuery = useCafes();
@@ -65,68 +127,39 @@ export default function DiscoverPage() {
 
     return (
         <div className="mx-auto w-full max-w-6xl space-y-6 p-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                    <h1 className="font-semibold text-2xl">Descubre cafés</h1>
-                    <p className="text-muted-foreground">
-                        Conoce cafés independientes y sus productos de impacto.
-                    </p>
-                </div>
-                {!position && (
-                    <Button
-                        className="min-h-11"
-                        variant="outline"
-                        onClick={requestLocation}
-                    >
-                        Cerca de mí
-                    </Button>
-                )}
-            </div>
+            <PageIntro
+                eyebrow={`${cafes.length} cafeterías, un solo cartón`}
+                title="Descubre cafés"
+                explain="Todas son independientes y de barrio. Tus sellos valen igual en las cuatro."
+            />
+            {!position ? (
+                <Button
+                    className="min-h-11 border border-[var(--color-rule)]"
+                    variant="outline"
+                    onClick={requestLocation}
+                >
+                    📍 Ordenar por cercanía
+                </Button>
+            ) : null}
             {locationDenied && (
-                <p className="text-muted-foreground text-sm">
+                <p className="text-[var(--color-ink-2)] text-sm">
                     Puedes seguir explorando por distrito.
                 </p>
             )}
             {cafes.length === 0 ? (
-                <Card>
-                    <CardContent className="p-6 text-muted-foreground">
-                        Todavía no hay cafés aprobados.
-                    </CardContent>
-                </Card>
+                <EmptyState
+                    mark="🗺️"
+                    title="No hay cafés en esta zona"
+                    cause="Conecta cafés aliados para que aparezcan aquí."
+                    action={{ label: "Ver más rutas", href: "/crawls" }}
+                />
             ) : (
                 [...byDistrict.entries()].map(([district, districtCafes]) => (
                     <section key={district} className="space-y-3">
-                        <h2 className="font-medium text-lg">{district}</h2>
+                        <h2 className="consumer-eyebrow">{district}</h2>
                         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                             {districtCafes.map((cafe) => (
-                                <Link
-                                    key={cafe.id}
-                                    href={`/discover/${cafe.id}`}
-                                >
-                                    <Card className="h-full overflow-hidden transition hover:border-primary">
-                                        {cafe.photoUrl ? (
-                                            // biome-ignore lint/performance/noImgElement: Café photos use user-provided external URLs.
-                                            <img
-                                                src={cafe.photoUrl}
-                                                alt={cafe.name}
-                                                className="h-44 w-full object-cover"
-                                            />
-                                        ) : (
-                                            <div className="flex h-44 items-center justify-center bg-muted text-muted-foreground text-sm">
-                                                Sin foto
-                                            </div>
-                                        )}
-                                        <CardHeader>
-                                            <CardTitle>{cafe.name}</CardTitle>
-                                        </CardHeader>
-                                        <CardContent>
-                                            <p className="line-clamp-3 text-sm">
-                                                {cafe.description ||
-                                                    "Café independiente de la red PUNCH."}
-                                            </p>
-                                        </CardContent>
-                                    </Card>
-                                </Link>
+                                <DiscoverCafeCard key={cafe.id} cafe={cafe} />
                             ))}
                         </div>
                     </section>

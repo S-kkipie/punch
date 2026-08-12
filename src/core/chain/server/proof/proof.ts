@@ -51,7 +51,9 @@ export function buildReceiptHash(
 
 export function randomNonce(): bigint {
     const bytes = new Uint8Array(32);
-    globalThis.crypto.getRandomValues(bytes);
+    // Bare global, not globalThis.crypto: the Workers runtime declares it as a
+    // plain global, which does not surface on the globalThis type.
+    crypto.getRandomValues(bytes);
     return BigInt(`0x${Buffer.from(bytes).toString("hex")}`);
 }
 

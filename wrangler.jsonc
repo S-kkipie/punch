@@ -1,0 +1,19 @@
+{
+    "$schema": "node_modules/wrangler/config-schema.json",
+    "name": "punch-worker",
+    "main": "src/worker/cf.ts",
+    "compatibility_date": "2025-04-01",
+    // nodejs_compat gives node-postgres its TCP sockets; the populate flag
+    // exposes secrets as process.env, which src/config/env.ts reads at import.
+    "compatibility_flags": ["nodejs_compat", "nodejs_compat_populate_process_env"],
+    "alias": {
+        "server-only": "./src/worker/cf-shim-server-only.ts"
+    },
+    "durable_objects": {
+        "bindings": [{ "name": "PUNCH_WORKER", "class_name": "PunchWorker" }]
+    },
+    "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PunchWorker"] }],
+    // Watchdog only. The 2s cadence comes from the Durable Object alarm.
+    "triggers": { "crons": ["* * * * *"] },
+    "observability": { "enabled": true }
+}

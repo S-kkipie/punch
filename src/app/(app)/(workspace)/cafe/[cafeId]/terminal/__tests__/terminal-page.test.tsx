@@ -7,11 +7,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 (
     globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
+
 const { toCanvas, mutate } = vi.hoisted(() => ({
     toCanvas: vi.fn(),
     mutate: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({ useParams: () => ({ cafeId: "cafe-1" }) }));
+vi.mock("@/config/client-config", () => ({
+    ClientConfig: { demoMode: false, demoPassword: "demo-password" },
+}));
 vi.mock("qrcode", () => ({ default: { toCanvas } }));
 vi.mock("@/core/cafe/client/hooks", () => ({
     useCafeProducts: () => ({
@@ -24,6 +28,7 @@ vi.mock("@/core/cafe/client/hooks", () => ({
                 type: "emission",
                 approvalStatus: "approved",
                 active: true,
+                priceSoles: "12.00",
             },
         ],
     }),
@@ -67,40 +72,75 @@ vi.mock("@/frontend/components/ui/card", () => ({
         <h2>{children}</h2>
     ),
 }));
-vi.mock("@/frontend/components/ui/select", () => ({
-    Select: ({
-        children,
-        onValueChange,
-        value,
-    }: {
-        children: React.ReactNode;
-        onValueChange?: (value: string) => void;
-        value?: string;
-    }) => (
-        <select
-            aria-label="Producto de emisión"
-            value={value}
-            onChange={(event) => onValueChange?.(event.target.value)}
-        >
-            {children}
-        </select>
+vi.mock("@/frontend/components/ui/select", () => {
+    const SelectContent = ({ children }: { children: React.ReactNode }) => (
+        <>{children}</>
+    );
+
+    return {
+        Select: ({
+            children,
+            onValueChange,
+            value,
+        }: {
+            children: React.ReactNode;
+            onValueChange?: (value: string) => void;
+            value?: string;
+        }) => {
+            const childrenArray = Array.isArray(children)
+                ? children
+                : [children];
+            const content = childrenArray.find(
+                (child) =>
+                    typeof child === "object" &&
+                    child !== null &&
+                    "type" in child &&
+                    child.type === SelectContent,
+            ) as {
+                props: { children: React.ReactNode };
+            } | null;
+
+            return (
+                <select
+                    aria-label="Producto de emisión"
+                    value={value}
+                    onChange={(event) => onValueChange?.(event.target.value)}
+                >
+                    {content?.props.children ?? []}
+                </select>
+            );
+        },
+        SelectTrigger: ({ children }: { children: React.ReactNode }) => (
+            <>{children}</>
+        ),
+        SelectValue: ({ placeholder }: { placeholder: string }) => (
+            <span>{placeholder}</span>
+        ),
+        SelectContent,
+        SelectItem: ({
+            children,
+            value,
+        }: {
+            children: React.ReactNode;
+            value: string;
+        }) => <option value={value}>{children}</option>,
+    };
+});
+vi.mock("@/frontend/components/guide/journey-card", () => ({
+    JourneyCard: ({ currentRole }: { currentRole: string }) => (
+        <div>JourneyCard · {currentRole}</div>
     ),
-    SelectTrigger: ({ children }: { children: React.ReactNode }) => (
-        <div>{children}</div>
+}));
+vi.mock("@/frontend/components/guide/page-intro", () => ({
+    PageIntro: ({ eyebrow, title }: { eyebrow?: string; title: string }) => (
+        <div>
+            {eyebrow ? <span>{eyebrow}</span> : null}
+            <h1>{title}</h1>
+        </div>
     ),
-    SelectValue: ({ placeholder }: { placeholder: string }) => (
-        <span>{placeholder}</span>
-    ),
-    SelectContent: ({ children }: { children: React.ReactNode }) => (
-        <div>{children}</div>
-    ),
-    SelectItem: ({
-        children,
-        value,
-    }: {
-        children: React.ReactNode;
-        value: string;
-    }) => <option value={value}>{children}</option>,
+}));
+vi.mock("@/frontend/components/guide/first-time-here", () => ({
+    FirstTimeHere: () => null,
 }));
 
 import CafeTerminalPage from "../page";
@@ -181,6 +221,22 @@ describe("CafeTerminalPage", () => {
             expect.any(HTMLCanvasElement),
             "http://localhost:3000/purchase/proof-1",
         );
+        await act(async () => root.unmount());
+    });
+
+    it("renders numbered steps in two columns and includes the cafeteria guide card", async () => {
+        const root = createRoot(document.body);
+        await act(async () => root.render(<CafeTerminalPage />));
+        const steps = document.querySelector('[aria-label="Flujo de cobro"]');
+
+        expect(steps).not.toBeNull();
+        expect(steps?.className).toContain("grid");
+        expect(steps?.className).toContain("md:grid-cols-2");
+        expect(document.body.textContent).toContain("PASO 1");
+        expect(document.body.textContent).toContain("PASO 2");
+        expect(document.body.textContent).toContain("PASO 3");
+        expect(document.body.textContent).toContain("JourneyCard · cafeteria");
+
         await act(async () => root.unmount());
     });
 });

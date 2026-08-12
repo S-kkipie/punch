@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { postAuthDestination } from "../page";
 
 describe("post-auth destination", () => {

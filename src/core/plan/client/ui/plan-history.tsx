@@ -1,6 +1,7 @@
 "use client";
 
 import type { PlanOrderView } from "@/core/plan/domain/types";
+import { TxHashLink } from "@/frontend/components/tx-hash-link";
 import {
     Card,
     CardContent,
@@ -16,7 +17,7 @@ const statusLabel: Record<PlanOrderView["status"], string> = {
 };
 
 function orderDetail(order: PlanOrderView) {
-    if (order.txHash) return order.txHash;
+    if (order.txHash) return <TxHashLink txHash={order.txHash} />;
     if (order.failureReason === "needs_reconciliation") {
         return "Requiere revisión de PUNCH";
     }

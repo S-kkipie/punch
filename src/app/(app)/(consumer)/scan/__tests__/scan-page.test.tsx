@@ -33,12 +33,38 @@ vi.mock("@/frontend/components/ui/input", () => ({
         <input {...props} />
     ),
 }));
+vi.mock("@/frontend/components/guide/journey-card", () => ({
+    JourneyCard: ({ currentRole }: { currentRole: string }) => (
+        <div data-testid="journey-card">JourneyCard · {currentRole}</div>
+    ),
+}));
 
 import ScanPage from "../page";
 
 afterEach(() => {
     push.mockReset();
     document.body.innerHTML = "";
+});
+
+describe("ScanPage guidance", () => {
+    it("renders the three numbered steps and the customer journey card", async () => {
+        const container = document.createElement("div");
+        document.body.append(container);
+        const root = createRoot(container);
+        await act(async () => root.render(<ScanPage />));
+
+        expect(
+            container.querySelector('[aria-label="Cómo registrar tu compra"]'),
+        ).not.toBeNull();
+        expect(container.textContent).toContain("1. Paga tu compra");
+        expect(container.textContent).toContain("2. Escanea el código");
+        expect(container.textContent).toContain("3. Confirma tu sello");
+        expect(
+            container.querySelector('[data-testid="journey-card"]')
+                ?.textContent,
+        ).toContain("cliente");
+        await act(async () => root.unmount());
+    });
 });
 
 describe("ScanPage camera privacy", () => {
