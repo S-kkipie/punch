@@ -51,19 +51,40 @@ type CafeFundView = {
 const formatMpen = (value: string) =>
     `S/${(Number(value) / 1_000_000).toFixed(2)}`;
 
-function PayoutSummaryCard({ payouts }: { payouts?: CafePayouts }) {
+function PayoutSummaryCard({
+    payouts,
+    fund,
+}: {
+    payouts?: CafePayouts;
+    fund?: CafeFundView;
+}) {
     const data = payouts;
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Pagos por canjes PUNCH</CardTitle>
+                <CardTitle>Tus ganancias con PUNCH</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-2 text-sm">
                 <p>
-                    Total confirmado: S/
-                    {((data?.totalCentimos ?? 0) / 100).toFixed(2)}
+                    Por canjes entregados: S/
+                    {((data?.totalCentimos ?? 0) / 100).toFixed(2)}{" "}
+                    <span className="text-muted-foreground">
+                        ({data?.redemptionCount ?? 0}{" "}
+                        {data?.redemptionCount === 1 ? "canje" : "canjes"} · S/
+                        3.60 cada uno)
+                    </span>
                 </p>
-                <p>Canjes confirmados: {data?.redemptionCount ?? 0}</p>
+                {fund ? (
+                    <p>
+                        Del fondo común este mes:{" "}
+                        {formatMpen(fund.pendingCreditMpen)}{" "}
+                        <span className="text-muted-foreground">
+                            {fund.estimated
+                                ? "(estimado, el mes no cerró)"
+                                : "(listo para reclamar)"}
+                        </span>
+                    </p>
+                ) : null}
                 <p>
                     En tu billetera ahora:{" "}
                     {data?.ownerMpenCentimos == null
@@ -74,6 +95,10 @@ function PayoutSummaryCard({ payouts }: { payouts?: CafePayouts }) {
                     No hay nada que reclamar: cada canje te transfiere S/3.60 a
                     tu billetera en el mismo momento en que lo entregas. Lo que
                     ves arriba ya es tuyo.
+                </p>
+                <p className="text-muted-foreground text-xs">
+                    Esto no incluye lo que cobras por la venta misma: el café
+                    que vendes lo cobras por Yape como siempre.
                 </p>
                 <p className="text-muted-foreground text-xs">
                     El paso a soles en tu banco todavía no está integrado: en
@@ -283,6 +308,7 @@ export default function CafePanelPage() {
                 <JourneyCard currentRole="cafeteria" />
                 <PayoutSummaryCard
                     payouts={payoutsQuery.data as CafePayouts | undefined}
+                    fund={fundQuery.data as CafeFundView | undefined}
                 />
             </div>
 
