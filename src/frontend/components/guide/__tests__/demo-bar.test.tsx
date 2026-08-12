@@ -36,24 +36,42 @@ signIn.mockResolvedValue({ error: null });
 import { DemoBar } from "../demo-bar";
 
 let renderedRoot: ReturnType<typeof createRoot> | undefined;
+let container: HTMLDivElement | undefined;
 
 async function render(ui: React.ReactNode) {
-    document.body.innerHTML = "";
-    renderedRoot = createRoot(document.body);
-    await act(async () => renderedRoot?.render(ui));
+    if (!container) {
+        container = document.createElement("div");
+        document.body.append(container);
+    }
+
+    if (!renderedRoot) {
+        renderedRoot = createRoot(container);
+    }
+
+    await act(async () => {
+        renderedRoot?.render(ui);
+    });
 }
 
-function buttonWithLabel(label: string) {
-    return [...document.querySelectorAll("button")].find((button) =>
-        button.textContent?.includes(label),
+function roleButton(label: string) {
+    return [...document.querySelectorAll(".demo-bar__role-btn")].find(
+        (button) => button.textContent?.includes(label),
     ) as HTMLButtonElement | undefined;
+}
+
+function switchButtons() {
+    return [
+        ...document.querySelectorAll<HTMLElement>(".demo-bar__switch button"),
+    ];
 }
 
 describe("DemoBar", () => {
     afterEach(() => {
         act(() => renderedRoot?.unmount());
         renderedRoot = undefined;
-        document.body.innerHTML = "";
+        if (container) {
+            container.innerHTML = "";
+        }
         vi.clearAllMocks();
         signIn.mockResolvedValue({ error: null });
         clientConfig.demoMode = true;
@@ -74,6 +92,30 @@ describe("DemoBar", () => {
         expect(document.querySelector(".demo-bar")).toBeNull();
     });
 
+    it("renders the compact strip with pressed role pills", async () => {
+        usePathname.mockReturnValue("/home");
+        Object.defineProperty(window, "location", {
+            configurable: true,
+            value: { assign },
+        });
+
+        await render(<DemoBar />);
+
+        const bar = document.querySelector(".demo-bar");
+        expect(bar).not.toBeNull();
+
+        const buttons = switchButtons();
+        expect(buttons).toHaveLength(2);
+        expect(
+            buttons.map((button) => button.getAttribute("aria-pressed")),
+        ).toEqual(["true", "false"]);
+        expect(
+            document
+                .querySelector(".demo-bar__actions")
+                ?.querySelector(".demo-only"),
+        ).not.toBeNull();
+    });
+
     it("derives the active role from the pathname", async () => {
         usePathname.mockReturnValue("/home");
         Object.defineProperty(window, "location", {
@@ -83,16 +125,16 @@ describe("DemoBar", () => {
 
         await render(<DemoBar />);
 
-        expect(buttonWithLabel("Cliente")?.disabled).toBe(true);
-        expect(buttonWithLabel("Cliente")?.getAttribute("aria-current")).toBe(
+        expect(roleButton("Cliente")?.disabled).toBe(true);
+        expect(roleButton("Cliente")?.getAttribute("aria-pressed")).toBe(
             "true",
         );
 
         usePathname.mockReturnValue("/ops");
         await render(<DemoBar />);
 
-        expect(buttonWithLabel("Cafetería")?.disabled).toBe(true);
-        expect(buttonWithLabel("Cafetería")?.getAttribute("aria-current")).toBe(
+        expect(roleButton("Cafetería")?.disabled).toBe(true);
+        expect(roleButton("Cafetería")?.getAttribute("aria-pressed")).toBe(
             "true",
         );
     });
@@ -105,7 +147,7 @@ describe("DemoBar", () => {
         });
 
         await render(<DemoBar />);
-        await act(async () => buttonWithLabel("Cafetería")?.click());
+        await act(async () => roleButton("Cafetería")?.click());
 
         expect(
             document.querySelector(".demo-bar__panel")?.textContent,
@@ -123,8 +165,12 @@ describe("DemoBar", () => {
         });
 
         await render(<DemoBar />);
-        await act(async () => buttonWithLabel("Cafetería")?.click());
-        const confirm = buttonWithLabel("Cambiar a Cafetería");
+        await act(async () => roleButton("Cafetería")?.click());
+        const confirm = [
+            ...document.querySelectorAll<HTMLElement>(
+                ".demo-bar__panel .demo-bar__confirm",
+            ),
+        ][0] as HTMLButtonElement | undefined;
         await act(async () => confirm?.click());
 
         expect(signIn).toHaveBeenCalledWith({
@@ -143,7 +189,7 @@ describe("DemoBar", () => {
         });
 
         await render(<DemoBar />);
-        await act(async () => buttonWithLabel("Cafetería")?.click());
+        await act(async () => roleButton("Cafetería")?.click());
         await act(async () => buttonWithLabel("Cambiar a Cafetería")?.click());
 
         expect(buttonWithLabel("Cambiando…")?.disabled).toBe(true);
@@ -164,3 +210,9 @@ describe("DemoBar", () => {
         expect(buttons.some((text) => text?.includes("Ops"))).toBe(false);
     });
 });
+
+function buttonWithLabel(label: string) {
+    return [...document.querySelectorAll("button")].find((button) =>
+        button.textContent?.includes(label),
+    ) as HTMLButtonElement | undefined;
+}

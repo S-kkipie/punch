@@ -60,70 +60,72 @@ export function DemoBar() {
 
     return (
         <aside className="demo-bar" aria-label="Barra de demo">
-            <div className="demo-bar__content">
+            <div className="demo-bar__line">
                 <p className="demo-bar__role">
+                    <span className="demo-bar__dot" aria-hidden="true" />
                     Rol activo: <strong>{DEMO_ROLE_TEXT[activeRole]}</strong>
                 </p>
-                <DemoOnly />
+
                 <div className="demo-bar__actions">
-                    {[
-                        { role: "consumer" as const },
-                        { role: "cafe" as const },
-                    ].map(({ role }) => {
-                        const label = DEMO_ROLE_TEXT[role];
-                        const isCurrent = role === activeRole;
-                        return (
-                            <button
-                                key={role}
-                                type="button"
-                                className="demo-bar__role-btn"
-                                disabled={isPending || isCurrent}
-                                aria-current={isCurrent ? "true" : undefined}
-                                onClick={() => {
-                                    if (!isCurrent) {
-                                        void startTransfer(role);
-                                    }
-                                }}
-                            >
-                                {isPending ? "Cambiando…" : label}
-                            </button>
-                        );
-                    })}
+                    <div className="demo-bar__switch">
+                        {[
+                            { role: "consumer" as const },
+                            { role: "cafe" as const },
+                        ].map(({ role }) => {
+                            const label = DEMO_ROLE_TEXT[role];
+                            const isCurrent = role === activeRole;
+                            return (
+                                <button
+                                    key={role}
+                                    type="button"
+                                    className="demo-bar__role-btn"
+                                    disabled={isPending || isCurrent}
+                                    aria-pressed={isCurrent ? "true" : "false"}
+                                    onClick={() => {
+                                        if (!isCurrent) {
+                                            void startTransfer(role);
+                                        }
+                                    }}
+                                >
+                                    {label}
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    <DemoOnly />
                 </div>
-
-                {error ? <p className="demo-bar__error">{error}</p> : null}
-
-                {pendingTransfer ? (
-                    <section className="demo-bar__panel" aria-live="polite">
-                        <p>{transferCopy}</p>
-                        <div className="demo-bar__panel-actions">
-                            <button
-                                type="button"
-                                className="demo-bar__confirm"
-                                disabled={isPending}
-                                onClick={() =>
-                                    void signInAs(
-                                        targetEmail,
-                                        targetDestination,
-                                    )
-                                }
-                            >
-                                {isPending ? "Cambiando…" : transferLabel}
-                            </button>
-                            <button
-                                type="button"
-                                className="demo-bar__skip"
-                                disabled={isPending}
-                                onClick={() => {
-                                    setPendingTransfer(null);
-                                }}
-                            >
-                                Quedarme
-                            </button>
-                        </div>
-                    </section>
-                ) : null}
             </div>
+
+            {error ? <p className="demo-bar__error">{error}</p> : null}
+
+            {pendingTransfer ? (
+                <section className="demo-bar__panel" aria-live="polite">
+                    <p>{transferCopy}</p>
+                    <div className="demo-bar__panel-actions">
+                        <button
+                            type="button"
+                            className="demo-bar__confirm"
+                            disabled={isPending}
+                            onClick={() =>
+                                void signInAs(targetEmail, targetDestination)
+                            }
+                        >
+                            {isPending ? "Cambiando…" : transferLabel}
+                        </button>
+                        <button
+                            type="button"
+                            className="demo-bar__skip"
+                            disabled={isPending}
+                            onClick={() => {
+                                setPendingTransfer(null);
+                            }}
+                        >
+                            Quedarme
+                        </button>
+                    </div>
+                </section>
+            ) : null}
         </aside>
     );
 }
