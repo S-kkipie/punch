@@ -308,6 +308,9 @@ async function main() {
                 address: seedCafe.address,
                 description: seedCafe.description,
                 onboardingStatus: seedCafe.status,
+                // Cada foto vive en `public/cafes/<slug>.jpg`; ver
+                // `public/cafes/ATTRIBUTION.md` para la procedencia.
+                photoUrl: `/cafes/${seedCafe.slug}.jpg`,
                 contactPhone: "+51 900 000 000",
                 ruc: `2060000000${SEED_CAFES.indexOf(seedCafe) + 1}`,
             })
