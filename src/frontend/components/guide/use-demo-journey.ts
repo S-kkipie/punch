@@ -45,8 +45,11 @@ export const useDemoJourney = () => {
           })
         : [];
 
+    const dashboardData = dashboard.data as
+        | { balance?: number | null }
+        | undefined;
     const input: JourneyInput = {
-        balance: dashboard.data?.balance ?? 0,
+        balance: dashboardData?.balance ?? 0,
         hasPendingPurchase: rows.some(isPendingPurchase),
         hasPendingRedemption: rows.some(isPendingRedemption),
         hasConfirmedRedemption: rows.some(isConfirmedRedemption),
