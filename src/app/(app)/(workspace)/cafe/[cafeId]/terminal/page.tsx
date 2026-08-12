@@ -7,7 +7,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useCafeProducts } from "@/core/cafe/client/hooks";
 import type { Product } from "@/core/cafe/domain/types";
 import { useCreatePurchaseProof } from "@/core/consumption/client/hooks";
+import { useDemoSignIn } from "@/frontend/components/auth/use-demo-sign-in";
 import { ChainReceipt } from "@/frontend/components/guide/chain-receipt";
+import { setPendingProofUrl } from "@/frontend/components/guide/demo-state";
 import { FirstTimeHere } from "@/frontend/components/guide/first-time-here";
 import { JourneyCard } from "@/frontend/components/guide/journey-card";
 import { PageIntro } from "@/frontend/components/guide/page-intro";
@@ -59,6 +61,8 @@ export default function CafeTerminalPage() {
     const createProof = useCreatePurchaseProof(cafeId);
     const [productId, setProductId] = useState("");
     const [yapeRef, setYapeRef] = useState("");
+    const [copied, setCopied] = useState(false);
+    const { signInAs, pending: signInPending } = useDemoSignIn();
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const products = (productsQuery.data ?? []) as Product[];
     const emissionProducts = products.filter(
@@ -69,9 +73,10 @@ export default function CafeTerminalPage() {
     );
 
     const proof = getProof(createProof.data);
-    const proofUrl = proof?.deepLink
-        ? `${window.location.origin}${proof.deepLink}`
-        : null;
+    const proofUrl =
+        proof?.deepLink && typeof window !== "undefined"
+            ? `${window.location.origin}${proof.deepLink}`
+            : null;
 
     const selectedProduct = useMemo(
         () => emissionProducts.find((product) => product.id === productId),
@@ -99,8 +104,28 @@ export default function CafeTerminalPage() {
         void QRCode.toCanvas(canvasRef.current, proofUrl);
     }, [proofUrl]);
 
+    // El código pertenece al cliente: la guía necesita saber aquí mismo que
+    // este paso ya se hizo, porque la sesión de cafetería no puede verlo.
+    useEffect(() => {
+        if (!proofUrl) return;
+        setPendingProofUrl(proofUrl);
+    }, [proofUrl]);
+
+    const copyProofUrl = () => {
+        if (!proofUrl) return;
+        void navigator.clipboard
+            ?.writeText(proofUrl)
+            .then(() => {
+                setCopied(true);
+            })
+            .catch(() => {
+                setCopied(false);
+            });
+    };
+
     const generate = () => {
         if (isGenerateDisabled) return;
+        setCopied(false);
         createProof.mutate(
             { productId, yapeRef },
             { onSuccess: () => setYapeRef("") },
@@ -222,9 +247,47 @@ export default function CafeTerminalPage() {
                                     ref={canvasRef}
                                     aria-label="Código QR de compra"
                                 />
-                                <p className="break-all text-muted-foreground text-xs">
-                                    {proof.deepLink}
-                                </p>
+                                <div className="guide-copy">
+                                    <span className="guide-copy__label">
+                                        Enlace de la compra
+                                    </span>
+                                    <code
+                                        className="guide-copy__value"
+                                        data-testid="proof-link"
+                                    >
+                                        {proofUrl ?? proof.deepLink}
+                                    </code>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="min-h-11 w-full"
+                                        onClick={copyProofUrl}
+                                    >
+                                        {copied
+                                            ? "Enlace copiado ✓"
+                                            : "Copiar enlace"}
+                                    </Button>
+                                    <p className="text-muted-foreground text-xs">
+                                        El cliente escanea el QR. En la demo
+                                        también puedes copiar este enlace y
+                                        pegarlo en la pantalla de escaneo.
+                                    </p>
+                                </div>
+                                <Button
+                                    type="button"
+                                    className="min-h-11 w-full"
+                                    disabled={signInPending !== null}
+                                    onClick={() =>
+                                        void signInAs(
+                                            "demo-consumer@punch.pe",
+                                            "/scan",
+                                        )
+                                    }
+                                >
+                                    {signInPending !== null
+                                        ? "Cambiando…"
+                                        : "Ir al cliente y escanear →"}
+                                </Button>
                                 {chainReceiptState ? (
                                     <ChainReceipt
                                         state={chainReceiptState}
@@ -249,10 +312,14 @@ export default function CafeTerminalPage() {
 
             <JourneyCard
                 currentRole="cafeteria"
-                actionOverride={{
-                    label: "Generar el código aquí arriba",
-                    href: "#flujo-de-cobro",
-                }}
+                actionOverride={
+                    proof
+                        ? undefined
+                        : {
+                              label: "Generar el código aquí arriba",
+                              href: "#flujo-de-cobro",
+                          }
+                }
             />
         </div>
     );

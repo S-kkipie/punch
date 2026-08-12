@@ -81,8 +81,8 @@ export default function MyCafesPage() {
                 <section className="consumer-panel grid gap-2 p-5">
                     <span className="consumer-eyebrow">Siguiente paso</span>
                     <p className="text-sm">
-                        El código de compra se genera en la terminal. Abre la
-                        de {approvedCafe.name} para cobrar la siguiente visita.
+                        El código de compra se genera en la terminal. Abre la de{" "}
+                        {approvedCafe.name} para cobrar la siguiente visita.
                     </p>
                     <Button asChild>
                         <Link href={`/cafe/${approvedCafe.id}/terminal`}>

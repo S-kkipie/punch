@@ -783,3 +783,32 @@
     color: var(--color-ink-2);
     font-size: var(--text-sm);
 }
+
+/* Enlace de compra: lo que el jurado tiene que copiar debe verse copiable. */
+.guide-copy {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    border: 1px dashed var(--color-accent);
+    border-radius: 0.75rem;
+    background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+    text-align: left;
+}
+
+.guide-copy__label {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+}
+
+.guide-copy__value {
+    display: block;
+    overflow-wrap: anywhere;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    line-height: 1.5;
+    color: var(--color-ink);
+    user-select: all;
+}

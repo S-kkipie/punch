@@ -164,6 +164,10 @@ export function JourneyCard({
     }
 
     const transfer = transferByRole[currentRole];
+    // Al cambiar de rol, cae directo en la pantalla donde se hace el paso
+    // pendiente, no en el inicio genérico.
+    const transferDestination = (defaultActions[step] ?? defaultActions[0])
+        .href;
 
     return (
         <section className="journey" aria-label="Guía de avance de la demo">
@@ -178,8 +182,11 @@ export function JourneyCard({
                 className="guide-btn guide-btn--ghost"
                 onClick={() =>
                     currentRole === "cliente"
-                        ? signInAs("brujula@punch.pe", "/cafe")
-                        : signInAs("demo-consumer@punch.pe", "/home")
+                        ? signInAs("brujula@punch.pe", transferDestination)
+                        : signInAs(
+                              "demo-consumer@punch.pe",
+                              transferDestination,
+                          )
                 }
             >
                 Cambiar a {transfer.label}

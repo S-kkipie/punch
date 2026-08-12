@@ -98,7 +98,7 @@ describe("JourneyCard", () => {
         await act(async () => transfer?.click());
         expect(signInAs).toHaveBeenCalledWith(
             "demo-consumer@punch.pe",
-            "/home",
+            "/scan",
         );
     });
 

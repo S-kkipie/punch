@@ -18,6 +18,7 @@ import {
     ChainReceipt,
     type ChainReceiptState,
 } from "@/frontend/components/guide/chain-receipt";
+import { clearPendingProofUrl } from "@/frontend/components/guide/demo-state";
 import { PageIntro } from "@/frontend/components/guide/page-intro";
 import { Button } from "@/frontend/components/ui/button";
 import { Spinner } from "@/frontend/components/ui/spinner";
@@ -157,6 +158,9 @@ export function PurchaseConfirmPage() {
                         }
                     ).response;
                     if (!response?.order) return;
+                    // El código dejó de estar pendiente: a partir de aquí la
+                    // guía avanza con lo que devuelve el historial.
+                    clearPendingProofUrl();
                     setOrderId(response.order.id);
                     setLocalOrder(response.order);
                 },

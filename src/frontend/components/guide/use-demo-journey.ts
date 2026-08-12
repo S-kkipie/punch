@@ -2,6 +2,7 @@
 
 import { useHistory } from "@/core/consumption/client/hooks";
 import { useDashboard } from "@/core/punch/client/hooks";
+import { useDemoState } from "./demo-state";
 import {
     deriveJourneyStep,
     type JourneyInput,
@@ -23,6 +24,7 @@ const isConfirmedRedemption = (row: HistoryRow) =>
 export const useDemoJourney = () => {
     const dashboard = useDashboard();
     const history = useHistory();
+    const demo = useDemoState();
 
     const rows: HistoryRow[] = Array.isArray(history.data)
         ? history.data.filter((row): row is HistoryRow => {
@@ -50,7 +52,11 @@ export const useDemoJourney = () => {
         | undefined;
     const input: JourneyInput = {
         balance: dashboardData?.balance ?? 0,
-        hasPendingPurchase: rows.some(isPendingPurchase),
+        // El código recién generado pertenece al cliente: la sesión de
+        // cafetería no lo ve en su propio historial, así que la acción local
+        // es la única señal de que ese paso ya ocurrió.
+        hasPendingPurchase:
+            rows.some(isPendingPurchase) || demo.pendingProofUrl !== null,
         hasPendingRedemption: rows.some(isPendingRedemption),
         hasConfirmedRedemption: rows.some(isConfirmedRedemption),
     };
