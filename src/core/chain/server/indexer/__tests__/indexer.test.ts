@@ -295,7 +295,7 @@ describe("runIndexerOnce block range", () => {
                 [addresses.consumptionLog]: [],
                 [addresses.campaignEscrow]: [],
             },
-            50_000n,
+            10n + MAX_BLOCKS_PER_PASS * 3n,
         );
         const database = fakeDatabase({ cursor: 10n });
 

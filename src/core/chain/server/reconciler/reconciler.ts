@@ -172,6 +172,13 @@ async function setPaused(
 export async function runReconcilerOnce(
     deps: ReconcilerDeps = defaultDeps(),
 ): Promise<{ diverged: boolean; repaired: boolean }> {
+    // El chequeo recorre la cadena entera desde el bloque 0 para contar
+    // eventos. En Anvil son cientos de bloques; en una red pública son
+    // cientos de millones, así que el conteo nunca cuadra y el "arreglo"
+    // borra proyecciones buenas sin poder reconstruirlas. Solo corre en local.
+    if ((process.env.CHAIN_ENV ?? "local") !== "local") {
+        return { diverged: false, repaired: false };
+    }
     const projection = await readProjectionState(deps.database);
     const chain = await readChainState(deps);
     if (matches(projection, chain)) {

@@ -166,12 +166,13 @@ async function fetchEvents(
 }
 
 /**
- * Bloques que se leen como máximo por pasada. Los RPC públicos rechazan un
- * `getLogs` con un rango grande, y sin tope el indexador que se atrasa pide un
+ * Bloques que se leen como máximo por pasada. El RPC público de Arbitrum
+ * Sepolia acepta hasta unos 12.000 y por encima devuelve "Missing or invalid
+ * parameters", y sin tope el indexador que se atrasa pide un
  * rango cada vez mayor: falla siempre, el cursor no avanza y la brecha crece
  * sola. Con este tope cada pasada avanza aunque venga rezagado.
  */
-export const MAX_BLOCKS_PER_PASS = 2_000n;
+export const MAX_BLOCKS_PER_PASS = 8_000n;
 
 export async function runIndexerOnce(
     deps: IndexerDeps = defaultDeps(),

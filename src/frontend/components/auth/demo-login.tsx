@@ -9,7 +9,8 @@ const DEMO_LOGINS = [
         email: "demo-consumer@punch.pe",
         destination: "/home",
         label: "☕ Entrar como cliente",
-        blurb: "Tienes 11 de 12 sellos y una ruta a medias. Empieza aquí si quieres ver el producto como lo ve el barrio.",
+        // Sin número fijo: el saldo sale de la cadena y cambia con cada demo.
+        blurb: "Llegas con sellos acumulados y una ruta a medias. Empieza aquí si quieres ver el producto como lo ve el barrio.",
         buttonClass: "guide-btn w-full",
     },
     {
