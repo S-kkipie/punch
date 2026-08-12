@@ -1,0 +1,1855 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PUNCH · Mocks UX</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   TOKENS — copia literal de /tokens.css (no inventar valores nuevos)
+   ═══════════════════════════════════════════════════════════════════ */
+:root {
+  --color-paper: oklch(94% 0.014 62);
+  --color-paper-2: oklch(90.5% 0.016 62);
+  --color-paper-3: oklch(97% 0.01 62);
+  --color-ink: oklch(19% 0.014 45);
+  --color-ink-2: oklch(37% 0.013 45);
+  --color-rule: oklch(80% 0.014 62);
+  --color-rule-2: oklch(86% 0.011 62);
+  --color-muted: oklch(50% 0.012 50);
+  --color-neutral: oklch(40% 0.012 50);
+  --color-accent: oklch(45% 0.17 32);
+  --color-accent-ink: oklch(96% 0.012 62);
+  --color-accent-wash: oklch(86% 0.039 50);
+  --color-focus: oklch(50% 0.2 32);
+  --color-sun: oklch(82% 0.14 82);
+  --color-sun-ink: oklch(24% 0.025 52);
+  --color-cafe-blue: oklch(55% 0.075 205);
+  --color-cafe-blue-deep: oklch(34% 0.06 210);
+  --shadow-print-sm: 0.375rem 0.4375rem 0 var(--color-ink);
+  --shadow-print-lg: 0.625rem 0.75rem 0 var(--color-ink);
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+  --font-body: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-outlier: "JetBrains Mono", ui-monospace, monospace;
+  --text-xs: 0.64rem; --text-sm: 0.8rem; --text-base: 1rem;
+  --text-md: 1.25rem; --text-lg: 1.5625rem; --text-xl: 1.9531rem;
+  --text-2xl: 2.4414rem; --text-3xl: 3.0518rem;
+  --radius-sm: 4px; --radius-xs: 2px; --radius-full: 999px;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   CHROME DE LA GALERÍA — no es parte del producto
+   ═══════════════════════════════════════════════════════════════════ */
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: oklch(88% 0.012 62); color: var(--color-ink);
+  font-family: var(--font-body); line-height: 1.5;
+}
+.gallery-top {
+  position: sticky; top: 0; z-index: 50;
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 1.25rem;
+  border-bottom: 2px solid var(--color-ink);
+  background: var(--color-paper); padding: 0.75rem 1.5rem;
+}
+.gallery-top strong { font-family: var(--font-display); font-size: 1.2rem; letter-spacing: -0.03em; }
+.gallery-top a {
+  color: var(--color-ink-2); font-family: var(--font-outlier);
+  font-size: var(--text-xs); letter-spacing: 0.08em; text-transform: uppercase; text-decoration: none;
+}
+.gallery-top a:hover { color: var(--color-accent); }
+.gallery-wrap { margin: 0 auto; padding: 2.5rem 1.5rem 6rem; max-width: 1400px; }
+.gallery-h {
+  margin: 3.5rem 0 0.5rem; font-family: var(--font-display);
+  font-size: 2.2rem; font-weight: 600; letter-spacing: -0.03em;
+}
+.gallery-h:first-of-type { margin-top: 1rem; }
+.gallery-lede { margin: 0 0 2rem; max-width: 60ch; color: var(--color-ink-2); }
+.gallery-eyebrow {
+  color: var(--color-accent); font-family: var(--font-outlier);
+  font-size: var(--text-xs); letter-spacing: 0.1em; text-transform: uppercase;
+}
+.row { display: flex; flex-wrap: wrap; gap: 2.5rem; align-items: flex-start; }
+.spec { max-width: 22rem; }
+.spec h4 { margin: 0 0 0.35rem; font-family: var(--font-display); font-size: 1.15rem; }
+.spec p { margin: 0 0 0.6rem; color: var(--color-ink-2); font-size: var(--text-sm); }
+.spec code {
+  font-family: var(--font-outlier); font-size: 0.72rem;
+  background: var(--color-paper-2); padding: 0.05rem 0.3rem; border-radius: 2px;
+}
+.note {
+  border-left: 3px solid var(--color-accent); margin: 0.75rem 0 0;
+  padding-left: 0.75rem; color: var(--color-ink-2); font-size: var(--text-sm);
+}
+
+/* Marcos de dispositivo */
+.frame { margin-bottom: 2rem; }
+.frame > figcaption {
+  margin-bottom: 0.5rem; font-family: var(--font-outlier);
+  font-size: var(--text-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-neutral);
+}
+.frame > figcaption b { color: var(--color-accent); font-weight: 700; }
+.phone {
+  width: 380px; height: 780px; overflow: hidden;
+  border: 3px solid var(--color-ink); border-radius: 22px;
+  background: var(--color-paper); box-shadow: var(--shadow-print-lg);
+}
+.desk {
+  width: 100%; max-width: 1080px; height: 700px; overflow: hidden;
+  border: 3px solid var(--color-ink); border-radius: 8px;
+  background: var(--color-paper); box-shadow: var(--shadow-print-lg);
+}
+.scroll { height: 100%; overflow-y: auto; }
+.why {
+  margin-top: 0.6rem; max-width: 380px;
+  border-top: 1px solid var(--color-rule); padding-top: 0.5rem;
+  color: var(--color-ink-2); font-size: var(--text-sm);
+}
+.why b { color: var(--color-ink); font-weight: 600; }
+.why--wide { max-width: 1080px; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   PRODUCTO — clases que existen hoy + las nuevas propuestas
+   ═══════════════════════════════════════════════════════════════════ */
+.shell { display: flex; flex-direction: column; min-height: 100%; font-family: var(--font-body); }
+
+/* ── DemoBar (nueva) ─────────────────────────────────────────────── */
+.demo-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+  border-bottom: 2px solid var(--color-ink);
+  background: var(--color-sun); color: var(--color-sun-ink);
+  padding: 0.3rem 0.7rem; font-family: var(--font-outlier); font-size: 0.6rem;
+  letter-spacing: 0.06em; text-transform: uppercase;
+}
+.demo-bar__role { display: flex; align-items: center; gap: 0.35rem; font-weight: 700; }
+.demo-bar__dot { width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--color-accent); }
+.demo-bar__switch { display: flex; border: 1px solid var(--color-sun-ink); border-radius: 999px; overflow: hidden; }
+.demo-bar__switch button {
+  border: 0; background: transparent; color: inherit; cursor: pointer;
+  padding: 0.22rem 0.6rem; font: inherit; letter-spacing: 0.06em;
+}
+.demo-bar__switch button[aria-pressed="true"] { background: var(--color-sun-ink); color: var(--color-sun); font-weight: 700; }
+
+/* ── Cabecera / nav consumer (existentes) ────────────────────────── */
+.consumer-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  border-bottom: 1px solid var(--color-rule); padding: 0.7rem 1rem;
+}
+.consumer-header__brand { font-family: var(--font-display); font-size: 1.35rem; font-weight: 700; letter-spacing: -0.04em; }
+.consumer-header__meta { display: flex; align-items: center; gap: 0.6rem; color: var(--color-muted); font-size: var(--text-sm); }
+.consumer-main { flex: 1; padding: 1.1rem 1rem 1.4rem; display: grid; gap: 1.1rem; align-content: start; }
+.consumer-nav {
+  border-top: 1px solid var(--color-rule);
+  background: color-mix(in srgb, var(--color-paper) 94%, transparent); padding: 0.35rem 0.5rem;
+}
+.consumer-nav__inner { display: grid; grid-template-columns: repeat(5, 1fr); }
+.consumer-nav__link {
+  display: flex; min-height: 2.9rem; flex-direction: column; align-items: center; justify-content: center;
+  gap: 0.15rem; color: var(--color-muted); font-family: var(--font-outlier); font-size: 0.58rem; text-decoration: none;
+}
+.consumer-nav__icon { display: grid; min-width: 2rem; min-height: 1.4rem; place-items: center; font-size: 1.15rem; line-height: 1; }
+.consumer-nav__link--active { color: var(--color-accent); font-weight: 700; }
+.consumer-nav__link--central .consumer-nav__icon {
+  min-width: 3rem; min-height: 3rem; margin-top: -1.3rem;
+  border: 2px solid var(--color-ink); border-radius: 50%;
+  color: var(--color-accent-ink); background: var(--color-accent);
+  box-shadow: 3px 4px 0 var(--color-ink); font-size: 1.6rem;
+}
+
+/* ── Superficies ─────────────────────────────────────────────────── */
+.consumer-panel {
+  border: 1px solid var(--color-rule); border-radius: var(--radius-sm);
+  background: var(--color-paper-3); box-shadow: var(--shadow-print-sm);
+}
+.consumer-voucher { border: 1px dashed var(--color-cafe-blue); background: color-mix(in srgb, var(--color-cafe-blue) 10%, var(--color-paper)); box-shadow: none; }
+.consumer-eyebrow { color: var(--color-accent); font-family: var(--font-outlier); font-size: var(--text-xs); letter-spacing: 0.1em; text-transform: uppercase; }
+.consumer-title { font-family: var(--font-display); text-wrap: balance; letter-spacing: -0.02em; }
+.p5 { padding: 1.1rem; } .p4 { padding: 0.85rem; }
+.grid { display: grid; } .g1 { gap: 0.3rem; } .g2 { gap: 0.55rem; } .g3 { gap: 0.85rem; }
+.muted { color: var(--color-ink-2); } .sm { font-size: var(--text-sm); } .xs { font-size: var(--text-xs); }
+.mono { font-family: var(--font-outlier); }
+
+/* ── PageIntro (nuevo) ───────────────────────────────────────────── */
+.page-intro { display: grid; gap: 0.35rem; }
+.page-intro h1 { margin: 0; font-family: var(--font-display); font-size: 2rem; font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; }
+.page-intro__explain {
+  margin: 0.15rem 0 0; border-left: 3px solid var(--color-accent-wash);
+  padding-left: 0.65rem; color: var(--color-ink-2); font-size: var(--text-sm);
+}
+.desk .page-intro h1 { font-size: 1.7rem; }
+
+/* ── Botones ─────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  min-height: 2.9rem; border: 2px solid var(--color-ink); border-radius: var(--radius-sm);
+  padding: 0 1rem; font: inherit; font-weight: 700; text-decoration: none; cursor: pointer;
+  color: var(--color-accent-ink); background: var(--color-accent); box-shadow: 3px 4px 0 var(--color-ink);
+}
+.btn--ghost { color: var(--color-ink); background: var(--color-paper-3); box-shadow: none; }
+.btn--sm { min-height: 2.3rem; font-size: var(--text-sm); padding: 0 0.7rem; }
+.btn--block { width: 100%; }
+.link { color: var(--color-accent); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+
+/* ── NextStep (nuevo) ────────────────────────────────────────────── */
+.next-step {
+  border: 1px solid var(--color-ink); border-radius: var(--radius-sm);
+  background: var(--color-accent-wash); padding: 0.9rem 1rem; display: grid; gap: 0.5rem;
+}
+.next-step__label { font-family: var(--font-outlier); font-size: var(--text-xs); letter-spacing: 0.1em; text-transform: uppercase; }
+.next-step ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.5rem; }
+.next-step li a { display: grid; gap: 0.1rem; color: inherit; text-decoration: none; }
+.next-step li a strong { font-weight: 700; }
+.next-step li a strong::after { content: " →"; color: var(--color-accent); }
+.next-step li a span { color: var(--color-ink-2); font-size: var(--text-sm); }
+
+/* ── EmptyState (nuevo) ──────────────────────────────────────────── */
+.empty {
+  display: grid; gap: 0.6rem; justify-items: start;
+  border: 1px dashed var(--color-rule); border-radius: var(--radius-sm);
+  background: var(--color-paper-3); padding: 1.4rem 1.1rem;
+}
+.empty__mark { font-size: 1.7rem; line-height: 1; }
+.empty h3 { margin: 0; font-family: var(--font-display); font-size: 1.15rem; }
+.empty p { margin: 0; color: var(--color-ink-2); font-size: var(--text-sm); }
+
+/* ── Loading / Error / Offline ───────────────────────────────────── */
+.skel { border-radius: var(--radius-xs); background: linear-gradient(90deg, var(--color-paper-2), var(--color-rule-2), var(--color-paper-2)); background-size: 200% 100%; animation: sh 1.4s linear infinite; }
+@keyframes sh { to { background-position: -200% 0; } }
+.state-strip {
+  display: flex; align-items: center; gap: 0.5rem;
+  border: 1px solid var(--color-rule); border-radius: var(--radius-sm);
+  background: var(--color-paper-2); padding: 0.5rem 0.7rem;
+  font-family: var(--font-outlier); font-size: var(--text-xs); letter-spacing: 0.05em;
+}
+.state-strip--offline { border-color: var(--color-cafe-blue); background: color-mix(in srgb, var(--color-cafe-blue) 10%, var(--color-paper)); }
+.state-strip--chain { border-color: var(--color-sun); background: color-mix(in srgb, var(--color-sun) 22%, var(--color-paper)); }
+
+/* ── PunchMeter (existente) ──────────────────────────────────────── */
+.punch-meter { display: grid; gap: 0.85rem; padding: 1.1rem; }
+.punch-meter__track {
+  position: relative; display: flex; height: 3.6rem; align-items: center; overflow: hidden;
+  border: 2px solid var(--color-ink); border-radius: var(--radius-full); background: var(--color-paper-2);
+}
+.punch-meter__fill { position: absolute; inset-block: 0; left: 0; background: var(--color-sun); }
+.punch-meter__value { position: relative; z-index: 1; width: 100%; text-align: center; font-family: var(--font-display); font-size: 1.6rem; font-weight: 700; }
+.punch-meter__value small { font-family: var(--font-outlier); font-size: 0.7rem; }
+.punch-meter__message { margin: 0; font-family: var(--font-outlier); font-size: var(--text-sm); font-weight: 700; }
+.punch-dots { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.punch-dots i { width: 0.85rem; height: 0.85rem; border: 1.5px solid var(--color-ink); border-radius: 50%; }
+.punch-dots i.on { background: var(--color-accent); }
+
+/* ── Stat (nuevo, workspace) ─────────────────────────────────────── */
+.stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0.85rem; }
+.stat {
+  display: grid; gap: 0.2rem; border: 1px solid var(--color-rule); border-radius: var(--radius-sm);
+  background: var(--color-paper-3); padding: 0.9rem 1rem; box-shadow: var(--shadow-print-sm);
+}
+.stat__label { color: var(--color-accent); font-family: var(--font-outlier); font-size: var(--text-xs); letter-spacing: 0.09em; text-transform: uppercase; }
+.stat__value { font-family: var(--font-display); font-size: 1.85rem; font-weight: 700; line-height: 1; letter-spacing: -0.03em; }
+.stat__hint { color: var(--color-ink-2); font-size: var(--text-sm); }
+.stat--lead { background: var(--color-accent-wash); border-color: var(--color-ink); }
+
+/* ── Shell workspace (rebrandeado) ───────────────────────────────── */
+.ws-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  border-bottom: 2px solid var(--color-ink); padding: 0.6rem 1.25rem; background: var(--color-paper);
+}
+.ws-header__brand { display: flex; align-items: baseline; gap: 0.9rem; }
+.ws-header__brand b { font-family: var(--font-display); font-size: 1.3rem; letter-spacing: -0.04em; }
+.ws-header__brand span { color: var(--color-muted); font-family: var(--font-outlier); font-size: var(--text-xs); letter-spacing: 0.08em; text-transform: uppercase; }
+.ws-tabs { display: flex; gap: 0.2rem; border-bottom: 1px solid var(--color-rule); padding: 0 1.25rem; background: var(--color-paper); }
+.ws-tabs a {
+  border-bottom: 3px solid transparent; padding: 0.55rem 0.8rem;
+  color: var(--color-ink-2); font-size: var(--text-sm); font-weight: 600; text-decoration: none;
+}
+.ws-tabs a[aria-current] { border-bottom-color: var(--color-accent); color: var(--color-ink); }
+.ws-main { padding: 1.25rem; display: grid; gap: 1.1rem; align-content: start; }
+.ws-cols { display: grid; grid-template-columns: 1.55fr 1fr; gap: 1.1rem; align-items: start; }
+.badge {
+  display: inline-flex; align-items: center; gap: 0.3rem; border: 1px solid var(--color-ink);
+  border-radius: 999px; padding: 0.1rem 0.55rem; font-family: var(--font-outlier); font-size: var(--text-xs);
+  letter-spacing: 0.05em; text-transform: uppercase; background: var(--color-paper-3);
+}
+.badge--ok { background: var(--color-accent-wash); }
+.badge--wait { background: color-mix(in srgb, var(--color-sun) 40%, var(--color-paper)); }
+
+/* ── Listas / filas ──────────────────────────────────────────────── */
+.rows { display: grid; gap: 0.5rem; }
+.rowitem {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.8rem;
+  border: 1px solid var(--color-rule); border-radius: var(--radius-sm);
+  background: var(--color-paper-3); padding: 0.7rem 0.9rem;
+}
+.rowitem__main { display: grid; gap: 0.1rem; }
+.rowitem__main b { font-weight: 600; }
+.field { display: grid; gap: 0.25rem; }
+.field label { font-family: var(--font-outlier); font-size: var(--text-xs); letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-ink-2); }
+.field .box {
+  min-height: 2.7rem; display: flex; align-items: center; border: 1.5px solid var(--color-ink);
+  border-radius: var(--radius-sm); background: var(--color-paper-3); padding: 0 0.7rem; color: var(--color-muted);
+}
+.field .box.filled { color: var(--color-ink); }
+.hint { color: var(--color-ink-2); font-size: var(--text-sm); }
+.cafe-photo { height: 7rem; border: 1px solid var(--color-ink); border-radius: var(--radius-sm); display: grid; place-items: center; background: var(--color-paper-2); color: var(--color-muted); font-family: var(--font-outlier); font-size: var(--text-xs); }
+.qr { width: 9rem; height: 9rem; border: 2px solid var(--color-ink); background:
+  repeating-conic-gradient(var(--color-ink) 0 25%, transparent 0 50%) 0 0/1.1rem 1.1rem; }
+
+/* ── Enlace a la transacción (nuevo, envuelve TxHashLink) ────────── */
+.tx {
+  display: inline-flex; align-items: center; gap: .35rem; margin-top: .2rem;
+  color: var(--color-cafe-blue-deep); font-family: var(--font-outlier);
+  font-size: .6rem; text-decoration: none; letter-spacing: .02em;
+}
+.tx:hover { text-decoration: underline; }
+.tx__chain {
+  border: 1px solid currentColor; border-radius: 999px; padding: 0 .35rem;
+  font-size: .52rem; letter-spacing: .07em; text-transform: uppercase; font-weight: 700;
+}
+.tx--wait { color: var(--color-muted); }
+
+/* ── Marcador «solo demo» (nuevo) ─────────────────────────────────
+   Toda tarjeta de guía lo lleva. Es la promesa al jurado de que la
+   app real no habla así. */
+.next-step, .demo-guide, .journey { position: relative; overflow: visible; }
+.journey > .demo-only { top: -0.55rem; }
+.demo-only {
+  position: absolute; top: -0.6rem; right: 0.6rem; z-index: 3;
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  border: 1.5px solid var(--color-ink); border-radius: 999px;
+  background: var(--color-sun); color: var(--color-sun-ink);
+  padding: 0.1rem 0.5rem; cursor: help;
+  font-family: var(--font-outlier); font-size: 0.55rem; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+.demo-only__pop {
+  position: absolute; bottom: calc(100% + 0.45rem); right: 0; z-index: 4;
+  visibility: hidden; opacity: 0; width: 15rem;
+  border: 2px solid var(--color-ink); border-radius: var(--radius-sm);
+  background: var(--color-ink); color: var(--color-paper-3);
+  padding: 0.55rem 0.65rem; box-shadow: 3px 4px 0 var(--color-rule);
+  font-family: var(--font-body); font-size: 0.7rem; font-weight: 400;
+  letter-spacing: 0; text-transform: none; line-height: 1.4;
+  transition: opacity var(--ease-out) 140ms;
+}
+.demo-only:hover .demo-only__pop, .demo-only:focus-visible .demo-only__pop { visibility: visible; opacity: 1; }
+
+/* ── Stepper del recorrido (nuevo) ───────────────────────────────── */
+.journey {
+  border: 2px solid var(--color-ink); border-radius: var(--radius-sm);
+  background: var(--color-paper-3); box-shadow: var(--shadow-print-sm); overflow: hidden;
+}
+.journey__head {
+  display: flex; align-items: center; justify-content: space-between; gap: .6rem;
+  border-bottom: 1px solid var(--color-rule); background: var(--color-sun);
+  color: var(--color-sun-ink); padding: .4rem .7rem;
+  font-family: var(--font-outlier); font-size: .6rem; letter-spacing: .08em; text-transform: uppercase; font-weight: 700;
+}
+.journey__body { padding: .8rem; display: grid; gap: .7rem; }
+.journey__steps { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.journey__steps li {
+  display: grid; grid-template-columns: 1.4rem 1fr; gap: .55rem; align-items: start;
+  padding: .35rem 0; color: var(--color-muted); font-size: var(--text-sm);
+}
+.journey__steps li i {
+  display: grid; place-items: center; width: 1.4rem; height: 1.4rem; font-style: normal;
+  border: 1.5px solid var(--color-rule); border-radius: 50%;
+  font-family: var(--font-outlier); font-size: .6rem; font-weight: 700;
+}
+.journey__steps li.done { color: var(--color-ink-2); }
+.journey__steps li.done i { border-color: var(--color-ink); background: var(--color-ink); color: var(--color-paper-3); }
+.journey__steps li.now { color: var(--color-ink); font-weight: 600; }
+.journey__steps li.now i { border-color: var(--color-ink); border-width: 2px; background: var(--color-sun); color: var(--color-sun-ink); }
+.journey__steps li small { display: block; font-weight: 400; color: var(--color-muted); font-size: .68rem; }
+.journey__act {
+  display: grid; gap: .45rem; border: 1px solid var(--color-ink);
+  border-radius: var(--radius-sm); background: var(--color-accent-wash); padding: .7rem;
+}
+.journey__act b { font-size: var(--text-sm); }
+.role-tag {
+  display: inline-flex; align-items: center; gap: .25rem; border-radius: 999px;
+  border: 1px solid currentColor; padding: 0 .4rem;
+  font-family: var(--font-outlier); font-size: .55rem; letter-spacing: .06em; text-transform: uppercase; font-weight: 700;
+}
+.role-tag--client { color: var(--color-accent); }
+.role-tag--cafe { color: var(--color-cafe-blue-deep); }
+
+/* ── Acción bloqueada con motivo (nuevo) ─────────────────────────── */
+.btn[aria-disabled="true"] {
+  color: var(--color-muted); background: var(--color-paper-2);
+  border-color: var(--color-rule); box-shadow: none; cursor: not-allowed;
+}
+.blocked {
+  display: grid; gap: .4rem; border: 1px solid var(--color-rule); border-left: 3px solid var(--color-sun);
+  border-radius: var(--radius-sm); background: var(--color-paper-3); padding: .6rem .75rem;
+}
+.blocked b { font-size: var(--text-sm); }
+.blocked span { color: var(--color-ink-2); font-size: var(--text-sm); }
+</style>
+</head>
+<body>
+
+<nav class="gallery-top">
+  <strong>PUNCH · Mocks UX</strong>
+  <a href="#sistema">1 · Sistema</a>
+  <a href="#recorrido">2 · Recorrido</a>
+  <a href="#entrada">3 · Entrada</a>
+  <a href="#cliente">4 · Cliente</a>
+  <a href="#cafeteria">5 · Cafetería</a>
+  <a href="#bordes">6 · Bordes</a>
+</nav>
+
+<div class="gallery-wrap">
+
+<p class="gallery-eyebrow">Enfoque A · un sistema, dos idiomas de layout</p>
+<h1 class="gallery-h" style="margin-top:.4rem">La UX es el guía</h1>
+<p class="gallery-lede">
+  El jurado navega solo. Nadie le explica qué es un punch ni qué es el fondo común.
+  Cada pantalla responde tres preguntas sin que las haga: <b>dónde estoy</b>, <b>qué es esto</b>,
+  <b>qué hago ahora</b>. Las 22 rutas se quedan donde están; lo que cambia es lo que vive dentro.
+</p>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 class="gallery-h" id="sistema">1 · El sistema que guía</h2>
+<p class="gallery-lede">
+  Seis componentes nuevos en <code>src/frontend/components/guide/</code>, todos sobre
+  <code>tokens.css</code>. Una vez existen, el pase por las 22 páginas es casi mecánico.
+</p>
+
+<div class="row">
+  <div class="spec">
+    <h4>PageIntro</h4>
+    <p>Reemplaza el trío <code>eyebrow + h1 + p</code> hoy copiado a mano en <code>home</code>,
+      <code>more</code>, <code>scan</code>, <code>history</code>… La tercera línea (<code>explain</code>)
+      es la que traduce el concepto a lenguaje humano. Es la respuesta a <b>«¿qué es esto?»</b>.</p>
+    <p class="note">Hoy esa línea a veces existe y a veces no. En <code>/campaigns</code> el jurado
+      lee «Campañas» y no tiene idea de qué son.</p>
+  </div>
+  <div style="width:380px">
+    <div class="consumer-panel p5">
+      <div class="page-intro">
+        <span class="consumer-eyebrow">Para tu próxima visita</span>
+        <h1>Campañas</h1>
+        <p class="page-intro__explain">Una cafetería pone dinero del fondo común para invitarte
+          algo. Si te la ganas, la red le devuelve el costo a la cafetería.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row" style="margin-top:2rem">
+  <div class="spec">
+    <h4>NextStep</h4>
+    <p>Bloque de cierre de pantalla. Uno o dos destinos con el <b>porqué</b>, no solo el nombre.
+      Es la pieza que convierte 22 páginas sueltas en un recorrido: nunca hay un callejón sin salida.</p>
+    <p class="note">Regla: nunca repite algo que ya esté en la barra inferior. Solo propone el
+      salto que el jurado no adivinaría — sobre todo el salto entre roles.</p>
+  </div>
+  <div style="width:380px">
+    <div class="next-step">
+      <span class="next-step__label">¿Qué sigue?</span>
+      <ul>
+        <li><a href="#"><strong>Ver cómo lo registró Brújula Café</strong>
+          <span>Cambia a la vista de cafetería: la misma compra, del otro lado del mostrador.</span></a></li>
+        <li><a href="#"><strong>Seguir la ruta de Barranco</strong>
+          <span>Te faltan 2 cafés para el voucher.</span></a></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="row" style="margin-top:2rem">
+  <div class="spec">
+    <h4>EmptyState</h4>
+    <p>El vacío se explica por su causa y ofrece salida. Hoy <code>/crawls</code> dice
+      «Pronto habrá nuevas rutas» y ahí muere el recorrido.</p>
+  </div>
+  <div style="width:380px">
+    <div class="empty">
+      <span class="empty__mark">🗺️</span>
+      <h3>Aún no hay rutas en tu zona</h3>
+      <p>Las rutas las arma la red cuando hay 3 o más cafés cerca. En Barranco ya hay dos.</p>
+      <a class="btn btn--sm btn--ghost" href="#">Ver cafés de Barranco</a>
+    </div>
+  </div>
+</div>
+
+<div class="row" style="margin-top:2rem">
+  <div class="spec">
+    <h4>LoadingState · ErrorState · state-strip</h4>
+    <p>Hoy la carga es un <code>&lt;Spinner/&gt;</code> centrado en un div vacío
+      (<code>home/page.tsx:94</code>): la pantalla se ve rota por medio segundo. Pasa a skeleton
+      con la forma del contenido real.</p>
+    <p>Los avisos de cadena y offline hoy son <code>&lt;p&gt;</code> sueltos con color inline
+      (<code>home/page.tsx:135</code>). Se unifican en una tira con significado propio.</p>
+  </div>
+  <div style="width:380px" class="grid g2">
+    <div class="consumer-panel p4 grid g2">
+      <div class="skel" style="height:.7rem;width:35%"></div>
+      <div class="skel" style="height:1.7rem;width:70%"></div>
+      <div class="skel" style="height:3.6rem;border-radius:999px"></div>
+    </div>
+    <div class="state-strip state-strip--chain">⛓ Confirmando en la cadena · 12 s</div>
+    <div class="state-strip state-strip--offline">✈ Sin conexión · viendo tu última copia guardada</div>
+    <div class="consumer-panel p4 grid g2">
+      <b>No pudimos traer tu progreso</b>
+      <span class="muted sm">Tus punches están seguros en la cadena; esto es solo la vista.</span>
+      <a class="btn btn--sm btn--ghost" style="justify-self:start" href="#">Reintentar</a>
+    </div>
+  </div>
+</div>
+
+<div class="row" style="margin-top:2rem">
+  <div class="spec">
+    <h4>Stat</h4>
+    <p>El workspace hoy escribe cifras como párrafos: <code>«Total confirmado: S/48.00»</code>
+      dentro de un <code>&lt;p&gt;</code> (<code>cafe/[cafeId]/page.tsx:43</code>). Un número que
+      importa se ve como número.</p>
+  </div>
+  <div style="width:560px">
+    <div class="stat-row">
+      <div class="stat stat--lead"><span class="stat__label">Fondo común · tu parte</span>
+        <span class="stat__value">S/ 18.40</span><span class="stat__hint">Este mes, por 4 referencias</span></div>
+      <div class="stat"><span class="stat__label">Canjes pagados</span>
+        <span class="stat__value">S/ 48.00</span><span class="stat__hint">6 canjes confirmados</span></div>
+      <div class="stat"><span class="stat__label">Créditos</span>
+        <span class="stat__value">218</span><span class="stat__hint">Plan Barrio · renueva 1 sep</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="row" style="margin-top:2rem">
+  <div class="spec">
+    <h4>DemoBar</h4>
+    <p>Franja fija, solo con <code>ClientConfig.demoMode</code>. Dice qué rol eres y deja saltar
+      al otro sin cerrar sesión — reusa la lógica de <code>demo-login.tsx:23</code> extraída a un hook.</p>
+    <p class="note">Ops no aparece en la barra: confunde al jurado. Su cuenta sigue entrando
+      por <code>/auth</code> como hoy.</p>
+  </div>
+  <div style="width:380px" class="grid g2">
+    <div class="demo-bar">
+      <span class="demo-bar__role"><i class="demo-bar__dot"></i> Modo demo · Cliente</span>
+      <span class="demo-bar__switch">
+        <button aria-pressed="true">Cliente</button><button aria-pressed="false">Cafetería</button>
+      </span>
+    </div>
+    <div class="demo-bar" style="background:color-mix(in srgb,var(--color-cafe-blue) 22%,var(--color-paper))">
+      <span class="demo-bar__role"><i class="demo-bar__dot" style="background:var(--color-cafe-blue-deep)"></i> Modo demo · Brújula Café</span>
+      <span class="demo-bar__switch">
+        <button aria-pressed="false">Cliente</button><button aria-pressed="true">Cafetería</button>
+      </span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 class="gallery-h" id="recorrido">2 · El recorrido guiado</h2>
+<p class="gallery-lede">
+  Un jurado con 0 sellos no puede canjear. Un jurado con 12 sellos no puede confirmar su propio
+  canje — eso lo hace la cafetería. El ciclo de PUNCH <b>exige dos roles</b>, y si la UI no lo
+  dice, el jurado se queda tocando un botón muerto y concluye que la app está rota.
+</p>
+<p class="gallery-lede">
+  La solución no es texto fijo: es un <code>useDemoJourney()</code> que <b>lee el estado real</b>
+  — saldo, códigos sin escanear, canjes pendientes, estado de la cafetería — y de ahí deriva en
+  qué paso está y cuál es la única acción que lo mueve. Las mismas consultas que las páginas ya
+  hacen; ningún endpoint nuevo.
+</p>
+
+<div class="row">
+  <div class="spec">
+    <h4>La máquina de estados</h4>
+    <p>Seis pasos. Cada uno declara qué rol lo ejecuta. Si el rol activo no es el correcto, la
+      acción se convierte en un traspaso: «esto lo hace la cafetería · cambiar de rol».</p>
+    <p class="note"><b>0 · Sin código.</b> <code>proofs.pending === 0</code> → cafetería genera QR.<br>
+      <b>1 · Código vivo.</b> → cliente escanea.<br>
+      <b>2 · Sellos incompletos.</b> <code>balance &lt; 12</code> → repetir 0–1.<br>
+      <b>3 · Recompensa lista.</b> <code>balance ≥ 12</code> → cliente elige dónde canjear.<br>
+      <b>4 · Canje pendiente.</b> → cafetería entrega desde la bandeja.<br>
+      <b>5 · Ciclo cerrado.</b> → cafetería ve su parte del fondo crecer.</p>
+    <p>El paso 2 se salta en la demo: el seed deja el saldo en 11, así que un solo escaneo llega
+      a 12. Eso ya está en <code>scripts/seed.ts:167</code> — no hay que tocarlo.</p>
+  </div>
+
+  <div style="width:380px" class="grid g3">
+    <figure class="frame" style="margin:0">
+      <figcaption>Paso 0 · cliente con 0 sellos</figcaption>
+      <div class="journey">
+        <div class="journey__head"><span>Recorrido de la demo · paso 1 de 6</span><span>ocultar</span></div>
+        <div class="journey__body">
+          <ol class="journey__steps">
+            <li class="now"><i>1</i><span>La cafetería cobra y genera un código
+              <small>Sin esto no existe nada que escanear</small></span></li>
+            <li><i>2</i><span>El cliente lo escanea y gana un sello</span></li>
+            <li><i>3</i><span>Al llegar a 12, canjea su café</span></li>
+            <li><i>4</i><span>La cafetería entrega y la red le reembolsa</span></li>
+          </ol>
+          <div class="journey__act">
+            <b>Este paso lo hace la cafetería</b>
+            <span class="sm muted">Te llevamos a la terminal de Brújula Café y volvemos aquí con
+              el código listo.</span>
+            <a class="btn btn--sm" style="justify-self:start" href="#">
+              <span class="role-tag role-tag--cafe">Cafetería</span> Ir a generar el código</a>
+          </div>
+        </div>
+      </div>
+    </figure>
+
+    <figure class="frame" style="margin:0">
+      <figcaption>Paso 3 · ya tiene 12 sellos</figcaption>
+      <div class="journey">
+        <div class="journey__head"><span>Recorrido de la demo · paso 3 de 6</span><span>ocultar</span></div>
+        <div class="journey__body">
+          <ol class="journey__steps">
+            <li class="done"><i>✓</i><span>Código generado en Brújula Café</span></li>
+            <li class="done"><i>✓</i><span>Escaneado · 12 de 12 sellos</span></li>
+            <li class="now"><i>3</i><span>Elige dónde canjear tu café
+              <small>Puede ser cualquiera de las 4 cafeterías</small></span></li>
+            <li><i>4</i><span>La cafetería entrega y la red le reembolsa</span></li>
+          </ol>
+          <div class="journey__act">
+            <b>Te toca a ti</b>
+            <a class="btn btn--sm" style="justify-self:start" href="#">
+              <span class="role-tag role-tag--client">Cliente</span> Elegir dónde canjear</a>
+          </div>
+        </div>
+      </div>
+    </figure>
+
+    <figure class="frame" style="margin:0">
+      <figcaption>Paso 4 · canje esperando al otro rol</figcaption>
+      <div class="journey">
+        <div class="journey__head"><span>Recorrido de la demo · paso 4 de 6</span><span>ocultar</span></div>
+        <div class="journey__body">
+          <ol class="journey__steps">
+            <li class="done"><i>✓</i><span>Código generado en Brújula Café</span></li>
+            <li class="done"><i>✓</i><span>Escaneado · 12 de 12 sellos</span></li>
+            <li class="done"><i>✓</i><span>Canje pedido en Brújula Café</span></li>
+            <li class="now"><i>4</i><span>La cafetería tiene que entregarlo
+              <small>Tu canje lleva 40 segundos esperando en su bandeja</small></span></li>
+          </ol>
+          <div class="journey__act">
+            <b>Este paso lo hace la cafetería</b>
+            <span class="sm muted">En la vida real lo hace el barista. En la demo, eres tú.</span>
+            <a class="btn btn--sm" style="justify-self:start" href="#">
+              <span class="role-tag role-tag--cafe">Cafetería</span> Abrir la bandeja de canjes</a>
+          </div>
+        </div>
+      </div>
+    </figure>
+  </div>
+</div>
+
+<div class="row" style="margin-top:2.5rem">
+  <div class="spec">
+    <h4>Acciones imposibles: bloquear con motivo, no esconder</h4>
+    <p>Hoy si el jurado entra a <code>/redeem</code> con 0 sellos, ve una lista de productos y un
+      botón que falla. Peor sería ocultar la pantalla: el jurado no vería que existe.</p>
+    <p>Regla: <b>la acción se ve siempre, deshabilitada, con el motivo y el atajo para
+      desbloquearla</b>. El jurado aprende la mecánica del producto justo cuando choca con ella.</p>
+    <p class="note">Aplica igual del lado cafetería: sin créditos, «Generar código» se bloquea con
+      «Te quedan 0 créditos → Recargar». Sin cafetería aprobada, la terminal explica que Ops debe
+      revisar primero.</p>
+  </div>
+
+  <figure class="frame" style="width:380px;margin:0">
+    <figcaption><b>/redeem</b> · con 0 sellos</figcaption>
+    <div class="phone" style="height:600px"><div class="scroll">
+      <div class="shell">
+        <div class="demo-bar">
+          <span class="demo-bar__role"><i class="demo-bar__dot"></i> Modo demo · Cliente</span>
+          <span class="demo-bar__switch"><button aria-pressed="true">Cliente</button><button>Cafetería</button></span>
+        </div>
+        <header class="consumer-header">
+          <span class="consumer-header__brand">PUNCH</span>
+          <span class="consumer-header__meta">Consumidor Demo</span>
+        </header>
+        <div class="consumer-main">
+          <div class="page-intro">
+            <span class="consumer-eyebrow">Tus sellos</span>
+            <h1>Canjear recompensa</h1>
+            <p class="page-intro__explain">El café que elijas lo paga la red con el fondo común,
+              no la cafetería que te atiende.</p>
+          </div>
+
+          <div class="consumer-panel punch-meter">
+            <div class="punch-meter__track">
+              <div class="punch-meter__fill" style="width:0%"></div>
+              <span class="punch-meter__value">0<small>/12</small></span>
+            </div>
+            <div class="punch-dots">
+              <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            </div>
+          </div>
+
+          <div class="blocked">
+            <b>Todavía no puedes canjear</b>
+            <span>Te faltan 12 sellos. Cada compra en una cafetería de la red suma uno.</span>
+          </div>
+
+          <div class="rows" style="opacity:.5">
+            <div class="rowitem"><div class="rowitem__main"><b>Cappuccino clásico</b>
+              <span class="muted sm">Brújula Café · Miraflores</span></div><span class="mono sm">12 sellos</span></div>
+            <div class="rowitem"><div class="rowitem__main"><b>Filtrado V60</b>
+              <span class="muted sm">Patio 9 · Barranco</span></div><span class="mono sm">12 sellos</span></div>
+          </div>
+
+          <span class="btn btn--block" aria-disabled="true">Canjear · te faltan 12 sellos</span>
+
+          <div class="journey">
+            <div class="journey__head"><span>Recorrido de la demo · paso 1 de 6</span><span>ocultar</span></div>
+            <div class="journey__body">
+              <div class="journey__act">
+                <b>Para desbloquear esto</b>
+                <span class="sm muted">Necesitas una compra. La genera la cafetería desde su
+                  terminal — en la demo, ese barista eres tú.</span>
+                <a class="btn btn--sm" style="justify-self:start" href="#">
+                  <span class="role-tag role-tag--cafe">Cafetería</span> Generar una compra</a>
+              </div>
+            </div>
+          </div>
+        </div>
+        <nav class="consumer-nav"><div class="consumer-nav__inner">
+          <a class="consumer-nav__link" href="#"><span class="consumer-nav__icon">◍</span>Inicio</a>
+          <a class="consumer-nav__link" href="#"><span class="consumer-nav__icon">☕</span>Cafés</a>
+          <a class="consumer-nav__link consumer-nav__link--central" href="#"><span class="consumer-nav__icon">⌗</span>Escanear</a>
+          <a class="consumer-nav__link" href="#"><span class="consumer-nav__icon">↺</span>Historial</a>
+          <a class="consumer-nav__link" href="#"><span class="consumer-nav__icon">⋯</span>Más</a>
+        </div></nav>
+      </div>
+    </div></div>
+    <p class="why"><b>Qué guía:</b> los 12 puntos vacíos, el motivo escrito y el atajo al rol que
+      sí puede actuar. El jurado nunca toca un botón que falla en silencio.</p>
+  </figure>
+
+  <figure class="frame" style="width:520px;margin:0">
+    <figcaption><b>/cafe/[cafeId]/terminal</b> · entró como barista de primeras</figcaption>
+    <div class="desk" style="width:520px;height:600px"><div class="scroll">
+      <div class="demo-bar" style="background:color-mix(in srgb,var(--color-cafe-blue) 22%,var(--color-paper))">
+        <span class="demo-bar__role"><i class="demo-bar__dot" style="background:var(--color-cafe-blue-deep)"></i> Modo demo · Brújula Café</span>
+        <span class="demo-bar__switch"><button>Cliente</button><button aria-pressed="true">Cafetería</button></span>
+      </div>
+      <header class="ws-header">
+        <span class="ws-header__brand"><b>PUNCH</b><span>Brújula Café · Miraflores</span></span>
+        <span class="consumer-header__meta"><span class="badge">218 créditos</span></span>
+      </header>
+      <nav class="ws-tabs">
+        <a href="#">Resumen</a><a href="#" aria-current="page">Terminal</a><a href="#">Canjes</a>
+        <a href="#">Campañas</a><a href="#">Plan</a>
+      </nav>
+      <div class="ws-main">
+        <div class="journey">
+          <div class="journey__head"><span>Recorrido de la demo · empiezas por el final</span><span>ocultar</span></div>
+          <div class="journey__body">
+            <div class="journey__act">
+              <b>Esto se entiende mejor desde el otro lado</b>
+              <span class="sm muted">Estás en la caja registradora. Lo que haces aquí solo cobra
+                sentido cuando ves qué recibe el cliente: sellos, recompensa y un café pagado por
+                la red. Son dos minutos.</span>
+              <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+                <a class="btn btn--sm" href="#">
+                  <span class="role-tag role-tag--client">Cliente</span> Empezar por el cliente</a>
+                <a class="btn btn--sm btn--ghost" href="#">Me quedo aquí, sé lo que hago</a>
+              </div>
+            </div>
+            <ol class="journey__steps">
+              <li><i>1</i><span>Cobras y generas un código <small>estás aquí</small></span></li>
+              <li><i>2</i><span>El cliente lo escanea y gana un sello</span></li>
+              <li><i>3</i><span>Al llegar a 12, canjea su café</span></li>
+              <li><i>4</i><span>Lo entregas y la red te reembolsa</span></li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="page-intro">
+          <span class="consumer-eyebrow">Mostrador</span>
+          <h1>Cobrar una compra</h1>
+          <p class="page-intro__explain">Cobras por Yape como siempre. Aquí solo generas el código
+            que el cliente escanea para llevarse su sello.</p>
+        </div>
+        <section class="consumer-panel p5 grid g2" style="opacity:.75">
+          <span class="mono xs" style="color:var(--color-accent)">PASO 1</span>
+          <div class="field"><label>Producto</label><div class="box">Elige un producto</div></div>
+        </section>
+      </div>
+    </div></div>
+    <p class="why" style="max-width:520px"><b>Qué guía:</b> hoy <code>postAuthDestination()</code>
+      (<code>home/page.tsx:18</code>) manda al barista directo a la terminal — la pantalla más
+      opaca del producto si no sabes qué es un sello. La tarjeta no bloquea: ofrece el orden bueno
+      y deja quedarse. La lista de 4 pasos con «estás aquí» ubica al que decide quedarse.</p>
+  </figure>
+
+  <figure class="frame" style="width:380px;margin:0">
+    <figcaption>El traspaso entre roles</figcaption>
+    <div class="phone" style="height:600px"><div class="scroll">
+      <div class="shell">
+        <div class="demo-bar">
+          <span class="demo-bar__role"><i class="demo-bar__dot"></i> Modo demo · Cliente</span>
+          <span class="demo-bar__switch"><button aria-pressed="true">Cliente</button><button>Cafetería</button></span>
+        </div>
+        <div class="consumer-main" style="padding-top:2.2rem">
+          <div style="display:grid;place-items:center;gap:.7rem;text-align:center;padding:1rem 0">
+            <div style="display:flex;align-items:center;gap:.6rem">
+              <span class="role-tag role-tag--client" style="font-size:.7rem">Cliente</span>
+              <span style="font-size:1.3rem;color:var(--color-accent)">→</span>
+              <span class="role-tag role-tag--cafe" style="font-size:.7rem">Cafetería</span>
+            </div>
+            <h1 class="consumer-title" style="margin:0;font-size:1.7rem">Cambiando de rol</h1>
+            <p class="muted" style="margin:0;max-width:30ch">Ahora eres Brújula Café. Tu progreso
+              como cliente queda intacto — vuelves cuando quieras.</p>
+          </div>
+
+          <div class="demo-guide consumer-panel p5 grid g2">
+            <span class="consumer-eyebrow">Al llegar, haz esto</span>
+            <ol class="grid g1" style="margin:0;padding-left:1.1rem">
+              <li class="sm">Abre la pestaña <b>Terminal</b></li>
+              <li class="sm">Elige <b>Latte</b> y escribe cualquier referencia</li>
+              <li class="sm">Pulsa <b>Generar código</b></li>
+              <li class="sm">Vuelve a cliente y escanéalo</li>
+            </ol>
+            <a class="btn btn--block" href="#">Entrar como Brújula Café</a>
+            <a class="link sm" style="justify-self:center" href="#">Mejor me quedo como cliente</a>
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <p class="why"><b>Qué guía:</b> el cambio de rol no es instantáneo y mudo: es una pantalla que
+      dice qué acabas de dejar, qué vas a encontrar y los 4 pasos que te tocan al llegar. Sin ella
+      el jurado aterriza en un panel de cafetería sin saber por qué está ahí.</p>
+  </figure>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 class="gallery-h" id="entrada">3 · La entrada</h2>
+<p class="gallery-lede">
+  Hoy el jurado aterriza en <code>/auth</code> y ve primero un formulario de email y contraseña
+  que no puede usar; los botones de demo están debajo, en gris, con etiqueta
+  <code>«Entrar como Café Brújula»</code> que no explica nada. Se invierte el orden.
+</p>
+
+<div class="row">
+  <figure class="frame">
+    <figcaption><b>/auth/sign-in</b> · entrada demo</figcaption>
+    <div class="phone"><div class="scroll">
+      <div class="shell">
+        <div class="consumer-main" style="padding-top:2rem">
+          <div class="page-intro">
+            <span class="consumer-eyebrow">Red de cafeterías de barrio</span>
+            <h1>PUNCH</h1>
+            <p class="page-intro__explain">Compras café en cualquier cafetería independiente de la
+              red y ganas sellos. 12 sellos, un café gratis en <em>cualquiera</em> de ellas.
+              Lo que las cadenas hacen solas, aquí lo hacen juntas.</p>
+          </div>
+
+          <div class="consumer-panel p5 grid g3">
+            <span class="consumer-eyebrow">Recorre la demo</span>
+            <a class="btn btn--block" href="#">☕ Entrar como cliente</a>
+            <p class="muted sm" style="margin:-.3rem 0 0">Tienes 11 de 12 sellos y una ruta a medias.
+              Empieza aquí si quieres ver el producto como lo ve el barrio.</p>
+            <a class="btn btn--block btn--ghost" href="#">🏪 Entrar como cafetería</a>
+            <p class="muted sm" style="margin:-.3rem 0 0">Eres Brújula Café, en Miraflores.
+              Verás tus ventas, tus canjes y tu parte del fondo común.</p>
+            <p class="hint" style="border-top:1px solid var(--color-rule);padding-top:.7rem;margin:0">
+              Puedes cambiar de rol en cualquier momento desde la barra superior.</p>
+          </div>
+
+          <details class="consumer-panel p4">
+            <summary class="sm" style="cursor:pointer;font-weight:600">Tengo una cuenta</summary>
+            <div class="grid g2" style="margin-top:.8rem">
+              <div class="field"><label>Correo</label><div class="box">tu@correo.pe</div></div>
+              <div class="field"><label>Contraseña</label><div class="box">••••••••</div></div>
+              <a class="btn btn--sm btn--ghost" href="#">Iniciar sesión</a>
+            </div>
+          </details>
+        </div>
+      </div>
+    </div></div>
+    <p class="why"><b>Qué guía:</b> el <code>explain</code> enseña el modelo de negocio antes del
+      primer clic. Cada botón de rol trae una línea de lo que va a encontrar — el jurado elige con
+      criterio, no a ciegas. El login real pasa a <code>&lt;details&gt;</code> cerrado: deja de
+      competir por la atención sin desaparecer.</p>
+  </figure>
+
+  <div class="spec" style="padding-top:2rem">
+    <h4>Qué cambia en código</h4>
+    <p><code>demo-login.tsx</code> deja de ser una lista de 3 botones outline y pasa a ser la
+      pieza principal de la página. El array <code>DEMO_LOGINS</code> gana un campo
+      <code>blurb</code>. La cuenta Ops sale de la lista visible y queda accesible por el
+      formulario de correo.</p>
+    <p><code>auth/[path]/page.tsx</code> ordena: <code>&lt;DemoLogin/&gt;</code> arriba,
+      <code>&lt;Auth/&gt;</code> dentro del acordeón.</p>
+    <p class="note">Además: hoy el login demo hace <code>window.location.assign("/home")</code> y
+      <code>/home</code> reenvía forzado al workspace si tienes café
+      (<code>home/page.tsx:87</code>). Con el rol elegido explícitamente, cada botón manda a su
+      destino y el redirect forzado se elimina.</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 class="gallery-h" id="cliente">4 · Mundo cliente</h2>
+<p class="gallery-lede">Móvil, una columna, todo al alcance del pulgar. 11 pantallas.</p>
+
+<div class="row">
+
+  <figure class="frame">
+    <figcaption><b>/home</b> · el ancla del recorrido</figcaption>
+    <div class="phone"><div class="scroll">
+      <div class="shell">
+        <div class="demo-bar">
+          <span class="demo-bar__role"><i class="demo-bar__dot"></i> Modo demo · Cliente</span>
+          <span class="demo-bar__switch"><button aria-pressed="true">Cliente</button><button>Cafetería</button></span>
+        </div>
+        <header class="consumer-header">
+          <span class="consumer-header__brand">PUNCH</span>
+          <span class="consumer-header__meta">Consumidor Demo</span>
+        </header>
+        <div class="consumer-main">
+          <div class="page-intro">
+            <span class="consumer-eyebrow">Tu mesa, tu barrio</span>
+            <h1>Hola de nuevo</h1>
+            <p class="page-intro__explain">Un sello por cada compra en una cafetería de la red.
+              A los 12, tu café va por cuenta de la red — no de una sola tienda.</p>
+          </div>
+
+          <section class="consumer-panel punch-meter">
+            <div class="grid g1">
+              <span class="consumer-eyebrow">Tu recorrido</span>
+              <h2 class="consumer-title" style="margin:0;font-size:1.35rem">PUNCH que vuelve al barrio</h2>
+            </div>
+            <div class="punch-meter__track">
+              <div class="punch-meter__fill" style="width:91.6%"></div>
+              <span class="punch-meter__value">11<small>/12</small></span>
+            </div>
+            <div class="punch-dots">
+              <i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i>
+              <i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i>
+            </div>
+            <p class="punch-meter__message">Te falta 1 sello</p>
+          </section>
+
+          <a class="btn btn--block" href="#">Escanear mi compra →</a>
+
+          <section class="consumer-panel p5 grid g2">
+            <span class="consumer-eyebrow">Campaña activa</span>
+            <h2 class="consumer-title" style="margin:0;font-size:1.3rem">Martes de filtrado</h2>
+            <p class="muted sm" style="margin:0">Patio 9 invita un V60 a quien traiga su taza.
+              Financiado con el fondo común de la red.</p>
+            <a class="link sm" href="#">Ver campaña →</a>
+          </section>
+
+          <section class="consumer-panel consumer-voucher p5 grid g2">
+            <span class="consumer-eyebrow">Ruta de café</span>
+            <h2 class="consumer-title" style="margin:0;font-size:1.3rem">Vuelta por Barranco</h2>
+            <p class="sm" style="margin:0">1 de 3 cafés visitados</p>
+            <a class="link sm" href="#">Seguir la ruta →</a>
+          </section>
+
+          <div class="journey">
+            <div class="journey__head"><span>Recorrido de la demo · paso 1 de 6</span><span>ocultar</span></div>
+            <div class="journey__body">
+              <ol class="journey__steps">
+                <li class="now"><i>1</i><span>Consigue tu último sello
+                  <small>Te falta 1 para los 12. Lo genera la cafetería al cobrarte.</small></span></li>
+                <li><i>2</i><span>Escanea el código y llega a 12</span></li>
+                <li><i>3</i><span>Elige dónde canjear tu café gratis</span></li>
+                <li><i>4</i><span>La cafetería entrega y la red le reembolsa</span></li>
+              </ol>
+              <div class="journey__act">
+                <b>Este paso lo hace la cafetería</b>
+                <span class="sm muted">En la demo, ese barista eres tú. Te llevamos a la terminal
+                  de Brújula y vuelves aquí con el código.</span>
+                <a class="btn btn--sm" style="justify-self:start" href="#">
+                  <span class="role-tag role-tag--cafe">Cafetería</span> Generar mi compra</a>
+              </div>
+            </div>
+          </div>
+        </div>
+        <nav class="consumer-nav"><div class="consumer-nav__inner">
+          <a class="consumer-nav__link consumer-nav__link--active" href="#"><span class="consumer-nav__icon">◍</span>Inicio</a>
+          <a class="consumer-nav__link" href="#"><span class="consumer-nav__icon">☕</span>Cafés</a>
+          <a class="consumer-nav__link consumer-nav__link--central" href="#"><span class="consumer-nav__icon">⌗</span>Escanear</a>
+          <a class="consumer-nav__link" href="#"><span class="consumer-nav__icon">↺</span>Historial</a>
+          <a class="consumer-nav__link" href="#"><span class="consumer-nav__icon">⋯</span>Más</a>
+        </div></nav>
+      </div>
+    </div></div>
+    <p class="why"><b>Qué guía:</b> los 12 puntos hacen legible «11/12» de un vistazo — la barra
+      sola no dice cuánto falta. El <code>NextStep</code> es el único lugar de la app que empuja al
+      cambio de rol, y aparece cuando el jurado ya entendió el lado cliente.</p>
+  </figure>
+
+  <figure class="frame">
+    <figcaption><b>/scan</b> · el momento clave</figcaption>
+    <div class="phone"><div class="scroll">
+      <div class="shell">
+        <div class="demo-bar">
+          <span class="demo-bar__role"><i class="demo-bar__dot"></i> Modo demo · Cliente</span>
+          <span class="demo-bar__switch"><button aria-pressed="true">Cliente</button><button>Cafetería</button></span>
+        </div>
+        <header class="consumer-header">
+          <span class="consumer-header__brand">PUNCH</span>
+          <span class="consumer-header__meta">Consumidor Demo</span>
+        </header>
+        <div class="consumer-main">
+          <div class="page-intro">
+            <span class="consumer-eyebrow">Tu visita cuenta</span>
+            <h1>Escanear compra</h1>
+            <p class="page-intro__explain">El barista genera un código al cobrarte. Al escanearlo,
+              tu sello queda escrito en la cadena — ni la cafetería ni PUNCH pueden borrarlo.</p>
+          </div>
+
+          <div style="border:2px solid var(--color-ink);border-radius:var(--radius-sm);
+                      background:var(--color-paper-2);height:14rem;display:grid;place-items:center;gap:.6rem;
+                      align-content:center;text-align:center;padding:1rem">
+            <span style="font-size:2rem">⌗</span>
+            <b>Apunta al código del barista</b>
+            <span class="muted sm">Se abre solo cuando toques el botón</span>
+            <a class="btn btn--sm" href="#">Abrir cámara</a>
+          </div>
+
+          <div class="consumer-panel p4 grid g2">
+            <span class="consumer-eyebrow">¿No tienes cámara?</span>
+            <div class="field"><label>Enlace o código</label><div class="box">punch.pe/purchase/…</div></div>
+            <a class="btn btn--sm btn--ghost" style="justify-self:start" href="#">Abrir</a>
+          </div>
+
+          <div class="next-step">
+            <span class="next-step__label">¿Estás en la demo?</span>
+            <ul><li><a href="#"><strong>Generar un código de prueba</strong>
+              <span>Te lleva a la terminal de Brújula Café, crea la compra y vuelve aquí con el código puesto.</span></a></li></ul>
+          </div>
+        </div>
+        <nav class="consumer-nav"><div class="consumer-nav__inner">
+          <a class="consumer-nav__link" href="#"><span class="consumer-nav__icon">◍</span>Inicio</a>
+          <a class="consumer-nav__link" href="#"><span class="consumer-nav__icon">☕</span>Cafés</a>
+          <a class="consumer-nav__link consumer-nav__link--central consumer-nav__link--active" href="#"><span class="consumer-nav__icon">⌗</span>Escanear</a>
+          <a class="consumer-nav__link" href="#"><span class="consumer-nav__icon">↺</span>Historial</a>
+          <a class="consumer-nav__link" href="#"><span class="consumer-nav__icon">⋯</span>Más</a>
+        </div></nav>
+      </div>
+    </div></div>
+    <p class="why"><b>Qué guía:</b> aquí está el único callejón sin salida real de la demo — el
+      jurado no tiene un barista al lado que le dé un QR. El <code>NextStep</code> lo resuelve sin
+      inventar ruta nueva: usa la terminal que ya existe.</p>
+  </figure>
+
+  <figure class="frame">
+    <figcaption><b>/purchase/[proofId]</b> · confirmar compra</figcaption>
+    <div class="phone"><div class="scroll">
+      <div class="shell">
+        <div class="demo-bar">
+          <span class="demo-bar__role"><i class="demo-bar__dot"></i> Modo demo · Cliente</span>
+          <span class="demo-bar__switch"><button aria-pressed="true">Cliente</button><button>Cafetería</button></span>
+        </div>
+        <header class="consumer-header">
+          <span class="consumer-header__brand">PUNCH</span>
+          <span class="consumer-header__meta">Consumidor Demo</span>
+        </header>
+        <div class="consumer-main">
+          <div class="page-intro">
+            <span class="consumer-eyebrow">Casi listo</span>
+            <h1>¿Confirmas esta compra?</h1>
+          </div>
+
+          <section class="consumer-panel p5 grid g3">
+            <div class="rowitem" style="border:0;padding:0;background:transparent">
+              <div class="rowitem__main"><b style="font-size:1.15rem">Latte</b>
+                <span class="muted sm">Brújula Café · Miraflores</span></div>
+              <span class="mono" style="font-size:1.15rem;font-weight:700">S/ 12.00</span>
+            </div>
+            <div style="border-top:1px solid var(--color-rule)"></div>
+            <div class="rowitem" style="border:0;padding:0;background:transparent">
+              <span class="sm muted">Ganas</span><span class="badge badge--ok">+1 sello</span>
+            </div>
+            <div class="rowitem" style="border:0;padding:0;background:transparent">
+              <span class="sm muted">Quedarás en</span><span class="mono" style="font-weight:700">12 / 12</span>
+            </div>
+          </section>
+
+          <div class="state-strip state-strip--chain">⛓ Se escribe en Arbitrum · verificable después</div>
+          <a class="btn btn--block" href="#">Confirmar y sellar</a>
+          <a class="link sm" style="justify-self:center" href="#">No fui yo · reportar</a>
+        </div>
+      </div>
+    </div></div>
+    <p class="why"><b>Qué guía:</b> «quedarás en 12/12» dice la consecuencia antes del clic — el
+      jurado ve venir la recompensa. Sin barra inferior: pantalla de decisión, una sola salida.</p>
+  </figure>
+
+  <figure class="frame">
+    <figcaption><b>/purchase/[proofId]</b> · éxito, con recompensa desbloqueada</figcaption>
+    <div class="phone"><div class="scroll">
+      <div class="shell">
+        <div class="demo-bar">
+          <span class="demo-bar__role"><i class="demo-bar__dot"></i> Modo demo · Cliente</span>
+          <span class="demo-bar__switch"><button aria-pressed="true">Cliente</button><button>Cafetería</button></span>
+        </div>
+        <div class="consumer-main" style="padding-top:1.6rem">
+          <div style="display:grid;place-items:center;gap:.7rem;text-align:center;padding:1.4rem 0">
+            <div style="width:5.5rem;height:5.5rem;border:3px solid var(--color-ink);border-radius:50%;
+                        background:var(--color-accent);color:var(--color-accent-ink);display:grid;place-items:center;
+                        font-size:2.6rem;box-shadow:var(--shadow-print-sm)">✓</div>
+            <h1 class="consumer-title" style="margin:0;font-size:1.9rem">Sello 12 de 12</h1>
+            <p class="muted" style="margin:0;max-width:26ch">Tu latte quedó registrado en Brújula Café.</p>
+          </div>
+
+          <section class="consumer-panel consumer-voucher p5 grid g2" style="text-align:center;justify-items:center">
+            <span class="consumer-eyebrow">Recompensa disponible</span>
+            <h2 class="consumer-title" style="margin:0;font-size:1.4rem">Tienes un café gratis</h2>
+            <p class="sm" style="margin:0">Puedes canjearlo en <b>cualquiera</b> de las 4 cafeterías
+              de la red — no solo donde lo ganaste. Eso es lo que la red hace posible.</p>
+            <a class="btn" href="#">Elegir dónde canjear</a>
+          </section>
+
+          <div class="next-step">
+            <span class="next-step__label">¿Qué sigue?</span>
+            <ul>
+              <li><a href="#"><strong>Ver esta compra del lado de la cafetería</strong>
+                <span>Brújula ya la tiene en su panel, con su parte del fondo actualizada.</span></a></li>
+              <li><a href="https://sepolia.arbiscan.io/tx/0x8f2ad41c" target="_blank"><strong>Verificar este sello en Arbitrum</strong>
+                <span class="tx" style="margin:0"><span class="tx__chain">Arbitrum Sepolia</span> 0x8f2ad41c…e07b92 ↗</span></a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <p class="why"><b>Qué guía:</b> el pico emocional de la demo. La frase «cualquiera de las 4»
+      es la tesis del producto dicha en el momento en que se siente, no en un about. El segundo
+      <code>NextStep</code> ofrece la prueba on-chain a quien la quiera — reusa
+      <code>tx-hash-link.tsx</code>, que ya existe.</p>
+  </figure>
+
+  <figure class="frame">
+    <figcaption><b>/redeem/[productId]</b> · canjear</figcaption>
+    <div class="phone"><div class="scroll">
+      <div class="shell">
+        <div class="demo-bar">
+          <span class="demo-bar__role"><i class="demo-bar__dot"></i> Modo demo · Cliente</span>
+          <span class="demo-bar__switch"><button aria-pressed="true">Cliente</button><button>Cafetería</button></span>
+        </div>
+        <header class="consumer-header">
+          <span class="consumer-header__brand">PUNCH</span>
+          <span class="consumer-header__meta">Consumidor Demo</span>
+        </header>
+        <div class="consumer-main">
+          <div class="page-intro">
+            <span class="consumer-eyebrow">Tus 12 sellos</span>
+            <h1>Canjear recompensa</h1>
+            <p class="page-intro__explain">El café que elijas lo paga la red con el fondo común, no
+              la cafetería que te atiende. Por eso puedes canjear donde quieras.</p>
+          </div>
+
+          <div class="rows">
+            <div class="rowitem" style="border-color:var(--color-ink);background:var(--color-accent-wash)">
+              <div class="rowitem__main"><b>Cappuccino clásico</b>
+                <span class="muted sm">Brújula Café · Miraflores · 350 m</span></div>
+              <span class="badge badge--ok">Elegido</span>
+            </div>
+            <div class="rowitem"><div class="rowitem__main"><b>Filtrado V60</b>
+              <span class="muted sm">Patio 9 · Barranco · 2.1 km</span></div><span class="mono sm">S/12.00</span></div>
+            <div class="rowitem"><div class="rowitem__main"><b>Cold brew</b>
+              <span class="muted sm">Nube Tostada · San Isidro · 3.4 km</span></div><span class="mono sm">S/12.00</span></div>
+            <div class="rowitem"><div class="rowitem__main"><b>Cortado</b>
+              <span class="muted sm">Esquina Sur · Surquillo · 4.0 km</span></div><span class="mono sm">S/9.00</span></div>
+          </div>
+
+          <a class="btn btn--block" href="#">Canjear en Brújula Café</a>
+          <p class="hint" style="margin:0">La cafetería lo confirma desde su bandeja. Te avisamos
+            cuando esté listo — normalmente al instante.</p>
+        </div>
+        <nav class="consumer-nav"><div class="consumer-nav__inner">
+          <a class="consumer-nav__link" href="#"><span class="consumer-nav__icon">◍</span>Inicio</a>
+          <a class="consumer-nav__link" href="#"><span class="consumer-nav__icon">☕</span>Cafés</a>
+          <a class="consumer-nav__link consumer-nav__link--central" href="#"><span class="consumer-nav__icon">⌗</span>Escanear</a>
+          <a class="consumer-nav__link" href="#"><span class="consumer-nav__icon">↺</span>Historial</a>
+          <a class="consumer-nav__link" href="#"><span class="consumer-nav__icon">⋯</span>Más</a>
+        </div></nav>
+      </div>
+    </div></div>
+    <p class="why"><b>Qué guía:</b> mostrar las 4 cafeterías juntas hace visible la red. La
+      distancia ordena la lista — reusa <code>discovery-distance.ts</code>, que ya calcula esto en
+      <code>/discover</code>.</p>
+  </figure>
+
+  <figure class="frame">
+    <figcaption><b>/discover</b> · cafeterías de la red</figcaption>
+    <div class="phone"><div class="scroll">
+      <div class="shell">
+        <div class="demo-bar">
+          <span class="demo-bar__role"><i class="demo-bar__dot"></i> Modo demo · Cliente</span>
+          <span class="demo-bar__switch"><button aria-pressed="true">Cliente</button><button>Cafetería</button></span>
+        </div>
+        <header class="consumer-header">
+          <span class="consumer-header__brand">PUNCH</span>
+          <span class="consumer-header__meta">Consumidor Demo</span>
+        </header>
+        <div class="consumer-main">
+          <div class="page-intro">
+            <span class="consumer-eyebrow">4 cafeterías, un solo cartón</span>
+            <h1>Descubre cafés</h1>
+            <p class="page-intro__explain">Todas son independientes y de barrio. Tus sellos valen
+              igual en las cuatro.</p>
+          </div>
+          <a class="btn btn--sm btn--ghost" style="justify-self:start" href="#">📍 Ordenar por cercanía</a>
+
+          <div class="grid g2">
+            <span class="consumer-eyebrow">Miraflores</span>
+            <div class="consumer-panel" style="overflow:hidden">
+              <div class="cafe-photo" style="border:0;border-bottom:1px solid var(--color-rule);border-radius:0">foto</div>
+              <div class="p4 grid g1">
+                <div class="rowitem" style="border:0;padding:0;background:transparent">
+                  <b class="consumer-title" style="font-size:1.2rem">Brújula Café</b>
+                  <span class="badge badge--ok">Aliada</span>
+                </div>
+                <span class="muted sm">Café de especialidad frente al parque.</span>
+                <span class="mono xs" style="color:var(--color-accent)">Espresso S/8 · Latte S/12 · 1 recompensa</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid g2">
+            <span class="consumer-eyebrow">Barranco</span>
+            <div class="consumer-panel" style="overflow:hidden">
+              <div class="cafe-photo" style="border:0;border-bottom:1px solid var(--color-rule);border-radius:0">foto</div>
+              <div class="p4 grid g1">
+                <div class="rowitem" style="border:0;padding:0;background:transparent">
+                  <b class="consumer-title" style="font-size:1.2rem">Patio 9</b>
+                  <span class="badge badge--ok">Aliada</span>
+                </div>
+                <span class="muted sm">Patio interior, tuestes locales.</span>
+                <span class="mono xs" style="color:var(--color-accent)">Americano S/9 · Flat white S/13 · 1 recompensa</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <nav class="consumer-nav"><div class="consumer-nav__inner">
+          <a class="consumer-nav__link" href="#"><span class="consumer-nav__icon">◍</span>Inicio</a>
+          <a class="consumer-nav__link consumer-nav__link--active" href="#"><span class="consumer-nav__icon">☕</span>Cafés</a>
+          <a class="consumer-nav__link consumer-nav__link--central" href="#"><span class="consumer-nav__icon">⌗</span>Escanear</a>
+          <a class="consumer-nav__link" href="#"><span class="consumer-nav__icon">↺</span>Historial</a>
+          <a class="consumer-nav__link" href="#"><span class="consumer-nav__icon">⋯</span>Más</a>
+        </div></nav>
+      </div>
+    </div></div>
+    <p class="why"><b>Qué guía:</b> hoy esta página usa <code>Card</code> de shadcn con
+      <code>text-muted-foreground</code> — se ve de otra app. Pasa a superficie de papel. La línea
+      mono con precios reales evita la tarjeta vacía de solo nombre.</p>
+  </figure>
+
+  <figure class="frame">
+    <figcaption><b>/history</b> · lo que la cadena recuerda</figcaption>
+    <div class="phone"><div class="scroll">
+      <div class="shell">
+        <div class="demo-bar">
+          <span class="demo-bar__role"><i class="demo-bar__dot"></i> Modo demo · Cliente</span>
+          <span class="demo-bar__switch"><button aria-pressed="true">Cliente</button><button>Cafetería</button></span>
+        </div>
+        <header class="consumer-header">
+          <span class="consumer-header__brand">PUNCH</span>
+          <span class="consumer-header__meta">Consumidor Demo</span>
+        </header>
+        <div class="consumer-main">
+          <div class="page-intro">
+            <span class="consumer-eyebrow">Tu recorrido</span>
+            <h1>Historial</h1>
+            <p class="page-intro__explain">Cada línea existe en la cadena. Ni la cafetería ni
+              PUNCH pueden cambiarla después.</p>
+          </div>
+
+          <div class="rows">
+            <div class="rowitem">
+              <div class="rowitem__main"><b>+1 sello</b>
+                <span class="muted sm">Brújula Café · Latte</span>
+                <span class="muted xs mono">11 ago, 9:14</span>
+                <a class="tx" href="https://sepolia.arbiscan.io/tx/0x8f2ad41c" target="_blank">
+                  <span class="tx__chain">Arbitrum Sepolia</span> 0x8f2ad41c…e07b92 ↗</a></div>
+              <span class="badge badge--ok">Listo</span>
+            </div>
+            <div class="rowitem">
+              <div class="rowitem__main"><b>+1 sello</b>
+                <span class="muted sm">Patio 9 · Americano</span>
+                <span class="muted xs mono">9 ago, 17:40</span>
+                <a class="tx" href="https://sepolia.arbiscan.io/tx/0x41b7cc90" target="_blank">
+                  <span class="tx__chain">Arbitrum Sepolia</span> 0x41b7cc90…3ad118 ↗</a></div>
+              <span class="badge badge--ok">Listo</span>
+            </div>
+            <div class="rowitem" style="border-color:var(--color-sun)">
+              <div class="rowitem__main"><b>Canje de recompensa</b>
+                <span class="muted sm">Esquina Sur · Cortado</span>
+                <span class="muted xs mono">7 ago, 11:02</span>
+                <span class="tx tx--wait">⛓ Esperando confirmación en la cadena…</span></div>
+              <span class="badge badge--wait">En proceso</span>
+            </div>
+            <div class="rowitem">
+              <div class="rowitem__main"><b>Voucher usado</b>
+                <span class="muted sm">Nube Tostada · Ruta: Vuelta por Barranco</span>
+                <span class="muted xs mono">3 ago, 16:20</span>
+                <a class="tx" href="https://sepolia.arbiscan.io/tx/0xd0c31e55" target="_blank">
+                  <span class="tx__chain">Arbitrum Sepolia</span> 0xd0c31e55…9f4a02 ↗</a></div>
+              <span class="badge badge--ok">Listo</span>
+            </div>
+          </div>
+
+          <p class="hint" style="margin:0">Cada operación confirmada trae su transacción real en
+            Arbitrum Sepolia. Ábrela: el explorador es público y no lo controlamos nosotros.</p>
+        </div>
+        <nav class="consumer-nav"><div class="consumer-nav__inner">
+          <a class="consumer-nav__link" href="#"><span class="consumer-nav__icon">◍</span>Inicio</a>
+          <a class="consumer-nav__link" href="#"><span class="consumer-nav__icon">☕</span>Cafés</a>
+          <a class="consumer-nav__link consumer-nav__link--central" href="#"><span class="consumer-nav__icon">⌗</span>Escanear</a>
+          <a class="consumer-nav__link consumer-nav__link--active" href="#"><span class="consumer-nav__icon">↺</span>Historial</a>
+          <a class="consumer-nav__link" href="#"><span class="consumer-nav__icon">⋯</span>Más</a>
+        </div></nav>
+      </div>
+    </div></div>
+    <p class="why"><b>Qué guía:</b> los estados dejan de ser texto suelto a la derecha
+      (<code>history/page.tsx:139</code>) y pasan a <code>badge</code> con color de significado.
+      El <code>NextStep</code> convierte el historial en el argumento de verificabilidad — para un
+      jurado técnico, es la pantalla que prueba que la cadena no es decorado.</p>
+  </figure>
+
+  <figure class="frame">
+    <figcaption><b>/campaigns</b> y <b>/crawls</b> · con contenido</figcaption>
+    <div class="phone"><div class="scroll">
+      <div class="shell">
+        <div class="demo-bar">
+          <span class="demo-bar__role"><i class="demo-bar__dot"></i> Modo demo · Cliente</span>
+          <span class="demo-bar__switch"><button aria-pressed="true">Cliente</button><button>Cafetería</button></span>
+        </div>
+        <header class="consumer-header">
+          <span class="consumer-header__brand">PUNCH</span>
+          <span class="consumer-header__meta">Consumidor Demo</span>
+        </header>
+        <div class="consumer-main">
+          <div class="page-intro">
+            <span class="consumer-eyebrow">Para tu próxima visita</span>
+            <h1>Campañas</h1>
+            <p class="page-intro__explain">Una cafetería pone dinero del fondo común para invitarte
+              algo. Si te la ganas, la red le devuelve el costo.</p>
+          </div>
+
+          <div class="consumer-panel p5 grid g2">
+            <div class="rowitem" style="border:0;padding:0;background:transparent">
+              <b class="consumer-title" style="font-size:1.25rem">Martes de filtrado</b>
+              <span class="badge badge--ok">Activa</span>
+            </div>
+            <p class="muted sm" style="margin:0">Patio 9 · Barranco</p>
+            <div style="height:.5rem;border:1px solid var(--color-ink);border-radius:999px;overflow:hidden;background:var(--color-paper-2)">
+              <div style="width:40%;height:100%;background:var(--color-accent)"></div>
+            </div>
+            <p class="mono xs" style="margin:0">8 de 20 vouchers tomados · S/4.00 por voucher</p>
+            <a class="link sm" href="#">Ver campaña →</a>
+          </div>
+
+          <div class="consumer-panel consumer-voucher p5 grid g2">
+            <div class="rowitem" style="border:0;padding:0;background:transparent">
+              <b class="consumer-title" style="font-size:1.25rem">Vuelta por Barranco</b>
+              <span class="badge">Ruta</span>
+            </div>
+            <p class="sm" style="margin:0">Visita 3 cafeterías y llévate un voucher de la red.</p>
+            <ol class="grid g1 sm" style="margin:0;padding-left:1.1rem">
+              <li style="text-decoration:line-through;color:var(--color-muted)">Patio 9 · visitado</li>
+              <li>Brújula Café</li>
+              <li>Esquina Sur</li>
+            </ol>
+            <a class="link sm" href="#">Seguir la ruta →</a>
+          </div>
+
+          <div class="empty">
+            <span class="empty__mark">🗺️</span>
+            <h3>No hay más rutas en tu zona</h3>
+            <p>Las rutas nacen cuando hay 3 o más cafeterías cerca. San Isidro va por dos.</p>
+            <a class="btn btn--sm btn--ghost" href="#">Ver cafeterías de San Isidro</a>
+          </div>
+        </div>
+        <nav class="consumer-nav"><div class="consumer-nav__inner">
+          <a class="consumer-nav__link" href="#"><span class="consumer-nav__icon">◍</span>Inicio</a>
+          <a class="consumer-nav__link" href="#"><span class="consumer-nav__icon">☕</span>Cafés</a>
+          <a class="consumer-nav__link consumer-nav__link--central" href="#"><span class="consumer-nav__icon">⌗</span>Escanear</a>
+          <a class="consumer-nav__link" href="#"><span class="consumer-nav__icon">↺</span>Historial</a>
+          <a class="consumer-nav__link consumer-nav__link--active" href="#"><span class="consumer-nav__icon">⋯</span>Más</a>
+        </div></nav>
+      </div>
+    </div></div>
+    <p class="why"><b>Qué guía:</b> hoy campaña y ruta son un nombre y un enlace
+      (<code>campaigns/page.tsx:41</code>) — el jurado abre, no entiende, se va. Con progreso
+      visible y pasos tachados, la pantalla se explica sola. El vacío del final es un
+      <code>EmptyState</code> real, no «Pronto habrá nuevas rutas».</p>
+  </figure>
+
+  <figure class="frame">
+    <figcaption><b>/more</b> y <b>/profile</b> · la cola del recorrido</figcaption>
+    <div class="phone"><div class="scroll">
+      <div class="shell">
+        <div class="demo-bar">
+          <span class="demo-bar__role"><i class="demo-bar__dot"></i> Modo demo · Cliente</span>
+          <span class="demo-bar__switch"><button aria-pressed="true">Cliente</button><button>Cafetería</button></span>
+        </div>
+        <header class="consumer-header">
+          <span class="consumer-header__brand">PUNCH</span>
+          <span class="consumer-header__meta">Consumidor Demo</span>
+        </header>
+        <div class="consumer-main">
+          <div class="page-intro">
+            <span class="consumer-eyebrow">La red, a tu manera</span>
+            <h1>Más</h1>
+          </div>
+
+          <div class="consumer-panel p4 grid g2">
+            <span class="consumer-eyebrow">Cómo funciona</span>
+            <div class="rows">
+              <div class="rowitem" style="border:0;background:transparent;padding:.4rem 0">
+                <div class="rowitem__main"><b>¿Qué es un sello?</b>
+                  <span class="muted sm">Una compra, un sello. 12 sellos, un café.</span></div><span class="link">→</span></div>
+              <div class="rowitem" style="border:0;background:transparent;padding:.4rem 0">
+                <div class="rowitem__main"><b>¿Qué es el fondo común?</b>
+                  <span class="muted sm">Parte de cada venta va a un bote que reparte la red.</span></div><span class="link">→</span></div>
+              <div class="rowitem" style="border:0;background:transparent;padding:.4rem 0">
+                <div class="rowitem__main"><b>¿Por qué en blockchain?</b>
+                  <span class="muted sm">Para que ninguna cafetería —ni PUNCH— pueda borrar tus sellos.</span></div><span class="link">→</span></div>
+            </div>
+          </div>
+
+          <div class="consumer-panel p4 grid g2">
+            <span class="consumer-eyebrow">Tu cuenta</span>
+            <div class="rows">
+              <div class="rowitem" style="border:0;background:transparent;padding:.4rem 0">
+                <div class="rowitem__main"><b>Perfil</b><span class="muted sm">Consumidor Demo</span></div><span class="link">→</span></div>
+              <div class="rowitem" style="border:0;background:transparent;padding:.4rem 0">
+                <div class="rowitem__main"><b>Instalar PUNCH</b>
+                  <span class="muted sm">Añádela a tu pantalla de inicio</span></div><span class="link">→</span></div>
+            </div>
+            <a class="btn btn--sm btn--ghost" style="justify-self:start" href="#">Cerrar sesión</a>
+          </div>
+
+          <div class="next-step">
+            <span class="next-step__label">¿Ya viste todo el lado cliente?</span>
+            <ul><li><a href="#"><strong>Pasa a cafetería</strong>
+              <span>Brújula Café te espera: ventas, canjes y su parte del fondo común.</span></a></li></ul>
+          </div>
+        </div>
+        <nav class="consumer-nav"><div class="consumer-nav__inner">
+          <a class="consumer-nav__link" href="#"><span class="consumer-nav__icon">◍</span>Inicio</a>
+          <a class="consumer-nav__link" href="#"><span class="consumer-nav__icon">☕</span>Cafés</a>
+          <a class="consumer-nav__link consumer-nav__link--central" href="#"><span class="consumer-nav__icon">⌗</span>Escanear</a>
+          <a class="consumer-nav__link" href="#"><span class="consumer-nav__icon">↺</span>Historial</a>
+          <a class="consumer-nav__link consumer-nav__link--active" href="#"><span class="consumer-nav__icon">⋯</span>Más</a>
+        </div></nav>
+      </div>
+    </div></div>
+    <p class="why"><b>Qué guía:</b> «Cómo funciona» es el glosario que el jurado busca cuando se
+      pierde — hoy no existe en ninguna parte. <code>/more</code> pasa a ser la salida natural
+      hacia el otro rol: es donde uno llega cuando ya terminó de explorar.</p>
+  </figure>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 class="gallery-h" id="cafeteria">5 · Mundo cafetería</h2>
+<p class="gallery-lede">
+  Escritorio, dos columnas, densidad de datos. Mismo papel, misma tinta, misma tipografía —
+  el jurado que salta de rol reconoce que sigue en PUNCH. Hoy este mundo usa defaults de shadcn
+  (<code>border-b</code>, <code>text-muted-foreground</code>) y se siente como otro producto.
+</p>
+
+<figure class="frame">
+  <figcaption><b>/cafe/[cafeId]</b> · panel de la cafetería</figcaption>
+  <div class="desk"><div class="scroll">
+    <div class="demo-bar" style="background:color-mix(in srgb,var(--color-cafe-blue) 22%,var(--color-paper))">
+      <span class="demo-bar__role"><i class="demo-bar__dot" style="background:var(--color-cafe-blue-deep)"></i> Modo demo · Brújula Café</span>
+      <span class="demo-bar__switch"><button>Cliente</button><button aria-pressed="true">Cafetería</button></span>
+    </div>
+    <header class="ws-header">
+      <span class="ws-header__brand"><b>PUNCH</b><span>Brújula Café · Miraflores</span></span>
+      <span class="consumer-header__meta"><span class="badge badge--ok">Aprobada</span>
+        <span class="badge">218 créditos</span> brujula@punch.pe</span>
+    </header>
+    <nav class="ws-tabs">
+      <a href="#" aria-current="page">Resumen</a><a href="#">Terminal</a><a href="#">Canjes</a>
+      <a href="#">Campañas</a><a href="#">Plan</a><a href="#">Catálogo</a>
+    </nav>
+    <div class="ws-main">
+      <div class="page-intro">
+        <span class="consumer-eyebrow">Tu cafetería en la red</span>
+        <h1>Brújula Café</h1>
+        <p class="page-intro__explain">Cada venta que sellas alimenta el fondo común. El fondo
+          devuelve dinero a las cafeterías que traen clientes nuevos a la red — no solo a las que
+          los atienden.</p>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat stat--lead"><span class="stat__label">Fondo común · tu parte</span>
+          <span class="stat__value">S/ 18.40</span><span class="stat__hint">Época 3 · 4 referencias este mes</span></div>
+        <div class="stat"><span class="stat__label">Canjes pagados</span>
+          <span class="stat__value">S/ 48.00</span><span class="stat__hint">6 canjes confirmados</span></div>
+        <div class="stat"><span class="stat__label">Sellos emitidos</span>
+          <span class="stat__value">37</span><span class="stat__hint">Últimos 30 días</span></div>
+        <div class="stat"><span class="stat__label">Créditos</span>
+          <span class="stat__value">218</span><span class="stat__hint">Plan Barrio</span></div>
+      </div>
+
+      <div class="ws-cols">
+        <section class="consumer-panel p5 grid g3">
+          <div class="rowitem" style="border:0;padding:0;background:transparent">
+            <div class="grid g1"><span class="consumer-eyebrow">De dónde sale tu parte</span>
+              <b class="consumer-title" style="font-size:1.3rem">Fondo común · época 3</b></div>
+            <span class="badge badge--wait">Estimado · cierra el 31</span>
+          </div>
+          <div class="rows">
+            <div class="rowitem"><div class="rowitem__main"><b>Origen</b>
+              <span class="muted sm">Clientes que entraron a la red por tu cafetería</span></div>
+              <span class="mono" style="font-weight:700">S/ 11.20</span></div>
+            <div class="rowitem"><div class="rowitem__main"><b>Adquisición</b>
+              <span class="muted sm">Campañas que trajeron gente nueva</span></div>
+              <span class="mono" style="font-weight:700">S/ 4.10</span></div>
+            <div class="rowitem"><div class="rowitem__main"><b>Rutas</b>
+              <span class="muted sm">Tu paso en «Vuelta por Barranco»</span></div>
+              <span class="mono" style="font-weight:700">S/ 2.30</span></div>
+            <div class="rowitem"><div class="rowitem__main"><b>Contingencia</b>
+              <span class="muted sm">Reserva de la red</span></div>
+              <span class="mono" style="font-weight:700">S/ 0.80</span></div>
+          </div>
+          <p class="hint" style="margin:0">Una cadena grande hace esto con marketing propio.
+            Aquí lo hacen cuatro cafeterías juntas.</p>
+        </section>
+
+        <div class="grid g3">
+          <section class="consumer-panel p5 grid g2">
+            <span class="consumer-eyebrow">Ahora mismo</span>
+            <b class="consumer-title" style="font-size:1.2rem">2 canjes esperando</b>
+            <p class="muted sm" style="margin:0">Un cliente está en el mostrador con su recompensa.</p>
+            <a class="btn btn--sm" style="justify-self:start" href="#">Abrir bandeja</a>
+          </section>
+          <div class="journey">
+            <div class="journey__head"><span>Recorrido de la demo · paso 4 de 6</span><span>ocultar</span></div>
+            <div class="journey__body">
+              <ol class="journey__steps">
+                <li class="done"><i>✓</i><span>Cobraste y generaste el código</span></li>
+                <li class="done"><i>✓</i><span>El cliente lo escaneó · llegó a 12 sellos</span></li>
+                <li class="done"><i>✓</i><span>Pidió su café aquí</span></li>
+                <li class="now"><i>4</i><span>Te toca entregarlo
+                  <small>Al confirmar, la red te reembolsa S/2.80 del fondo común</small></span></li>
+              </ol>
+              <div class="journey__act">
+                <b>Te toca a ti</b>
+                <a class="btn btn--sm" style="justify-self:start" href="#">
+                  <span class="role-tag role-tag--cafe">Cafetería</span> Abrir bandeja de canjes</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+  <p class="why why--wide"><b>Qué guía:</b> hoy esta página abre con el formulario de perfil y el
+    catálogo, y entierra el fondo común en un <code>Card</code> con cuatro <code>&lt;p&gt;</code>
+    de texto plano (<code>cafe/[cafeId]/page.tsx:116</code>). El fondo común <em>es</em> la tesis
+    del proyecto: sube a lo primero que se ve, con las cifras como cifras y cada bucket explicado
+    en una línea. Perfil y catálogo bajan a una pestaña — mismas rutas, distinto peso.
+    <br><b>Nav:</b> los 3 enlaces planos de <code>(workspace)/layout.tsx:14</code> pasan a pestañas
+    de cafetería. No hay rutas nuevas: Terminal, Canjes, Campañas y Plan ya existen; solo dejan de
+    estar escondidas detrás de botones dentro del cuerpo de la página.</p>
+</figure>
+
+<figure class="frame">
+  <figcaption><b>/cafe/[cafeId]/terminal</b> · cobrar</figcaption>
+  <div class="desk" style="height:620px"><div class="scroll">
+    <div class="demo-bar" style="background:color-mix(in srgb,var(--color-cafe-blue) 22%,var(--color-paper))">
+      <span class="demo-bar__role"><i class="demo-bar__dot" style="background:var(--color-cafe-blue-deep)"></i> Modo demo · Brújula Café</span>
+      <span class="demo-bar__switch"><button>Cliente</button><button aria-pressed="true">Cafetería</button></span>
+    </div>
+    <header class="ws-header">
+      <span class="ws-header__brand"><b>PUNCH</b><span>Brújula Café · Miraflores</span></span>
+      <span class="consumer-header__meta"><span class="badge">218 créditos</span> brujula@punch.pe</span>
+    </header>
+    <nav class="ws-tabs">
+      <a href="#">Resumen</a><a href="#" aria-current="page">Terminal</a><a href="#">Canjes</a>
+      <a href="#">Campañas</a><a href="#">Plan</a><a href="#">Catálogo</a>
+    </nav>
+    <div class="ws-main">
+      <div class="page-intro">
+        <span class="consumer-eyebrow">Mostrador</span>
+        <h1>Cobrar una compra</h1>
+        <p class="page-intro__explain">Cobras por Yape como siempre. Aquí solo generas el código
+          que el cliente escanea para llevarse su sello.</p>
+      </div>
+
+      <div class="ws-cols">
+        <section class="consumer-panel p5 grid g3">
+          <div class="grid g2">
+            <span class="mono xs" style="color:var(--color-accent)">PASO 1</span>
+            <div class="field"><label>Producto</label><div class="box filled">Latte · S/12.00</div></div>
+            <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+              <span class="badge">Espresso S/8</span><span class="badge badge--ok">Latte S/12</span>
+            </div>
+          </div>
+          <div class="grid g2">
+            <span class="mono xs" style="color:var(--color-accent)">PASO 2</span>
+            <div class="field"><label>Referencia del Yape</label><div class="box filled">0087-4412</div>
+              <span class="hint">Los últimos dígitos que ves en tu app de Yape. Sirve para conciliar después.</span></div>
+          </div>
+          <a class="btn" style="justify-self:start" href="#">Generar código</a>
+        </section>
+
+        <section class="consumer-panel p5 grid g2" style="justify-items:center;text-align:center">
+          <span class="consumer-eyebrow">Paso 3 · muéstraselo al cliente</span>
+          <div class="qr"></div>
+          <b>Latte · S/12.00</b>
+          <p class="muted sm" style="margin:0">Vale por un sello. Caduca en 10 minutos.</p>
+          <div class="state-strip" style="width:100%">⏳ Esperando a que el cliente escanee…</div>
+          <a class="link sm" href="#">Copiar enlace</a>
+        </section>
+      </div>
+
+      <div class="next-step" style="max-width:34rem">
+        <span class="next-step__label">¿Estás en la demo?</span>
+        <ul><li><a href="#"><strong>Escanear este código tú mismo</strong>
+          <span>Cambia a cliente con el código ya cargado y completa la compra.</span></a></li></ul>
+      </div>
+    </div>
+  </div></div>
+  <p class="why why--wide"><b>Qué guía:</b> hoy la terminal es un <code>Card</code> de 380 px con
+    un select, un input y un botón — sin decir qué es una «Referencia Yape» ni qué pasa después
+    (<code>terminal/page.tsx:91</code>). Numerar los tres pasos y poner el QR a la derecha, no
+    debajo, convierte la pantalla en un mostrador legible. El <code>NextStep</code> cierra el
+    círculo de la demo: el jurado puede ser cliente y barista de la misma compra.</p>
+</figure>
+
+<figure class="frame">
+  <figcaption><b>/cafe/[cafeId]/redemptions</b> · bandeja de canjes</figcaption>
+  <div class="desk" style="height:560px"><div class="scroll">
+    <div class="demo-bar" style="background:color-mix(in srgb,var(--color-cafe-blue) 22%,var(--color-paper))">
+      <span class="demo-bar__role"><i class="demo-bar__dot" style="background:var(--color-cafe-blue-deep)"></i> Modo demo · Brújula Café</span>
+      <span class="demo-bar__switch"><button>Cliente</button><button aria-pressed="true">Cafetería</button></span>
+    </div>
+    <header class="ws-header">
+      <span class="ws-header__brand"><b>PUNCH</b><span>Brújula Café · Miraflores</span></span>
+      <span class="consumer-header__meta">brujula@punch.pe</span>
+    </header>
+    <nav class="ws-tabs">
+      <a href="#">Resumen</a><a href="#">Terminal</a><a href="#" aria-current="page">Canjes</a>
+      <a href="#">Campañas</a><a href="#">Plan</a><a href="#">Catálogo</a>
+    </nav>
+    <div class="ws-main">
+      <div class="page-intro">
+        <span class="consumer-eyebrow">2 esperando</span>
+        <h1>Bandeja de canjes</h1>
+        <p class="page-intro__explain">El cliente ya gastó sus 12 sellos. Al confirmar, entregas el
+          producto y la red te reembolsa el costo desde el fondo común.</p>
+      </div>
+
+      <div class="rows">
+        <div class="consumer-panel p4" style="display:grid;grid-template-columns:1fr auto;gap:.8rem;align-items:center">
+          <div class="grid g1">
+            <div style="display:flex;align-items:center;gap:.5rem">
+              <b style="font-size:1.1rem">Cappuccino clásico</b><span class="badge badge--wait">Esperando</span>
+            </div>
+            <span class="muted sm">Consumidor Demo · hace 40 segundos · te reembolsan S/2.80</span>
+          </div>
+          <div style="display:flex;gap:.5rem">
+            <a class="btn btn--sm btn--ghost" href="#">Rechazar</a>
+            <a class="btn btn--sm" href="#">Entregar</a>
+          </div>
+        </div>
+        <div class="consumer-panel p4" style="display:grid;grid-template-columns:1fr auto;gap:.8rem;align-items:center">
+          <div class="grid g1">
+            <div style="display:flex;align-items:center;gap:.5rem">
+              <b style="font-size:1.1rem">Cappuccino clásico</b><span class="badge badge--wait">Esperando</span>
+            </div>
+            <span class="muted sm">Ana R. · hace 6 minutos · te reembolsan S/2.80</span>
+          </div>
+          <div style="display:flex;gap:.5rem">
+            <a class="btn btn--sm btn--ghost" href="#">Rechazar</a>
+            <a class="btn btn--sm" href="#">Entregar</a>
+          </div>
+        </div>
+        <div class="rowitem" style="opacity:.65">
+          <div class="rowitem__main"><b>Cappuccino clásico</b>
+            <span class="muted sm">Luis M. · ayer 18:20 · S/2.80 reembolsados</span></div>
+          <span class="badge badge--ok">Entregado</span>
+        </div>
+      </div>
+    </div>
+  </div></div>
+  <p class="why why--wide"><b>Qué guía:</b> «te reembolsan S/2.80» en cada fila responde la
+    pregunta que todo café se hace y que la UI actual no contesta: <em>¿esto me cuesta?</em>. El
+    campo «Motivo si rechazas» (<code>redemptions/page.tsx:227</code>) deja de ocupar espacio
+    permanente y aparece solo al pulsar Rechazar.</p>
+</figure>
+
+<div class="row">
+  <figure class="frame">
+    <figcaption><b>/cafe/[cafeId]/plan</b> · plan y créditos</figcaption>
+    <div class="desk" style="width:520px;height:520px"><div class="scroll">
+      <nav class="ws-tabs" style="border-top:0">
+        <a href="#">Resumen</a><a href="#">Terminal</a><a href="#">Canjes</a>
+        <a href="#">Campañas</a><a href="#" aria-current="page">Plan</a>
+      </nav>
+      <div class="ws-main">
+        <div class="page-intro">
+          <span class="consumer-eyebrow">Lo que pagas</span>
+          <h1>Plan del café</h1>
+          <p class="page-intro__explain">Cada sello que emites consume un crédito. Sin créditos,
+            la terminal deja de generar códigos.</p>
+        </div>
+        <div class="stat-row">
+          <div class="stat stat--lead"><span class="stat__label">Créditos</span>
+            <span class="stat__value">218</span><span class="stat__hint">≈ 6 semanas a tu ritmo actual</span></div>
+          <div class="stat"><span class="stat__label">Plan</span>
+            <span class="stat__value" style="font-size:1.3rem">Barrio</span>
+            <span class="stat__hint">S/49 al mes · renueva 1 sep</span></div>
+        </div>
+        <div class="consumer-panel p4 grid g2">
+          <span class="consumer-eyebrow">Recargar</span>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <a class="btn btn--sm btn--ghost" href="#">+100 créditos · S/20</a>
+            <a class="btn btn--sm" href="#">+500 créditos · S/80</a>
+          </div>
+        </div>
+        <div class="grid g2">
+          <span class="consumer-eyebrow">Movimientos</span>
+          <div class="rows">
+            <div class="rowitem"><div class="rowitem__main"><b>Renovación · Plan Barrio</b>
+              <span class="muted sm">1 ago · Yape 0081-2290</span></div><span class="badge badge--ok">Pagado</span></div>
+            <div class="rowitem"><div class="rowitem__main"><b>Recarga · 500 créditos</b>
+              <span class="muted sm">18 jul · Yape 0074-1180</span></div><span class="badge badge--ok">Pagado</span></div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <p class="why"><b>Qué guía:</b> «≈ 6 semanas a tu ritmo actual» traduce un número abstracto a
+      una decisión. Es el tipo de dato que un jurado reconoce como producto pensado, no maqueta.</p>
+  </figure>
+
+  <figure class="frame">
+    <figcaption><b>/cafe</b> · mis cafeterías (estado sin café)</figcaption>
+    <div class="desk" style="width:520px;height:520px"><div class="scroll">
+      <header class="ws-header">
+        <span class="ws-header__brand"><b>PUNCH</b><span>Red de cafeterías</span></span>
+        <span class="consumer-header__meta">quinto@punch.pe</span>
+      </header>
+      <div class="ws-main">
+        <div class="page-intro">
+          <span class="consumer-eyebrow">Tu lugar en la red</span>
+          <h1>Mis cafeterías</h1>
+          <p class="page-intro__explain">Registra tu café, arma tu catálogo y envíalo a revisión.
+            Operaciones lo aprueba y entras a la red.</p>
+        </div>
+        <div class="consumer-panel p4" style="display:grid;grid-template-columns:1fr auto;align-items:center;gap:1rem">
+          <div class="grid g1">
+            <div style="display:flex;gap:.5rem;align-items:center">
+              <b style="font-size:1.1rem">Quinto Café</b><span class="badge badge--wait">En revisión</span>
+            </div>
+            <span class="muted sm">Lince · enviado hace 2 días</span>
+          </div>
+          <a class="btn btn--sm btn--ghost" href="#">Ver</a>
+        </div>
+        <div class="empty">
+          <span class="empty__mark">🏪</span>
+          <h3>¿Tienes otra cafetería?</h3>
+          <p>Cada local se registra por separado: catálogo, canjes y fondo común propios.</p>
+          <a class="btn btn--sm" href="#">Registrar cafetería</a>
+        </div>
+      </div>
+    </div></div>
+    <p class="why"><b>Qué guía:</b> el estado «en revisión» explica qué falta y quién decide. Hoy
+      dice <code>«Todavía no tienes cafés registrados»</code> dentro de un Card gris y no ofrece
+      salida (<code>cafe/page.tsx:79</code>).</p>
+  </figure>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<h2 class="gallery-h" id="bordes">6 · Los bordes</h2>
+<p class="gallery-lede">
+  Las pantallas que nadie diseña y que un jurado curioso siempre encuentra: offline, error,
+  404, ops. Aquí es donde una demo se rompe.
+</p>
+
+<div class="row">
+  <figure class="frame">
+    <figcaption><b>/offline</b> · sin conexión</figcaption>
+    <div class="phone" style="height:520px"><div class="scroll">
+      <div class="shell">
+        <div class="consumer-main" style="padding-top:2.5rem">
+          <div style="display:grid;place-items:center;gap:.8rem;text-align:center;padding:1.5rem 0">
+            <span style="font-size:2.6rem">✈</span>
+            <h1 class="consumer-title" style="margin:0;font-size:1.7rem">Sin conexión</h1>
+            <p class="muted" style="margin:0;max-width:28ch">Tus 11 sellos siguen en la cadena.
+              Esta pantalla es solo la vista, y vuelve sola cuando haya señal.</p>
+          </div>
+          <div class="consumer-panel p4 grid g2">
+            <span class="consumer-eyebrow">Guardado en este teléfono</span>
+            <div class="rowitem" style="border:0;padding:0;background:transparent">
+              <span>Tu progreso</span><span class="mono" style="font-weight:700">11 / 12</span></div>
+            <div class="rowitem" style="border:0;padding:0;background:transparent">
+              <span>Últimas 4 operaciones</span><a class="link sm" href="#">Ver</a></div>
+          </div>
+          <a class="btn btn--block btn--ghost" href="#">Reintentar</a>
+        </div>
+      </div>
+    </div></div>
+    <p class="why"><b>Qué guía:</b> el PWA ya guarda un snapshot
+      (<code>offline-snapshot.ts</code>) pero la pantalla offline no lo muestra. Enseñar el dato
+      guardado convierte una pantalla de disculpa en una demostración de que la app funciona sin red.</p>
+  </figure>
+
+  <figure class="frame">
+    <figcaption><b>/ops</b> · consola (solo pase de consistencia)</figcaption>
+    <div class="desk" style="width:520px;height:520px"><div class="scroll">
+      <header class="ws-header">
+        <span class="ws-header__brand"><b>PUNCH</b><span>Operaciones</span></span>
+        <span class="consumer-header__meta">demo-ops@punch.pe</span>
+      </header>
+      <div class="ws-main">
+        <div class="page-intro">
+          <span class="consumer-eyebrow">Cola de revisión</span>
+          <h1>Consola de operaciones</h1>
+          <p class="page-intro__explain">Aprueba las cafeterías y productos que la red envía.</p>
+        </div>
+        <div class="stat-row">
+          <div class="stat"><span class="stat__label">Cafeterías</span><span class="stat__value">1</span>
+            <span class="stat__hint">pendiente</span></div>
+          <div class="stat"><span class="stat__label">Productos</span><span class="stat__value">1</span>
+            <span class="stat__hint">pendiente</span></div>
+        </div>
+        <div class="consumer-panel p4" style="display:grid;grid-template-columns:1fr auto;gap:1rem;align-items:center">
+          <div class="grid g1"><b>Quinto Café</b>
+            <span class="muted sm">Lince · Av. Arequipa 2020 · 1 producto de emisión</span></div>
+          <div style="display:flex;gap:.5rem"><a class="btn btn--sm btn--ghost" href="#">Rechazar</a>
+            <a class="btn btn--sm" href="#">Aprobar</a></div>
+        </div>
+      </div>
+    </div></div>
+    <p class="why"><b>Qué guía:</b> nada especial — Ops no está en el recorrido del jurado y no
+      aparece en la barra de demo. Solo recibe los mismos tokens para que no desentone si alguien
+      llega. Sin diseño hero, como acordamos.</p>
+  </figure>
+</div>
+
+<h2 class="gallery-h">Lo que no cambia</h2>
+<p class="gallery-lede" style="max-width:70ch">
+  Las 22 rutas siguen exactamente donde están. Ningún hook, endpoint ni consulta se toca.
+  Los datos que ves aquí salen del seed real (<code>scripts/seed.ts</code>): 4 cafeterías
+  aprobadas, Quinto Café en revisión, saldo de 11 sellos, ruta «Vuelta por Barranco» a medias.
+  Nada de lo mockeado necesita datos que el backend no dé hoy — con una excepción declarada:
+  «≈ 6 semanas a tu ritmo» en Plan se calcula en el cliente a partir del historial que ya llega.
+</p>
+
+</div>
+
+<script>
+/* Marca toda tarjeta de guía. En el producto real esto es una prop del
+   componente (`demoOnly`), no un script — aquí se inyecta para garantizar
+   que ninguna tarjeta del mock se quede sin el aviso. */
+for (const card of document.querySelectorAll(".next-step, .demo-guide, .journey")) {
+  const tag = document.createElement("span");
+  tag.className = "demo-only";
+  tag.tabIndex = 0;
+  tag.setAttribute("role", "note");
+  tag.innerHTML = '● solo demo<span class="demo-only__pop">Este mensaje no aparecerá en el producto final. Solo existe para guiarte durante el recorrido de prueba.</span>';
+  card.appendChild(tag);
+}
+</script>
+</body>
+</html>
