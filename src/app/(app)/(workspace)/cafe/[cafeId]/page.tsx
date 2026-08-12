@@ -58,17 +58,27 @@ function PayoutSummaryCard({ payouts }: { payouts?: CafePayouts }) {
             <CardHeader>
                 <CardTitle>Pagos por canjes PUNCH</CardTitle>
             </CardHeader>
-            <CardContent className="grid gap-1 text-sm">
+            <CardContent className="grid gap-2 text-sm">
                 <p>
                     Total confirmado: S/
                     {((data?.totalCentimos ?? 0) / 100).toFixed(2)}
                 </p>
                 <p>Canjes confirmados: {data?.redemptionCount ?? 0}</p>
                 <p>
-                    Saldo del propietario:{" "}
+                    En tu billetera ahora:{" "}
                     {data?.ownerMpenCentimos == null
                         ? "—"
                         : `S/${(data.ownerMpenCentimos / 100).toFixed(2)}`}
+                </p>
+                <p className="text-muted-foreground text-xs">
+                    No hay nada que reclamar: cada canje te transfiere S/3.60 a
+                    tu billetera en el mismo momento en que lo entregas. Lo que
+                    ves arriba ya es tuyo.
+                </p>
+                <p className="text-muted-foreground text-xs">
+                    El paso a soles en tu banco todavía no está integrado: en
+                    esta versión el saldo vive como mPEN, la moneda de prueba de
+                    la red.
                 </p>
             </CardContent>
         </Card>
