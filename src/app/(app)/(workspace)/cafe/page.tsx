@@ -1,11 +1,13 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useCreateCafe, useMyCafes } from "@/core/cafe/client/hooks";
 import { CafeForm, type CafeFormValues } from "@/core/cafe/client/ui/cafe-form";
 import { StatusBadge } from "@/core/cafe/client/ui/status-badge";
-import type { CafeAdmin } from "@/core/cafe/domain/types";
+import type { CafeAdmin, CafeOnboardingStatus } from "@/core/cafe/domain/types";
+import { EmptyState } from "@/frontend/components/guide/empty-state";
+import { PageIntro } from "@/frontend/components/guide/page-intro";
 import { Button } from "@/frontend/components/ui/button";
 import {
     Card,
@@ -15,12 +17,25 @@ import {
 } from "@/frontend/components/ui/card";
 import { Spinner } from "@/frontend/components/ui/spinner";
 
+const reviewHint: Record<CafeOnboardingStatus, string | null> = {
+    approved: null,
+    draft: "Completa los datos y vuelve a enviar tu café para pasar la revisión.",
+    submitted:
+        "En revisión. Operaciones valida tu cafetería y luego podrás operar en la red.",
+    rejected: "Rechazado. Corrige lo indicado y vuelve a enviarlo a revisión.",
+};
+
 export default function MyCafesPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const cafesQuery = useMyCafes();
     const createCafe = useCreateCafe();
-    const [creating, setCreating] = useState(false);
+    const [creating, setCreating] = useState(searchParams.get("new") === "1");
     const cafes = (cafesQuery.data ?? []) as CafeAdmin[];
+
+    useEffect(() => {
+        setCreating(searchParams.get("new") === "1");
+    }, [searchParams]);
 
     const create = async (values: CafeFormValues) => {
         await createCafe.mutateAsync({
@@ -28,6 +43,7 @@ export default function MyCafesPage() {
             description: values.description || undefined,
         });
         setCreating(false);
+        void router.replace("/cafe");
         void cafesQuery.refetch();
     };
 
@@ -48,18 +64,19 @@ export default function MyCafesPage() {
 
     return (
         <div className="mx-auto w-full max-w-5xl space-y-6 p-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                    <h1 className="font-semibold text-2xl">Mis cafés</h1>
-                    <p className="text-muted-foreground">
-                        Completa tu perfil y catálogo para enviar tu café a
-                        revisión.
-                    </p>
-                </div>
+            <PageIntro
+                eyebrow="Tu lugar en la red"
+                title="Mis cafeterías"
+                explain="Registra tu café, arma tu catálogo y envíalo a revisión.
+                Operaciones lo aprueba y entras a la red."
+            />
+
+            <div className="flex flex-wrap items-center justify-end gap-3">
                 <Button onClick={() => setCreating((value) => !value)}>
-                    {creating ? "Cancelar" : "Crear café"}
+                    {creating ? "Cancelar" : "Registrar cafetería"}
                 </Button>
             </div>
+
             {creating && (
                 <Card>
                     <CardHeader>
@@ -74,13 +91,20 @@ export default function MyCafesPage() {
                     </CardContent>
                 </Card>
             )}
+
             {cafes.length === 0 && !creating ? (
-                <Card>
-                    <CardContent className="p-6 text-muted-foreground">
-                        Todavía no tienes cafés registrados.
-                    </CardContent>
-                </Card>
-            ) : (
+                <EmptyState
+                    mark="🏪"
+                    title="¿Tienes otra cafetería?"
+                    cause="Cada local se registra por separado: catálogo, canjes y fondo común propios."
+                    action={{
+                        label: "Registrar cafetería",
+                        href: "/cafe?new=1",
+                    }}
+                />
+            ) : null}
+
+            {cafes.length > 0 ? (
                 <div className="grid gap-4 md:grid-cols-2">
                     {cafes.map((cafe) => (
                         <Card
@@ -92,20 +116,25 @@ export default function MyCafesPage() {
                                 <CardTitle>{cafe.name}</CardTitle>
                                 <StatusBadge status={cafe.onboardingStatus} />
                             </CardHeader>
-                            <CardContent>
+                            <CardContent className="space-y-1">
                                 <p className="text-muted-foreground text-sm">
                                     {cafe.district || "Distrito pendiente"}
                                 </p>
-                                {cafe.reviewNote && (
-                                    <p className="mt-2 text-destructive text-sm">
+                                {reviewHint[cafe.onboardingStatus] ? (
+                                    <p className="text-sm text-amber-800">
+                                        {reviewHint[cafe.onboardingStatus]}
+                                    </p>
+                                ) : null}
+                                {cafe.reviewNote ? (
+                                    <p className="mt-1 text-destructive text-sm">
                                         {cafe.reviewNote}
                                     </p>
-                                )}
+                                ) : null}
                             </CardContent>
                         </Card>
                     ))}
                 </div>
-            )}
+            ) : null}
         </div>
     );
 }
