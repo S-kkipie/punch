@@ -1,6 +1,7 @@
 import "server-only";
 import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { type DbClient, db } from "@/server/drizzle/db";
+import { user } from "@/server/drizzle/schemas/auth-schema";
 import {
     consumerTransaction,
     type NewRedemptionRequestRow,
@@ -273,6 +274,9 @@ export async function listFulfillmentRequestsForCafe(
     const rows = await client
         .select({
             request: redemptionRequest,
+            // El barista necesita saber a quién le entrega cuando hay varios
+            // canjes abiertos a la vez.
+            consumerName: user.name,
             transactionId: consumerTransaction.id,
             transactionStatus: consumerTransaction.status,
             transactionRejectionReason: consumerTransaction.rejectionReason,
@@ -283,6 +287,7 @@ export async function listFulfillmentRequestsForCafe(
             jobCreatedAt: relayerJob.createdAt,
         })
         .from(redemptionRequest)
+        .leftJoin(user, eq(user.id, redemptionRequest.consumerUserId))
         .leftJoin(
             consumerTransaction,
             and(
@@ -363,6 +368,7 @@ export async function listFulfillmentRequestsForCafe(
               : null;
         return {
             request: row.request,
+            consumerName: row.consumerName ?? null,
             transactionId: settlement?.id ?? null,
             transactionStatus: settlement?.status ?? null,
             transactionFailureReason: settlement?.rejectionReason ?? null,

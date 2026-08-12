@@ -37,8 +37,10 @@ export const campaignSchema = z.object({
     windowStart: z.string(),
     windowEnd: z.string(),
     active: z.boolean(),
+    /** Opcional por campaña histórica/legacy. */
+    voucherPayout: z.string().nullable().optional(),
+    maxVouchers: z.number().int().nonnegative().nullable().optional(),
 });
-
 export const consumerVoucherSchema = z.object({
     id: z.string(),
     source: z.enum(["campaign", "crawl"]),

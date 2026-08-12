@@ -127,6 +127,7 @@ vi.mock("@/core/punch/client/hooks", () => ({
     }),
 }));
 vi.mock("@/core/consumption/client/hooks", () => ({
+    useHistory: () => ({ data: [], isPending: false }),
     useRequestPunchRedemption: () => ({
         isPending: false,
         mutate: punchMutate,

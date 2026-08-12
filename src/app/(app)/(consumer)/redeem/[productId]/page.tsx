@@ -6,16 +6,24 @@ import { ClientConfig } from "@/config/client-config";
 import { useCafeProducts, useCafes } from "@/core/cafe/client/hooks";
 import type { Cafe } from "@/core/cafe/domain/types";
 import {
+    useHistory,
     useRequestPunchRedemption,
     useRequestVoucherRedemption,
 } from "@/core/consumption/client/hooks";
+import {
+    type RedemptionOutcome,
+    readRedemptionOutcome,
+} from "@/core/consumption/client/redemption-outcome";
+import { redemptionCode } from "@/core/consumption/domain/redemption-code";
 import { useDashboard, useVouchers } from "@/core/punch/client/hooks";
 import { canRedeem, PUNCH_REDEMPTION_COST } from "@/core/punch/domain/progress";
+import { useDemoSignIn } from "@/frontend/components/auth/use-demo-sign-in";
 import {
     distanceKm,
     sortCafesByDistance,
 } from "@/frontend/components/consumer/discovery-distance";
 import { isDemoCafe } from "@/frontend/components/guide/demo-cafe";
+import { DemoOnly } from "@/frontend/components/guide/demo-only";
 import { JourneyCard } from "@/frontend/components/guide/journey-card";
 import { blockedLabel } from "@/frontend/components/guide/journey-steps";
 import { PageIntro } from "@/frontend/components/guide/page-intro";
@@ -55,6 +63,90 @@ function formatDistance(distanceKmValue: number | null): string | null {
     return `${distanceKmValue.toFixed(1)} km`;
 }
 
+/**
+ * Qué pasó con la solicitud, dicho en la pantalla donde se pidió. Antes el
+ * botón no cambiaba nada al pulsarlo y el segundo intento devolvía un 409 que
+ * el usuario nunca llegaba a ver.
+ */
+function RedemptionOutcomePanel({
+    outcome,
+    cafeId,
+    cafeName,
+    onRetry,
+}: {
+    outcome: RedemptionOutcome;
+    cafeId: string;
+    cafeName: string;
+    onRetry: () => void;
+}) {
+    const { signInAs, pending } = useDemoSignIn();
+
+    if (outcome.kind === "error") {
+        return (
+            <section className="consumer-panel grid gap-3 p-5" role="alert">
+                <span className="consumer-eyebrow">No se pidió el canje</span>
+                <p className="text-sm">{outcome.message}</p>
+                <p className="text-[var(--color-ink-2)] text-sm">
+                    No se descontó ningún sello.
+                </p>
+                <Button className="min-h-11" onClick={onRetry}>
+                    Reintentar
+                </Button>
+            </section>
+        );
+    }
+
+    const alreadyPending = outcome.kind === "conflict";
+    const code =
+        outcome.kind === "requested" ? redemptionCode(outcome.id) : null;
+
+    return (
+        <section className="consumer-panel grid gap-3 p-5" role="status">
+            <span className="consumer-eyebrow">
+                {alreadyPending ? "Ya tenías un canje pedido" : "Canje pedido"}
+            </span>
+            <p className="text-sm">
+                {alreadyPending
+                    ? "Tienes un canje esperando entrega, así que no pedimos otro. Solo puede haber uno a la vez."
+                    : `Le avisamos a ${cafeName}. Tus 12 sellos se descuentan cuando la cafetería confirme la entrega, no antes.`}
+            </p>
+            {code ? (
+                <p className="text-sm">
+                    Tu código de canje:{" "}
+                    <span className="redemption-code">{code}</span> · el barista
+                    te lo va a pedir para saber cuál de los canjes abiertos es
+                    el tuyo.
+                </p>
+            ) : null}
+            <p className="text-[var(--color-ink-2)] text-sm">
+                Siguiente paso: la cafetería lo acepta desde su panel de canjes.
+            </p>
+            {ClientConfig.demoMode ? (
+                <>
+                    <Button
+                        className="min-h-11"
+                        disabled={pending !== null}
+                        onClick={() =>
+                            void signInAs(
+                                "brujula@punch.pe",
+                                `/cafe/${cafeId}/redemptions`,
+                            )
+                        }
+                    >
+                        {pending !== null
+                            ? "Cambiando…"
+                            : "Entregarlo como cafetería →"}
+                    </Button>
+                    <DemoOnly />
+                </>
+            ) : null}
+            <a className="underline text-sm" href="/history">
+                Ver el estado en tu historial
+            </a>
+        </section>
+    );
+}
+
 export default function RedeemPage() {
     const { productId } = useParams<{ productId: string }>();
     const searchParams = useSearchParams();
@@ -65,6 +157,7 @@ export default function RedeemPage() {
     const products = useCafeProducts(cafeId);
     const vouchers = useVouchers();
     const cafes = useCafes();
+    const history = useHistory();
     const punchRedemption = useRequestPunchRedemption(cafeId);
     const voucherRedemption = useRequestVoucherRedemption(cafeId);
     const [isOnline, setIsOnline] = useState(true);
@@ -126,6 +219,13 @@ export default function RedeemPage() {
           )
         : undefined;
 
+    const hasPendingRedemption = (
+        (history.data ?? []) as Array<{ operation?: string; status?: string }>
+    ).some(
+        (row) =>
+            row.operation === "punch_redemption" && row.status === "pending",
+    );
+
     const allCafes = (cafes.data ?? []) as Cafe[];
     const selectedCafe = allCafes.find((cafe) => cafe.id === cafeId);
     const sortOrigin = useMemo(
@@ -162,6 +262,15 @@ export default function RedeemPage() {
           : punchRedemption.isPending
             ? "Enviando…"
             : "Canjear 12 PUNCH";
+
+    const activeRedemption = isVoucherFlow
+        ? voucherRedemption
+        : punchRedemption;
+    // Un canje pedido en una visita anterior también bloquea el botón en el
+    // servidor: mejor decirlo antes de que el clic devuelva un 409.
+    const outcome: RedemptionOutcome | null =
+        readRedemptionOutcome(activeRedemption.data, activeRedemption.error) ??
+        (hasPendingRedemption ? { kind: "conflict" } : null);
 
     const redeem = () => {
         if (voucherId) {
@@ -280,14 +389,23 @@ export default function RedeemPage() {
                     </ul>
                 </section>
             ) : null}
-            <Button
-                size="lg"
-                className="min-h-12 w-full"
-                disabled={redeemDisabled}
-                onClick={redeem}
-            >
-                {redeemLabel}
-            </Button>
+            {outcome ? (
+                <RedemptionOutcomePanel
+                    outcome={outcome}
+                    cafeId={cafeId}
+                    cafeName={selectedCafe?.name ?? "la cafetería"}
+                    onRetry={redeem}
+                />
+            ) : (
+                <Button
+                    size="lg"
+                    className="min-h-12 w-full"
+                    disabled={redeemDisabled}
+                    onClick={redeem}
+                >
+                    {redeemLabel}
+                </Button>
+            )}
             {!isVoucherFlow && isBlockedByBalance ? (
                 <p className="text-[var(--color-ink-2)] text-sm">
                     Te faltan sellos para canjear. Genera una compra en la

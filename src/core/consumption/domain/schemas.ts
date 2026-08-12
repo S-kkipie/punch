@@ -92,6 +92,8 @@ export const redemptionRequestSchema = z.object({
     status: fulfillmentRequestStatusSchema,
     rejectionReason: z.string().nullable(),
     failureReason: z.string().nullable().optional(),
+    /** Solo lo devuelve la bandeja de la cafetería, para identificar al cliente. */
+    consumerName: z.string().nullable().optional(),
     createdAt: z.string(),
     transactionId: z.string().nullable().optional(),
     transactionStatus: consumerTransactionStatusSchema.nullable().optional(),

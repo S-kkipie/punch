@@ -12,13 +12,13 @@ import CampaignsPage from "../page";
 describe("CampaignsPage states", () => {
     beforeEach(() => useCampaigns.mockReset());
 
-    it("renders loading, error, and empty campaign states", () => {
+    it("renders loading, error, empty, and campaign rows", () => {
         useCampaigns.mockReturnValue({ isPending: true });
         expect(renderToStaticMarkup(<CampaignsPage />)).toContain("Cargando");
 
         useCampaigns.mockReturnValue({ isPending: false, isError: true });
         expect(renderToStaticMarkup(<CampaignsPage />)).toContain(
-            "No se pudieron cargar",
+            "No se pudieron cargar las campañas",
         );
 
         useCampaigns.mockReturnValue({
@@ -27,7 +27,29 @@ describe("CampaignsPage states", () => {
             data: [],
         });
         expect(renderToStaticMarkup(<CampaignsPage />)).toContain(
-            "Pronto habrá nuevas campañas",
+            "Sin campañas activas",
         );
+
+        useCampaigns.mockReturnValue({
+            isPending: false,
+            isError: false,
+            data: [
+                {
+                    id: "c1",
+                    kind: "verified_acquisition",
+                    cafeId: "caf-1",
+                    name: "Martes de filtrado",
+                    windowStart: "2026-01-01T00:00:00Z",
+                    windowEnd: "2030-01-01T00:00:00Z",
+                    active: true,
+                    voucherPayout: "4",
+                    maxVouchers: 20,
+                },
+            ],
+        });
+        expect(renderToStaticMarkup(<CampaignsPage />)).toContain(
+            "Martes de filtrado",
+        );
+        expect(renderToStaticMarkup(<CampaignsPage />)).toContain("0 de 20");
     });
 });

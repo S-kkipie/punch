@@ -18,8 +18,10 @@ const toCampaign = (row: typeof campaign.$inferSelect): Campaign => ({
     windowStart: row.windowStart.toISOString(),
     windowEnd: row.windowEnd.toISOString(),
     active: row.active,
+    voucherPayout:
+        row.voucherPayout === null ? null : row.voucherPayout.toString(),
+    maxVouchers: row.maxVouchers,
 });
-
 export async function listCampaignsService(): AsyncAppResult<Campaign[]> {
     try {
         const rows = await db

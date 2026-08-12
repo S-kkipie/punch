@@ -28,6 +28,10 @@ const parsedEnv = createEnv({
     },
     client: {
         NEXT_PUBLIC_APP_URL: z.url(),
+        // Mirrors CHAIN_ENV so the browser can link txs to a block explorer.
+        NEXT_PUBLIC_CHAIN_ENV: z
+            .enum(["local", "arbitrumSepolia"])
+            .default("local"),
         NEXT_PUBLIC_DEMO_MODE: z
             .string()
             .optional()
@@ -45,13 +49,19 @@ const parsedEnv = createEnv({
         OPS_WALLET_INDEX: process.env.OPS_WALLET_INDEX,
         CONSUMER_CHAIN_MODE: process.env.CONSUMER_CHAIN_MODE,
         NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+        NEXT_PUBLIC_CHAIN_ENV: process.env.NEXT_PUBLIC_CHAIN_ENV,
         NEXT_PUBLIC_DEMO_MODE: process.env.NEXT_PUBLIC_DEMO_MODE,
         NEXT_PUBLIC_DEMO_PASSWORD: process.env.NEXT_PUBLIC_DEMO_PASSWORD,
     },
     emptyStringAsUndefined: true,
 });
 
-if (parsedEnv.OPS_WALLET_INDEX === parsedEnv.RELAYER_WALLET_INDEX) {
+// Server-only invariant. Reading these on the client trips the t3-env proxy,
+// and this module reaches the browser through the root layout's providers.
+if (
+    typeof window === "undefined" &&
+    parsedEnv.OPS_WALLET_INDEX === parsedEnv.RELAYER_WALLET_INDEX
+) {
     throw new Error(
         "OPS_WALLET_INDEX must differ from RELAYER_WALLET_INDEX: the ops key owns CampaignEscrow and must not be the hot relayer key",
     );

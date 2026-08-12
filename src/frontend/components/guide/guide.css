@@ -895,3 +895,17 @@
     border: var(--rule-hair) solid var(--color-rule);
     color: var(--color-muted);
 }
+
+/* Código corto de canje: barista y cliente confirman que es el mismo. */
+.redemption-code {
+    display: inline-flex;
+    align-items: center;
+    border: var(--rule-hair) solid var(--color-accent);
+    border-radius: var(--radius-sm);
+    background: var(--color-accent-wash);
+    padding: 0.1rem 0.5rem;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    letter-spacing: 0.12em;
+}

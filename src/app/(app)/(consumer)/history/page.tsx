@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { hasPublicExplorer } from "@/config/explorer";
 import { useHistory } from "@/core/consumption/client/hooks";
+import { redemptionCode } from "@/core/consumption/domain/redemption-code";
 import { authClient } from "@/frontend/auth/auth";
 import {
     readPunchSnapshot,
@@ -57,6 +58,15 @@ function HistoryListEntry({ entry }: { entry: HistoryEntry }) {
                 <p className="text-[var(--color-ink-2)] text-sm">
                     {new Date(entry.createdAt).toLocaleString("es-PE")}
                 </p>
+                {entry.status === "pending" &&
+                entry.operation !== "emission" ? (
+                    <p className="text-sm">
+                        Muéstrale este código al barista:{" "}
+                        <span className="redemption-code">
+                            {redemptionCode(entry.id)}
+                        </span>
+                    </p>
+                ) : null}
                 <ChainReceipt entry={entry} />
                 {entry.rejectionReason && (
                     <p className="text-sm">{entry.rejectionReason}</p>

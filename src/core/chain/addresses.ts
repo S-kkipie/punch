@@ -2,6 +2,7 @@ import "server-only";
 
 import type { Address } from "viem";
 import { env } from "@/config/env";
+import arbitrumSepoliaAddresses from "./addresses.arbitrumSepolia.json";
 import localAddresses from "./addresses.local.json";
 
 export const contractNames = [
@@ -19,22 +20,24 @@ export type AddressMap = Record<ContractName, Address>;
 
 const ZERO_ADDRESS: Address = "0x0000000000000000000000000000000000000000";
 
-// Zero until the first deployment (sub-project 2 onward).
 export const addresses: Record<"arbitrumSepolia", AddressMap> = {
-    arbitrumSepolia: {
-        cafeRegistry: ZERO_ADDRESS,
-        planManager: ZERO_ADDRESS,
-        consumptionLog: ZERO_ADDRESS,
-        punchVault: ZERO_ADDRESS,
-        networkFund: ZERO_ADDRESS,
-        campaignEscrow: ZERO_ADDRESS,
-        mockPEN: ZERO_ADDRESS,
-    },
+    arbitrumSepolia: arbitrumSepoliaAddresses as AddressMap,
 };
 
-// addresses.local.json is written by scripts/dev-chain.ts. Committed with
-// zero addresses so imports never fail before the first local deploy.
+// Both JSON files are written by scripts/dev-chain.ts, picked by CHAIN_ENV.
+// Committed with zero addresses so imports never fail before a first deploy.
 export function getAddresses(): AddressMap {
-    if (env.CHAIN_ENV === "local") return localAddresses as AddressMap;
-    return addresses.arbitrumSepolia;
+    const map =
+        env.CHAIN_ENV === "local"
+            ? (localAddresses as AddressMap)
+            : addresses.arbitrumSepolia;
+    const undeployed = contractNames.filter(
+        (name) => map[name].toLowerCase() === ZERO_ADDRESS,
+    );
+    if (undeployed.length > 0) {
+        throw new Error(
+            `contracts not deployed for CHAIN_ENV=${env.CHAIN_ENV}: ${undeployed.join(", ")}. Run pnpm chain:deploy against that chain first.`,
+        );
+    }
+    return map;
 }

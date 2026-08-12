@@ -9,6 +9,7 @@ import {
     useDecideVoucherRedemption,
     useTransactionStatus,
 } from "@/core/consumption/client/hooks";
+import { redemptionCode } from "@/core/consumption/domain/redemption-code";
 import type { ConsumerTransactionStatus } from "@/core/consumption/domain/types";
 import {
     ChainReceipt,
@@ -69,6 +70,17 @@ function formatAmount(value: Request["reimbursementAmount"]): string {
     return trimmed.startsWith("S/") ? trimmed : `S/${trimmed}`;
 }
 
+/** Hora exacta del pedido, para distinguir canjes casi simultáneos. */
+function clockLabel(createdAt: string | null | undefined): string | null {
+    if (!createdAt) return null;
+    const timestamp = new Date(createdAt);
+    if (Number.isNaN(timestamp.getTime())) return null;
+    return timestamp.toLocaleTimeString("es-PE", {
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+}
+
 function relativeAgeLabel(createdAt: string | null | undefined): string {
     if (!createdAt) return "hace unos segundos";
 
@@ -77,7 +89,7 @@ function relativeAgeLabel(createdAt: string | null | undefined): string {
 
     const seconds = Math.floor((Date.now() - timestamp) / 1000);
 
-    if (seconds < 60) return "hace 40 segundos";
+    if (seconds < 60) return "hace unos segundos";
 
     const minutes = Math.floor(seconds / 60);
     if (minutes < 60)
@@ -341,25 +353,44 @@ export default function CafeRedemptionsPage() {
                     const product =
                         request.productName ??
                         (request.kind === "punch_reward"
-                            ? "Cappuccino clásico"
+                            ? "Recompensa"
                             : "Voucher");
-                    const consumer = request.consumerName ?? "Consumidor Demo";
+                    const consumer =
+                        request.consumerName ?? "Cliente sin nombre";
                     const ageLabel = relativeAgeLabel(request.createdAt);
                     const amount = formatAmount(request.reimbursementAmount);
-                    const refundLine = `${consumer} · ${ageLabel} · te reembolsan ${amount}`;
+                    const refundLine = `Pedido ${ageLabel}${
+                        clockLabel(request.createdAt)
+                            ? ` · ${clockLabel(request.createdAt)}`
+                            : ""
+                    } · te reembolsan ${amount}`;
 
                     return (
                         <section
                             key={request.id}
                             className="consumer-panel grid gap-3 p-5"
                         >
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
                                 <p className="font-semibold text-base">
-                                    {product}
+                                    {consumer}
                                 </p>
+                                <span className="redemption-code">
+                                    <span className="sr-only">
+                                        Código del canje:{" "}
+                                    </span>
+                                    {redemptionCode(request.id)}
+                                </span>
                             </div>
+                            <p className="text-sm">
+                                Pide: <strong>{product}</strong>
+                            </p>
                             <p className="text-sm text-muted-foreground">
                                 {refundLine}
+                            </p>
+                            <p className="text-muted-foreground text-xs">
+                                Pídele el código al cliente: lo ve en su
+                                historial. Así entregas el canje correcto cuando
+                                hay varias mesas a la vez.
                             </p>
 
                             {isRejected ? (
