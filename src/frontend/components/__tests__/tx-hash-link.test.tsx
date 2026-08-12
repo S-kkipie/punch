@@ -58,4 +58,10 @@ describe("TxHashLink", () => {
         expect(document.querySelector("a")).toBeNull();
         expect(document.body.textContent).toContain("0x8f2ad4");
     });
+
+    it("separates the chain label from the hash in the accessible name", async () => {
+        await render(<TxHashLink txHash={HASH} />);
+        const link = document.querySelector("a");
+        expect(link?.textContent).toMatch(/Arbitrum Sepolia\s+0x8f2ad4/);
+    });
 });

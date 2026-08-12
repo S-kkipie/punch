@@ -44,8 +44,7 @@ export function TxHashLink({
             target="_blank"
             rel="noopener noreferrer"
         >
-            <span className="tx-link__chain">{label}</span>
-            {shorten(txHash)}
+            <span className="tx-link__chain">{label}</span> {shorten(txHash)}
             <span aria-hidden="true">↗</span>
         </a>
     );
