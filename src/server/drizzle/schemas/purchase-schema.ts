@@ -82,6 +82,7 @@ export const relayerJobKind = pgEnum("relayer_job_kind", [
     "campaign_fund_approve",
     "campaign_fund",
     "campaign_publish",
+    "campaign_cancel",
     "voucher_unlock",
     "voucher_redeem",
     "referral_record",
@@ -124,7 +125,7 @@ export const relayerJob = pgTable(
             .where(sql`${t.kind} in ('consumption', 'consumption_record')`),
         check(
             "relayer_job_target_check",
-            sql`((${t.kind} in ('consumption', 'consumption_record') AND ${t.orderId} IS NOT NULL AND ${t.redemptionRequestId} IS NULL) OR (${t.kind} = 'punch_redemption' AND ${t.redemptionRequestId} IS NOT NULL AND ${t.orderId} IS NULL) OR (${t.kind} in ('campaign_create', 'campaign_fund_approve', 'campaign_fund', 'campaign_publish', 'voucher_unlock', 'voucher_redeem', 'referral_record') AND ${t.orderId} IS NULL AND ${t.redemptionRequestId} IS NULL))`,
+            sql`((${t.kind} in ('consumption', 'consumption_record') AND ${t.orderId} IS NOT NULL AND ${t.redemptionRequestId} IS NULL) OR (${t.kind} = 'punch_redemption' AND ${t.redemptionRequestId} IS NOT NULL AND ${t.orderId} IS NULL) OR (${t.kind} in ('campaign_create', 'campaign_fund_approve', 'campaign_fund', 'campaign_publish', 'campaign_cancel', 'voucher_unlock', 'voucher_redeem', 'referral_record') AND ${t.orderId} IS NULL AND ${t.redemptionRequestId} IS NULL))`,
         ),
     ],
 );

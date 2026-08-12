@@ -16,15 +16,21 @@ describe("historical consumption bootstrap", () => {
             cafes: [
                 {
                     id: "cafe-a",
-                    emissionProducts: [{ chainProductId: 11n, productId: "prod-a" }],
+                    emissionProducts: [
+                        { chainProductId: 11n, productId: "prod-a" },
+                    ],
                 },
                 {
                     id: "cafe-b",
-                    emissionProducts: [{ chainProductId: 12n, productId: "prod-b" }],
+                    emissionProducts: [
+                        { chainProductId: 12n, productId: "prod-b" },
+                    ],
                 },
                 {
                     id: "target",
-                    emissionProducts: [{ chainProductId: 13n, productId: "prod-target" }],
+                    emissionProducts: [
+                        { chainProductId: 13n, productId: "prod-target" },
+                    ],
                 },
             ],
             targetCafeId: "target",
@@ -37,13 +43,13 @@ describe("historical consumption bootstrap", () => {
         expect(
             schedule.every(
                 (item) =>
-                    item.chainProductId === 11n ||
-                    item.chainProductId === 12n,
+                    item.chainProductId === 11n || item.chainProductId === 12n,
             ),
         ).toBe(true);
         expect(
             schedule.every(
-                (item) => item.productId === "prod-a" || item.productId === "prod-b",
+                (item) =>
+                    item.productId === "prod-a" || item.productId === "prod-b",
             ),
         ).toBe(true);
         const perDay = new Map<string, number>();

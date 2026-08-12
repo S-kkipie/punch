@@ -21,6 +21,7 @@ const opLabels: Record<string, string> = {
     campaign_fund_approve: "Permiso para mover tu mPEN",
     campaign_fund: "Depósito del presupuesto",
     campaign_publish: "Publicación de la campaña",
+    campaign_cancel: "Cancelación y devolución del presupuesto",
 };
 
 /** Orden real del ciclo, no el de llegada de los jobs. */
@@ -29,6 +30,7 @@ const opOrder = [
     "campaign_fund_approve",
     "campaign_fund",
     "campaign_publish",
+    "campaign_cancel",
 ];
 
 export const opLabel = (kind: string) => opLabels[kind] ?? kind;
@@ -115,9 +117,19 @@ const statusMark: Record<CampaignChainOp["status"], string> = {
  * financiar dejaba al dueño mirando una pantalla quieta sin saber si su
  * operación seguía viva: aquí ve en qué etapa va y puede abrir la transacción.
  */
-export function CampaignChainTrail({ ops }: { ops: CampaignChainOp[] }) {
+export function CampaignChainTrail({
+    ops,
+    showProgress = true,
+}: {
+    ops: CampaignChainOp[];
+    /**
+     * Una campaña cerrada no tiene operación en curso: mostrar el recibo de un
+     * intento fallido ahí sugiere que todavía falta hacer algo.
+     */
+    showProgress?: boolean;
+}) {
     if (ops.length === 0) return null;
-    const live = liveOp(ops);
+    const live = showProgress ? liveOp(ops) : null;
     const groups = groupOps(ops);
 
     return (

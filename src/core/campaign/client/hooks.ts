@@ -102,3 +102,28 @@ export const usePublishCampaign = (cafeId: string) => {
             }),
     });
 };
+
+export const useCancelCampaign = (cafeId: string) => {
+    const client = useElysia();
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (campaignId: string) => {
+            const options = client
+                .cafe({ cafeId })
+                .campaigns({ campaignId })
+                .cancel.post.mutationOptions();
+            return unwrap(
+                await (
+                    options.mutationFn as unknown as (
+                        body: undefined,
+                    ) => unknown
+                )(undefined),
+            );
+        },
+        onError,
+        onSuccess: () =>
+            void queryClient.invalidateQueries({
+                queryKey: cafeCampaignsQueryKey(cafeId),
+            }),
+    });
+};

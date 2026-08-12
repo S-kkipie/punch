@@ -15,6 +15,7 @@ const state = vi.hoisted(() => ({
     create: vi.fn(),
     fund: vi.fn(),
     publish: vi.fn(),
+    cancel: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({ useParams: () => ({ cafeId: "cafe-1" }) }));
 vi.mock("@/core/campaign/client/hooks", () => ({
@@ -29,6 +30,7 @@ vi.mock("@/core/campaign/client/hooks", () => ({
     useCreateCampaign: () => ({ isPending: false, mutate: state.create }),
     useFundCampaign: () => ({ isPending: false, mutate: state.fund }),
     usePublishCampaign: () => ({ isPending: false, mutate: state.publish }),
+    useCancelCampaign: () => ({ isPending: false, mutate: state.cancel }),
 }));
 vi.mock("@/frontend/components/ui/button", () => ({
     Button: (props: React.ComponentProps<"button">) => <button {...props} />,
@@ -209,6 +211,66 @@ describe("café campaigns screen", () => {
         );
         expect(state.fund).toHaveBeenCalled();
         expect(node.textContent).toContain("S/8.00 en camino al contrato");
+        await act(async () => root.unmount());
+    });
+
+    it("asks before cancelling, then says what comes back", async () => {
+        state.campaigns = [campaign({ funded: "200000000" })];
+        state.cancel.mockImplementation(
+            (_id: unknown, options: { onSuccess?: () => void }) =>
+                options?.onSuccess?.(),
+        );
+        const node = document.createElement("div");
+        document.body.append(node);
+        const root = createRoot(node);
+        await act(async () => root.render(<CafeCampaignsPage />));
+
+        const openConfirm = [...node.querySelectorAll("button")].find(
+            (button) =>
+                button.textContent === "Cancelar y recuperar el presupuesto",
+        ) as HTMLButtonElement;
+        await act(async () => openConfirm.click());
+        // Devolver dinero no se dispara con un solo clic accidental.
+        expect(state.cancel).not.toHaveBeenCalled();
+        expect(node.textContent).toContain("te devuelve S/200.00");
+
+        await act(async () =>
+            [...node.querySelectorAll("button")]
+                .find((button) =>
+                    button.textContent?.startsWith("Sí, cancelar"),
+                )
+                ?.click(),
+        );
+        expect(state.cancel).toHaveBeenCalledWith(
+            "campaign-1",
+            expect.anything(),
+        );
+        expect(node.textContent).toContain("Cancelación enviada");
+        await act(async () => root.unmount());
+    });
+
+    it("keeps the budget when the owner backs out", async () => {
+        state.campaigns = [campaign()];
+        const node = document.createElement("div");
+        document.body.append(node);
+        const root = createRoot(node);
+        await act(async () => root.render(<CafeCampaignsPage />));
+        await act(async () =>
+            [...node.querySelectorAll("button")]
+                .find(
+                    (button) =>
+                        button.textContent ===
+                        "Cancelar y recuperar el presupuesto",
+                )
+                ?.click(),
+        );
+        await act(async () =>
+            [...node.querySelectorAll("button")]
+                .find((button) => button.textContent === "Mejor no")
+                ?.click(),
+        );
+        expect(state.cancel).not.toHaveBeenCalled();
+        expect(node.textContent).not.toContain("te devuelve");
         await act(async () => root.unmount());
     });
 

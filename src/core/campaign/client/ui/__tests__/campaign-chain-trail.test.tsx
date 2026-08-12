@@ -142,3 +142,18 @@ describe("groupOps", () => {
         ]);
     });
 });
+
+describe("CampaignChainTrail progress", () => {
+    it("hides the live receipt on a closed campaign", () => {
+        // Una campaña cancelada no tiene nada pendiente: dejar el recibo de un
+        // intento fallido sugiere que todavía falta hacer algo.
+        const markup = renderToStaticMarkup(
+            <CampaignChainTrail
+                ops={[op({ kind: "campaign_publish", status: "failed" })]}
+                showProgress={false}
+            />,
+        );
+        expect(markup).not.toContain("No se pudo escribir");
+        expect(markup).toContain("Publicación de la campaña");
+    });
+});

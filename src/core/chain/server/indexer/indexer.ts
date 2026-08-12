@@ -75,6 +75,7 @@ const sources = [
         "CampaignCreated",
         "CampaignFunded",
         "CampaignPublished",
+        "CampaignCancelled",
         "VoucherUnlocked",
         "VoucherRedeemed",
     ]),

@@ -29,6 +29,7 @@ export type IndexerEvent = {
         | "CampaignCreated"
         | "CampaignFunded"
         | "CampaignPublished"
+        | "CampaignCancelled"
         | "VoucherUnlocked"
         | "VoucherRedeemed";
     args: EventArgs;
@@ -213,6 +214,7 @@ export async function applyEvent(
         case "CampaignCreated":
         case "CampaignFunded":
         case "CampaignPublished":
+        case "CampaignCancelled":
         case "VoucherUnlocked":
         case "VoucherRedeemed":
             return applyCampaignEvent(tx, event);

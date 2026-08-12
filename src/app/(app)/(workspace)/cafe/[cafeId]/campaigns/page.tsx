@@ -1,9 +1,10 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     useCafeCampaigns,
+    useCancelCampaign,
     useCreateCampaign,
     useFundCampaign,
     usePublishCampaign,
@@ -16,6 +17,10 @@ import {
     formatMpenAsSoles,
     parseSolesToMpen,
 } from "@/core/campaign/domain/money";
+import {
+    defaultCampaignWindow,
+    toDateTimeLocal,
+} from "@/core/campaign/domain/window";
 import { PageIntro } from "@/frontend/components/guide/page-intro";
 import { Stat } from "@/frontend/components/guide/stat";
 import { Button } from "@/frontend/components/ui/button";
@@ -60,6 +65,7 @@ export default function CafeCampaignsPage() {
     const createCampaign = useCreateCampaign(cafeId);
     const fundCampaign = useFundCampaign(cafeId);
     const publishCampaign = usePublishCampaign(cafeId);
+    const cancelCampaign = useCancelCampaign(cafeId);
     const [name, setName] = useState("");
     const [payout, setPayout] = useState("");
     const [cap, setCap] = useState("");
@@ -69,6 +75,20 @@ export default function CafeCampaignsPage() {
         Record<string, string>
     >({});
     const [message, setMessage] = useState("");
+    const [minEnd, setMinEnd] = useState("");
+    // Cancelar devuelve dinero y no se deshace: se confirma antes de enviar.
+    const [confirmingCancel, setConfirmingCancel] = useState<string | null>(
+        null,
+    );
+
+    // Se rellena al montar y no en el estado inicial: `new Date()` durante el
+    // render del servidor daría una hora distinta a la del navegador.
+    useEffect(() => {
+        const window = defaultCampaignWindow(new Date());
+        setWindowStart((current) => current || window.start);
+        setWindowEnd((current) => current || window.end);
+        setMinEnd(toDateTimeLocal(new Date()));
+    }, []);
 
     const prospectiveRequired = useMemo(() => {
         const payoutValue = parseSolesToMpen(payout);
@@ -150,6 +170,9 @@ export default function CafeCampaignsPage() {
                     setName("");
                     setPayout("");
                     setCap("");
+                    const next = defaultCampaignWindow(new Date());
+                    setWindowStart(next.start);
+                    setWindowEnd(next.end);
                 },
             },
         );
@@ -208,6 +231,7 @@ export default function CafeCampaignsPage() {
                         <Input
                             aria-label="Inicio de ventana"
                             type="datetime-local"
+                            min={minEnd}
                             value={windowStart}
                             onChange={(event) =>
                                 setWindowStart(event.target.value)
@@ -216,6 +240,7 @@ export default function CafeCampaignsPage() {
                         <Input
                             aria-label="Fin de ventana"
                             type="datetime-local"
+                            min={minEnd}
                             value={windowEnd}
                             onChange={(event) =>
                                 setWindowEnd(event.target.value)
@@ -410,6 +435,85 @@ export default function CafeCampaignsPage() {
                                                 ? "Publicando…"
                                                 : "Publicar campaña"}
                                         </Button>
+                                        {confirmingCancel === campaign.id ? (
+                                            <div className="guide-note">
+                                                <span className="guide-note__label">
+                                                    Cancelar el borrador
+                                                </span>
+                                                <p>
+                                                    Se cancela la campaña y el
+                                                    contrato te devuelve{" "}
+                                                    {formatMpenAsSoles(
+                                                        campaign.funded,
+                                                    )}{" "}
+                                                    a tu billetera. No se puede
+                                                    deshacer: para volver a
+                                                    intentarlo tendrás que crear
+                                                    una campaña nueva.
+                                                </p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    <Button
+                                                        className="min-h-11"
+                                                        variant="destructive"
+                                                        disabled={
+                                                            cancelCampaign.isPending
+                                                        }
+                                                        onClick={() => {
+                                                            setMessage(
+                                                                "Enviando la cancelación a la cadena…",
+                                                            );
+                                                            cancelCampaign.mutate(
+                                                                campaign.id,
+                                                                {
+                                                                    onSuccess:
+                                                                        () => {
+                                                                            setConfirmingCancel(
+                                                                                null,
+                                                                            );
+                                                                            setMessage(
+                                                                                "Cancelación enviada. Cuando la cadena confirme, el presupuesto vuelve a tu billetera.",
+                                                                            );
+                                                                        },
+                                                                    onError:
+                                                                        () =>
+                                                                            setMessage(
+                                                                                "No se pudo cancelar la campaña. Si ya se publicó, el presupuesto queda comprometido con los vouchers.",
+                                                                            ),
+                                                                },
+                                                            );
+                                                        }}
+                                                    >
+                                                        {cancelCampaign.isPending
+                                                            ? "Cancelando…"
+                                                            : `Sí, cancelar y recuperar ${formatMpenAsSoles(campaign.funded)}`}
+                                                    </Button>
+                                                    <Button
+                                                        className="min-h-11"
+                                                        variant="ghost"
+                                                        onClick={() =>
+                                                            setConfirmingCancel(
+                                                                null,
+                                                            )
+                                                        }
+                                                    >
+                                                        Mejor no
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <Button
+                                                className="min-h-11"
+                                                variant="ghost"
+                                                onClick={() =>
+                                                    setConfirmingCancel(
+                                                        campaign.id,
+                                                    )
+                                                }
+                                            >
+                                                Cancelar y recuperar el
+                                                presupuesto
+                                            </Button>
+                                        )}
                                     </>
                                 ) : campaign.lifecycle === "published" ? (
                                     <div className="guide-note">
@@ -432,7 +536,12 @@ export default function CafeCampaignsPage() {
                                         habías apartado volvió a tu billetera.
                                     </p>
                                 )}
-                                <CampaignChainTrail ops={campaign.chainOps} />
+                                <CampaignChainTrail
+                                    ops={campaign.chainOps}
+                                    showProgress={
+                                        campaign.lifecycle !== "cancelled"
+                                    }
+                                />
                             </CardContent>
                         </Card>
                     );

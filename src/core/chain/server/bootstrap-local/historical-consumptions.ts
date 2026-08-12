@@ -12,7 +12,11 @@ import {
 import { foundry } from "viem/chains";
 import { abis } from "@/core/chain/abis";
 import { getAddresses } from "@/core/chain/addresses";
-import { buildReceiptHash, type ConsumptionProof, signProofAs } from "@/core/chain/server/proof/proof";
+import {
+    buildReceiptHash,
+    type ConsumptionProof,
+    signProofAs,
+} from "@/core/chain/server/proof/proof";
 import { deriveUserAccount } from "@/core/chain/server/wallet/derive";
 import { createQuote } from "@/core/consumption/server/repository/proofs";
 import { db } from "@/server/drizzle/db";
@@ -168,7 +172,10 @@ export async function seedHistoricalConsumptions(input: {
         new Set(
             cafes
                 .map((cafe) => cafe.ownerWalletIndex)
-                .filter((walletIndex): walletIndex is number => walletIndex !== null),
+                .filter(
+                    (walletIndex): walletIndex is number =>
+                        walletIndex !== null,
+                ),
         ),
     );
     if (ownerWalletIndexes.length === 0) {
@@ -301,7 +308,9 @@ export async function seedHistoricalConsumptions(input: {
             );
         }
 
-        const issuedByUserId = ownerUserByWalletIndex.get(cafe.ownerWalletIndex);
+        const issuedByUserId = ownerUserByWalletIndex.get(
+            cafe.ownerWalletIndex,
+        );
         if (!issuedByUserId) {
             throw new Error(
                 `historical seeding ${item.cafeId}: owner user id is missing`,

@@ -71,6 +71,7 @@ const campaignChainOpKinds = [
     "campaign_fund_approve",
     "campaign_fund",
     "campaign_publish",
+    "campaign_cancel",
 ] as const;
 
 /** Escrituras on-chain que una campaña disparó, de la más nueva a la más vieja. */
