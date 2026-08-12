@@ -42,3 +42,87 @@
         font-size: var(--text-2xl);
     }
 }
+
+/* ── EmptyState ──────────────────────────────────────────────────── */
+.empty-state {
+    display: grid;
+    justify-items: start;
+    gap: var(--space-xs);
+    border: var(--rule-hair) dashed var(--color-rule);
+    border-radius: var(--radius-sm);
+    background: var(--color-paper-3);
+    padding: var(--space-lg) var(--space-md);
+}
+.empty-state__mark {
+    font-size: var(--text-lg);
+    line-height: 1;
+}
+.empty-state__title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-md);
+}
+.empty-state__cause {
+    margin: 0;
+    color: var(--color-ink-2);
+    font-size: var(--text-sm);
+}
+
+/* ── StateStrip ──────────────────────────────────────────────────── */
+.state-strip {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    margin: 0;
+    border: var(--rule-hair) solid var(--color-rule);
+    border-radius: var(--radius-sm);
+    background: var(--color-paper-2);
+    padding: var(--space-xs) var(--space-sm);
+    font-family: var(--font-outlier);
+    font-size: var(--text-xs);
+    letter-spacing: 0.05em;
+}
+.state-strip--chain {
+    border-color: var(--color-sun);
+    background: color-mix(in srgb, var(--color-sun) 22%, var(--color-paper));
+}
+.state-strip--offline {
+    border-color: var(--color-cafe-blue);
+    background: color-mix(
+        in srgb,
+        var(--color-cafe-blue) 10%,
+        var(--color-paper)
+    );
+}
+
+/* ── Botón de la capa de guía ────────────────────────────────────── */
+.guide-btn {
+    display: inline-flex;
+    min-height: 2.75rem;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2xs);
+    border: var(--rule-thick) solid var(--color-ink);
+    border-radius: var(--radius-sm);
+    padding-inline: var(--space-md);
+    color: var(--color-accent-ink);
+    background: var(--color-accent);
+    box-shadow: var(--shadow-print-sm);
+    font: inherit;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+}
+.guide-btn--ghost {
+    color: var(--color-ink);
+    background: var(--color-paper-3);
+    box-shadow: none;
+}
+.guide-btn:disabled,
+.guide-btn[aria-disabled="true"] {
+    border-color: var(--color-rule);
+    color: var(--color-muted);
+    background: var(--color-paper-2);
+    box-shadow: none;
+    cursor: not-allowed;
+}
