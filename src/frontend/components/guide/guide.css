@@ -234,3 +234,30 @@
     clip-path: inset(50%);
     white-space: nowrap;
 }
+
+/* ── TxHashLink ──────────────────────────────────────────────────── */
+.tx-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2xs);
+    color: var(--color-cafe-blue-deep);
+    font-family: var(--font-outlier);
+    font-size: var(--text-xs);
+    text-decoration: none;
+}
+.tx-link:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+.tx-link--plain {
+    color: var(--color-muted);
+}
+.tx-link__chain {
+    border: var(--rule-hair) solid currentColor;
+    border-radius: var(--radius-full);
+    padding-inline: var(--space-2xs);
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
