@@ -1,11 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { ClientConfig } from "@/config/client-config";
 import { useCreateCafe, useMyCafes } from "@/core/cafe/client/hooks";
 import { CafeForm, type CafeFormValues } from "@/core/cafe/client/ui/cafe-form";
 import { StatusBadge } from "@/core/cafe/client/ui/status-badge";
 import type { CafeAdmin, CafeOnboardingStatus } from "@/core/cafe/domain/types";
+import { DemoOnly } from "@/frontend/components/guide/demo-only";
 import { EmptyState } from "@/frontend/components/guide/empty-state";
 import { PageIntro } from "@/frontend/components/guide/page-intro";
 import { Button } from "@/frontend/components/ui/button";
@@ -32,6 +35,9 @@ export default function MyCafesPage() {
     const createCafe = useCreateCafe();
     const [creating, setCreating] = useState(searchParams.get("new") === "1");
     const cafes = (cafesQuery.data ?? []) as CafeAdmin[];
+    const approvedCafe = cafes.find(
+        (cafe) => cafe.onboardingStatus === "approved",
+    );
 
     useEffect(() => {
         setCreating(searchParams.get("new") === "1");
@@ -70,6 +76,22 @@ export default function MyCafesPage() {
                 explain="Registra tu café, arma tu catálogo y envíalo a revisión.
                 Operaciones lo aprueba y entras a la red."
             />
+
+            {ClientConfig.demoMode && approvedCafe ? (
+                <section className="consumer-panel grid gap-2 p-5">
+                    <span className="consumer-eyebrow">Siguiente paso</span>
+                    <p className="text-sm">
+                        El código de compra se genera en la terminal. Abre la
+                        de {approvedCafe.name} para cobrar la siguiente visita.
+                    </p>
+                    <Button asChild>
+                        <Link href={`/cafe/${approvedCafe.id}/terminal`}>
+                            Abrir terminal <span aria-hidden="true">→</span>
+                        </Link>
+                    </Button>
+                    <DemoOnly />
+                </section>
+            ) : null}
 
             <div className="flex flex-wrap items-center justify-end gap-3">
                 <Button onClick={() => setCreating((value) => !value)}>
@@ -129,6 +151,22 @@ export default function MyCafesPage() {
                                     <p className="mt-1 text-destructive text-sm">
                                         {cafe.reviewNote}
                                     </p>
+                                ) : null}
+                                {cafe.onboardingStatus === "approved" ? (
+                                    <Button
+                                        asChild
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={(event) =>
+                                            event.stopPropagation()
+                                        }
+                                    >
+                                        <Link
+                                            href={`/cafe/${cafe.id}/terminal`}
+                                        >
+                                            Abrir terminal
+                                        </Link>
+                                    </Button>
                                 ) : null}
                             </CardContent>
                         </Card>
