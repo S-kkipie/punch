@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { ClientConfig } from "@/config/client-config";
-import { authClient } from "@/frontend/auth/auth";
 import { Button } from "@/frontend/components/ui/button";
+import { useDemoSignIn } from "./use-demo-sign-in";
+
+import { ClientConfig } from "@/config/client-config";
 
 const DEMO_LOGINS = [
     { label: "Entrar como consumidor demo", email: "demo-consumer@punch.pe" },
@@ -12,27 +12,10 @@ const DEMO_LOGINS = [
 ] as const;
 
 export function DemoLogin() {
-    const [pending, setPending] = useState<string | null>(null);
-    const [error, setError] = useState<string | null>(null);
+    const { signInAs, pending, error } = useDemoSignIn();
 
     if (!ClientConfig.demoMode || !ClientConfig.demoPassword) {
         return null;
-    }
-    const password = ClientConfig.demoPassword;
-
-    async function signInAs(email: string) {
-        setPending(email);
-        setError(null);
-        const { error: signInError } = await authClient.signIn.email({
-            email,
-            password,
-        });
-        if (signInError) {
-            setError("No se pudo iniciar la demo. ¿Corriste pnpm db:seed?");
-            setPending(null);
-            return;
-        }
-        window.location.assign("/home");
     }
 
     return (
@@ -45,7 +28,9 @@ export function DemoLogin() {
                     key={demo.email}
                     variant="outline"
                     disabled={pending !== null}
-                    onClick={() => signInAs(demo.email)}
+                    onClick={() => {
+                        void signInAs(demo.email, "/home");
+                    }}
                 >
                     {pending === demo.email ? "Entrando…" : demo.label}
                 </Button>
