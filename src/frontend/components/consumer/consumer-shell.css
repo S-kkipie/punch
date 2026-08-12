@@ -11,17 +11,6 @@
     outline: 3px solid var(--color-focus);
     outline-offset: 3px;
 }
-.consumer-eyebrow {
-    color: var(--color-accent);
-    font-family: var(--font-outlier);
-    font-size: var(--text-xs);
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-}
-.consumer-title {
-    font-family: var(--font-display);
-    text-wrap: balance;
-}
 .consumer-panel {
     border: 1px solid var(--color-rule);
     border-radius: var(--radius-sm);

@@ -1,0 +1,44 @@
+@import "../../../../tokens.css";
+
+/* Capa de guía. Compartida por el shell de consumidor y el de workspace:
+   un solo sistema de color, tipografía y espacio para los dos mundos. */
+
+.page-intro {
+    display: grid;
+    gap: var(--space-2xs);
+}
+
+.page-intro__title {
+    margin: 0;
+    font-size: var(--text-xl);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+}
+
+.consumer-title {
+    font-family: var(--font-display);
+    text-wrap: balance;
+}
+
+.page-intro__explain {
+    margin: var(--space-3xs) 0 0;
+    border-left: var(--rule-thick) solid var(--color-accent-wash);
+    padding-left: var(--space-sm);
+    color: var(--color-ink-2);
+    font-size: var(--text-sm);
+}
+
+.consumer-eyebrow {
+    color: var(--color-accent);
+    font-family: var(--font-outlier);
+    font-size: var(--text-xs);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+@media (min-width: 768px) {
+    .page-intro__title {
+        font-size: var(--text-2xl);
+    }
+}
