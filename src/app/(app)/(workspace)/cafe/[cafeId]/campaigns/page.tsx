@@ -90,7 +90,13 @@ export default function CafeCampaignsPage() {
             </p>
         );
 
-    const campaigns = (campaignsQuery.data ?? []) as Campaign[];
+    const listing = (campaignsQuery.data ?? {}) as {
+        campaigns?: Campaign[];
+        walletBalance?: string;
+    };
+    const campaigns = listing.campaigns ?? [];
+    const walletBalance = BigInt(listing.walletBalance ?? "0");
+
     const submitCreate = () => {
         const payoutValue = parseSolesToMpen(payout);
         const capValue = parseSafeCap(cap);
@@ -136,9 +142,19 @@ export default function CafeCampaignsPage() {
                 title="Campañas del café"
                 explain={campaignExplain}
             />
-            <p className="sr-only" role="status" aria-live="polite">
-                {message}
-            </p>
+            {/* El aviso vivía en un `sr-only`: financiar no mostraba nada y
+                parecía que el botón no hacía nada. */}
+            {message ? (
+                <p className="state-strip state-strip--saved" role="status">
+                    {message}
+                </p>
+            ) : null}
+
+            <Stat
+                label="Saldo de tu billetera PUNCH"
+                value={formatMpenAsSoles(walletBalance)}
+                hint="de aquí sale el presupuesto que apartas en una campaña"
+            />
 
             <Card>
                 <CardContent className="space-y-3 p-4">
@@ -214,6 +230,12 @@ export default function CafeCampaignsPage() {
                 campaigns.map((campaign) => {
                     const fundingAmount = fundingAmounts[campaign.id] ?? "";
                     const isFunding = fundCampaign.isPending;
+                    const requestedAmount = parseSolesToMpen(fundingAmount);
+                    // El contrato transfiere desde esta billetera: pedir más
+                    // de lo que hay revierte on-chain después del clic.
+                    const overBalance =
+                        requestedAmount !== null &&
+                        requestedAmount > walletBalance;
                     return (
                         <Card key={campaign.id}>
                             <CardContent className="space-y-3 p-4">
@@ -264,6 +286,22 @@ export default function CafeCampaignsPage() {
                                                 para poder publicarla.
                                             </p>
                                         )}
+                                        {overBalance ? (
+                                            <p
+                                                role="alert"
+                                                className="text-destructive"
+                                            >
+                                                Tu billetera tiene{" "}
+                                                {formatMpenAsSoles(
+                                                    walletBalance,
+                                                )}
+                                                : no alcanza para financiar{" "}
+                                                {formatMpenAsSoles(
+                                                    requestedAmount ?? 0n,
+                                                )}
+                                                .
+                                            </p>
+                                        ) : null}
                                         <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
                                             <Input
                                                 aria-label={`Monto en soles para financiar ${campaign.name}`}
@@ -285,26 +323,34 @@ export default function CafeCampaignsPage() {
                                                 className="min-h-11"
                                                 variant="outline"
                                                 disabled={
-                                                    !parseSolesToMpen(
-                                                        fundingAmount,
-                                                    ) || isFunding
+                                                    requestedAmount === null ||
+                                                    overBalance ||
+                                                    isFunding
                                                 }
                                                 onClick={() => {
-                                                    const amount =
-                                                        parseSolesToMpen(
-                                                            fundingAmount,
-                                                        );
-                                                    if (!amount) return;
+                                                    if (
+                                                        requestedAmount ===
+                                                            null ||
+                                                        overBalance
+                                                    )
+                                                        return;
+                                                    setMessage(
+                                                        `Enviando ${formatMpenAsSoles(requestedAmount)} a la cadena…`,
+                                                    );
                                                     fundCampaign.mutate(
                                                         {
                                                             campaignId:
                                                                 campaign.id,
-                                                            amount: amount.toString(),
+                                                            amount: requestedAmount.toString(),
                                                         },
                                                         {
                                                             onSuccess: () =>
                                                                 setMessage(
-                                                                    "Financiamiento en cola para aprobación.",
+                                                                    `${formatMpenAsSoles(requestedAmount)} en camino al contrato. El monto apartado se actualiza solo cuando la cadena confirme.`,
+                                                                ),
+                                                            onError: () =>
+                                                                setMessage(
+                                                                    "No se pudo enviar el financiamiento. Revisa el saldo de tu billetera y vuelve a intentar.",
                                                                 ),
                                                         },
                                                     );

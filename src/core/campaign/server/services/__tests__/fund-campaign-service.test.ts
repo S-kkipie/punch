@@ -7,12 +7,14 @@ const {
     findUserWallet,
     enqueueJob,
     transaction,
+    readMpenBalance,
 } = vi.hoisted(() => ({
     requireCafeRole: vi.fn(),
     findCampaignWithProjection: vi.fn(),
     findUserWallet: vi.fn(),
     enqueueJob: vi.fn(),
     transaction: vi.fn(),
+    readMpenBalance: vi.fn(),
 }));
 
 vi.mock("@/server/auth/membership/require-cafe-role", () => ({
@@ -42,7 +44,11 @@ beforeEach(() => {
     vi.clearAllMocks();
     requireCafeRole.mockResolvedValue(ok({ role: "owner" }));
     findCampaignWithProjection.mockResolvedValue(validCampaign);
-    findUserWallet.mockResolvedValue({ walletIndex: 12 });
+    findUserWallet.mockResolvedValue({
+        walletIndex: 12,
+        walletAddress: "0x00000000000000000000000000000000000000aa",
+    });
+    readMpenBalance.mockResolvedValue(1_000_000_000n);
     transaction.mockImplementation(async (callback: (tx: unknown) => unknown) =>
         callback({}),
     );
@@ -64,6 +70,7 @@ describe("fundCampaignService", () => {
             "cafe-1",
             "campaign-1",
             500n,
+            { readMpenBalance },
         );
 
         expect(result.ok).toBe(false);
@@ -81,6 +88,7 @@ describe("fundCampaignService", () => {
             "cafe-1",
             "campaign-1",
             500n,
+            { readMpenBalance },
         );
 
         expect(result.ok).toBe(false);
@@ -98,6 +106,7 @@ describe("fundCampaignService", () => {
             "cafe-1",
             "campaign-1",
             500n,
+            { readMpenBalance },
         );
 
         expect(result.ok).toBe(false);
@@ -105,13 +114,17 @@ describe("fundCampaignService", () => {
     });
 
     it("rejects an owner without a wallet index", async () => {
-        findUserWallet.mockResolvedValue({ walletIndex: null });
+        findUserWallet.mockResolvedValue({
+            walletIndex: null,
+            walletAddress: "0x00000000000000000000000000000000000000aa",
+        });
 
         const result = await fundCampaignService(
             "user-1",
             "cafe-1",
             "campaign-1",
             500n,
+            { readMpenBalance },
         );
 
         expect(result.ok).toBe(false);
@@ -127,6 +140,7 @@ describe("fundCampaignService", () => {
             "cafe-1",
             "campaign-1",
             amount,
+            { readMpenBalance },
         );
 
         expect(result.ok).toBe(false);
@@ -139,6 +153,7 @@ describe("fundCampaignService", () => {
             "cafe-1",
             "campaign-1",
             500000000n,
+            { readMpenBalance },
         );
 
         expect(result.ok).toBe(true);
@@ -157,5 +172,60 @@ describe("fundCampaignService", () => {
                 },
             },
         );
+    });
+});
+
+describe("fundCampaignService wallet balance", () => {
+    it("refuses an amount the café wallet cannot cover", async () => {
+        // Sin este corte el job se encolaba igual y `transferFrom` revertía en
+        // la cadena, así que el clic no producía ningún efecto visible.
+        readMpenBalance.mockResolvedValue(3_600_000n);
+
+        const result = await fundCampaignService(
+            "user-1",
+            "cafe-1",
+            "campaign-1",
+            50_000_000n,
+            { readMpenBalance },
+        );
+
+        expect(result.ok).toBe(false);
+        expect(
+            result.ok ? null : (result.error as { targets?: string[] }).targets,
+        ).toEqual(["balance"]);
+        expect(enqueueJob).not.toHaveBeenCalled();
+    });
+
+    it("accepts an amount the wallet covers exactly", async () => {
+        readMpenBalance.mockResolvedValue(50_000_000n);
+
+        const result = await fundCampaignService(
+            "user-1",
+            "cafe-1",
+            "campaign-1",
+            50_000_000n,
+            { readMpenBalance },
+        );
+
+        expect(result.ok).toBe(true);
+        expect(enqueueJob).toHaveBeenCalled();
+    });
+
+    it("refuses a wallet with no address instead of queueing a doomed job", async () => {
+        findUserWallet.mockResolvedValue({
+            walletIndex: 12,
+            walletAddress: null,
+        });
+
+        const result = await fundCampaignService(
+            "user-1",
+            "cafe-1",
+            "campaign-1",
+            1_000_000n,
+            { readMpenBalance },
+        );
+
+        expect(result.ok).toBe(false);
+        expect(enqueueJob).not.toHaveBeenCalled();
     });
 });

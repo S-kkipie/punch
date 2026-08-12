@@ -1,7 +1,12 @@
 import "server-only";
 
+import type { Address } from "viem";
 import { calculateCampaignFunding } from "@/core/campaign/domain/funding";
 import type { CampaignLifecycle } from "@/core/campaign/domain/types";
+import { abis } from "@/core/chain/abis";
+import { getAddresses } from "@/core/chain/addresses";
+import { createChainPublicClient } from "@/core/chain/chain";
+import { findUserWallet } from "@/core/purchase/server/repository/purchase-repository";
 import { requireCafeRole } from "@/server/auth/membership/require-cafe-role";
 import {
     AppErrors,
@@ -10,6 +15,16 @@ import {
     ok,
 } from "@/server/common/responses";
 import { listCafeCampaigns } from "../repository/campaign-repository";
+
+export type CafeCampaignList = {
+    campaigns: CafeCampaign[];
+    /**
+     * mPEN que la billetera del dueño tiene ahora. Financiar una campaña sale
+     * de aquí, así que la pantalla necesita el número para no ofrecer un
+     * financiamiento que la cadena va a rechazar.
+     */
+    walletBalance: bigint;
+};
 
 export type CafeCampaign = {
     id: string;
@@ -26,10 +41,25 @@ export type CafeCampaign = {
     canPublish: boolean;
 };
 
+export type ListCafeCampaignsDeps = {
+    readMpenBalance: (address: Address) => Promise<bigint>;
+};
+
+const defaults: ListCafeCampaignsDeps = {
+    readMpenBalance: async (address) =>
+        createChainPublicClient().readContract({
+            address: getAddresses().mockPEN,
+            abi: abis.mockPEN,
+            functionName: "balanceOf",
+            args: [address],
+        }),
+};
+
 export async function listCafeCampaignsService(
     userId: string,
     cafeId: string,
-): AsyncAppResult<CafeCampaign[]> {
+    deps: ListCafeCampaignsDeps = defaults,
+): AsyncAppResult<CafeCampaignList> {
     try {
         const auth = await requireCafeRole(userId, cafeId, ["owner"]);
         if (!auth.ok) return auth;
@@ -62,7 +92,11 @@ export async function listCafeCampaignsService(
                 ...funding,
             });
         }
-        return ok(campaigns);
+        const wallet = await findUserWallet(userId);
+        const walletBalance = wallet?.walletAddress
+            ? await deps.readMpenBalance(wallet.walletAddress as Address)
+            : 0n;
+        return ok({ campaigns, walletBalance });
     } catch (cause) {
         return err(AppErrors.unexpected(cause));
     }

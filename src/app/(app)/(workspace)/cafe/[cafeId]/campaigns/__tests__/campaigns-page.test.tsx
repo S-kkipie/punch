@@ -10,6 +10,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
     campaigns: [] as unknown[],
+    // Saldo de la billetera del café: financiar sale de aquí.
+    walletBalance: "1000000000",
     create: vi.fn(),
     fund: vi.fn(),
     publish: vi.fn(),
@@ -19,7 +21,10 @@ vi.mock("@/core/campaign/client/hooks", () => ({
     useCafeCampaigns: () => ({
         isPending: false,
         isError: false,
-        data: state.campaigns,
+        data: {
+            campaigns: state.campaigns,
+            walletBalance: state.walletBalance,
+        },
     }),
     useCreateCampaign: () => ({ isPending: false, mutate: state.create }),
     useFundCampaign: () => ({ isPending: false, mutate: state.fund }),
@@ -65,6 +70,7 @@ describe("café campaigns screen", () => {
     afterEach(() => {
         document.body.innerHTML = "";
         state.campaigns = [];
+        state.walletBalance = "1000000000";
         vi.clearAllMocks();
     });
     it("previews required budget from payout times cap", async () => {
@@ -113,6 +119,66 @@ describe("café campaigns screen", () => {
         ).toBe(true);
         await act(async () => root.unmount());
     });
+    it("blocks funding the wallet cannot cover and says why", async () => {
+        // El caso real: la campaña pide S/50.00 y la billetera tiene S/3.60.
+        // Antes el clic encolaba el job, `transferFrom` revertía on-chain y la
+        // pantalla no mostraba absolutamente nada.
+        state.walletBalance = "3600000";
+        state.campaigns = [campaign()];
+        const node = document.createElement("div");
+        document.body.append(node);
+        const root = createRoot(node);
+        await act(async () => root.render(<CafeCampaignsPage />));
+        const fundingInput = [...node.querySelectorAll("input")].find((input) =>
+            input.getAttribute("aria-label")?.startsWith("Monto en soles"),
+        ) as HTMLInputElement;
+        await act(async () => {
+            Object.getOwnPropertyDescriptor(
+                HTMLInputElement.prototype,
+                "value",
+            )?.set?.call(fundingInput, "50");
+            fundingInput.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+        const fundButton = [...node.querySelectorAll("button")].find(
+            (button) => button.textContent === "Financiar",
+        ) as HTMLButtonElement;
+        expect(node.textContent).toContain("Tu billetera tiene S/3.60");
+        expect(fundButton.disabled).toBe(true);
+        await act(async () => fundButton.click());
+        expect(state.fund).not.toHaveBeenCalled();
+        await act(async () => root.unmount());
+    });
+
+    it("confirms on screen that the funding left for the chain", async () => {
+        state.campaigns = [campaign()];
+        state.fund.mockImplementation(
+            (_variables: unknown, options: { onSuccess?: () => void }) =>
+                options?.onSuccess?.(),
+        );
+        const node = document.createElement("div");
+        document.body.append(node);
+        const root = createRoot(node);
+        await act(async () => root.render(<CafeCampaignsPage />));
+        const fundingInput = [...node.querySelectorAll("input")].find((input) =>
+            input.getAttribute("aria-label")?.startsWith("Monto en soles"),
+        ) as HTMLInputElement;
+        await act(async () => {
+            Object.getOwnPropertyDescriptor(
+                HTMLInputElement.prototype,
+                "value",
+            )?.set?.call(fundingInput, "8");
+            fundingInput.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+        await act(async () =>
+            [...node.querySelectorAll("button")]
+                .find((button) => button.textContent === "Financiar")
+                ?.click(),
+        );
+        expect(state.fund).toHaveBeenCalled();
+        expect(node.textContent).toContain("S/8.00 en camino al contrato");
+        await act(async () => root.unmount());
+    });
+
     it("enables publish when fully funded", async () => {
         state.campaigns = [
             campaign({ funded: "12000000", missing: "0", canPublish: true }),

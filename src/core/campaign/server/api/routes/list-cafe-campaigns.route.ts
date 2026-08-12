@@ -36,15 +36,18 @@ export const listCafeCampaignsRoute = new Elysia().use(authed).get(
         return status(
             200,
             CommonResponse.successful({
-                response: result.data.map((campaign) => ({
-                    ...campaign,
-                    windowStart: campaign.windowStart.toISOString(),
-                    windowEnd: campaign.windowEnd.toISOString(),
-                    voucherPayout: campaign.voucherPayout.toString(),
-                    required: campaign.required.toString(),
-                    funded: campaign.funded.toString(),
-                    missing: campaign.missing.toString(),
-                })),
+                response: {
+                    campaigns: result.data.campaigns.map((campaign) => ({
+                        ...campaign,
+                        windowStart: campaign.windowStart.toISOString(),
+                        windowEnd: campaign.windowEnd.toISOString(),
+                        voucherPayout: campaign.voucherPayout.toString(),
+                        required: campaign.required.toString(),
+                        funded: campaign.funded.toString(),
+                        missing: campaign.missing.toString(),
+                    })),
+                    walletBalance: result.data.walletBalance.toString(),
+                },
             }),
         );
     },
@@ -53,7 +56,10 @@ export const listCafeCampaignsRoute = new Elysia().use(authed).get(
         params: z.object({ cafeId: z.string().min(1) }),
         response: {
             200: successResponseSchema(
-                cafeCampaignSchema.array(),
+                z.object({
+                    campaigns: cafeCampaignSchema.array(),
+                    walletBalance: z.string(),
+                }),
                 "CafeCampaigns",
             ),
             401: errorResponseSchema(401),
