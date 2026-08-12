@@ -132,8 +132,9 @@ describe("café common fund card", () => {
         expect(node.textContent).toContain("Reserva de la red");
         expect(node.textContent).toContain("JourneyCard · cafeteria");
 
+        // 5 del fondo + 3 de la card de ganancias.
         const stats = node.querySelectorAll(".guide-stat");
-        expect(stats.length).toBe(5);
+        expect(stats.length).toBe(8);
 
         await act(async () => root.unmount());
     });

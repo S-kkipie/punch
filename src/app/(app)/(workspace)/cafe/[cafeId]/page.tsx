@@ -64,41 +64,42 @@ function PayoutSummaryCard({
             <CardHeader>
                 <CardTitle>Tus ganancias con PUNCH</CardTitle>
             </CardHeader>
-            <CardContent className="grid gap-2 text-sm">
-                <p>
-                    Por canjes entregados: S/
-                    {((data?.totalCentimos ?? 0) / 100).toFixed(2)}{" "}
-                    <span className="text-muted-foreground">
-                        ({data?.redemptionCount ?? 0}{" "}
-                        {data?.redemptionCount === 1 ? "canje" : "canjes"} · S/
-                        3.60 cada uno)
-                    </span>
-                </p>
-                {fund ? (
-                    <p>
-                        Del fondo común este mes:{" "}
-                        {formatMpen(fund.pendingCreditMpen)}{" "}
-                        <span className="text-muted-foreground">
-                            {fund.estimated
-                                ? "(estimado, el mes no cerró)"
-                                : "(listo para reclamar)"}
-                        </span>
-                    </p>
-                ) : null}
-                <p>
-                    En tu billetera ahora:{" "}
-                    {data?.ownerMpenCentimos == null
-                        ? "—"
-                        : `S/${(data.ownerMpenCentimos / 100).toFixed(2)}`}
-                </p>
-                <p className="text-muted-foreground text-xs">
-                    No hay nada que reclamar: cada canje te transfiere S/3.60 a
-                    tu billetera en el mismo momento en que lo entregas. Lo que
-                    ves arriba ya es tuyo.
-                </p>
-                <p className="text-muted-foreground text-xs">
-                    Esto no incluye lo que cobras por la venta misma: el café
-                    que vendes lo cobras por Yape como siempre.
+            <CardContent className="grid gap-3">
+                <div className="guide-stat-row">
+                    <Stat
+                        label="Por canjes entregados"
+                        value={`S/${((data?.totalCentimos ?? 0) / 100).toFixed(2)}`}
+                        hint={`${data?.redemptionCount ?? 0} ${
+                            data?.redemptionCount === 1 ? "canje" : "canjes"
+                        } · S/3.60 cada uno`}
+                        lead
+                    />
+                    <Stat
+                        label="Del fondo común"
+                        value={
+                            fund ? formatMpen(fund.pendingCreditMpen) : "S/0.00"
+                        }
+                        hint={
+                            fund && !fund.estimated
+                                ? "Listo para reclamar"
+                                : "Estimado · el mes no cerró"
+                        }
+                    />
+                    <Stat
+                        label="En tu billetera"
+                        value={
+                            data?.ownerMpenCentimos == null
+                                ? "—"
+                                : `S/${(data.ownerMpenCentimos / 100).toFixed(2)}`
+                        }
+                        hint="Saldo on-chain del propietario"
+                    />
+                </div>
+                <p className="text-muted-foreground text-sm">
+                    Cada canje te transfiere S/3.60 en el momento en que lo
+                    entregas: no hay nada que reclamar. La venta del café la
+                    sigues cobrando por Yape — esto es lo que la red te paga
+                    encima.
                 </p>
                 <p className="text-muted-foreground text-xs">
                     El paso a soles en tu banco todavía no está integrado: en
@@ -146,6 +147,16 @@ function CafeFundCard({
                 ) : !fund ? (
                     <p className="text-muted-foreground">
                         Aún no hay datos del fondo este mes.
+                    </p>
+                ) : Number(fund.buckets.origin) === 0 &&
+                  Number(fund.buckets.acquisition) === 0 &&
+                  Number(fund.buckets.crawl) === 0 &&
+                  Number(fund.buckets.contingency) === 0 ? (
+                    <p className="text-muted-foreground text-sm">
+                        La época {fund.epoch} todavía no se financió: el fondo
+                        se reparte en cuatro bolsas cuando cierra el mes y se
+                        presupuesta lo aportado por los planes. Por eso aquí aún
+                        no hay montos.
                     </p>
                 ) : (
                     <>

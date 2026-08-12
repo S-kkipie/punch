@@ -215,6 +215,7 @@
     text-transform: uppercase;
 }
 .guide-stat__value {
+    color: var(--color-ink);
     font-family: var(--font-display);
     font-size: var(--text-lg);
     font-weight: 700;
