@@ -57,8 +57,11 @@ export const useDemoJourney = () => {
         // es la única señal de que ese paso ya ocurrió.
         hasPendingPurchase:
             rows.some(isPendingPurchase) || demo.pendingProofUrl !== null,
-        hasPendingRedemption: rows.some(isPendingRedemption),
-        hasConfirmedRedemption: rows.some(isConfirmedRedemption),
+        // Mismo motivo: la sesión de cafetería no ve el canje del cliente.
+        hasPendingRedemption:
+            rows.some(isPendingRedemption) || demo.pendingRedemptionId !== null,
+        hasConfirmedRedemption:
+            rows.some(isConfirmedRedemption) || demo.redemptionDelivered,
     };
 
     return {

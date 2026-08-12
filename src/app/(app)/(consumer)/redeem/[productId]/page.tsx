@@ -24,6 +24,7 @@ import {
 } from "@/frontend/components/consumer/discovery-distance";
 import { isDemoCafe } from "@/frontend/components/guide/demo-cafe";
 import { DemoOnly } from "@/frontend/components/guide/demo-only";
+import { setPendingRedemptionId } from "@/frontend/components/guide/demo-state";
 import { JourneyCard } from "@/frontend/components/guide/journey-card";
 import { blockedLabel } from "@/frontend/components/guide/journey-steps";
 import { PageIntro } from "@/frontend/components/guide/page-intro";
@@ -80,6 +81,14 @@ function RedemptionOutcomePanel({
     onRetry: () => void;
 }) {
     const { signInAs, pending } = useDemoSignIn();
+
+    // El canje pedido tiene que seguir visible para la guía cuando el jurado
+    // cambie a la sesión de cafetería para entregarlo.
+    useEffect(() => {
+        if (outcome.kind === "requested") setPendingRedemptionId(outcome.id);
+        else if (outcome.kind === "conflict")
+            setPendingRedemptionId("pendiente");
+    }, [outcome]);
 
     if (outcome.kind === "error") {
         return (

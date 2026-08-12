@@ -21,18 +21,34 @@ const DEMO_STATE_EVENT = "punch:demo-state";
 export type DemoState = {
     /** Enlace absoluto de la compra que la cafetería acaba de generar. */
     pendingProofUrl: string | null;
+    /** Canje pedido por el cliente y todavía sin entregar. */
+    pendingRedemptionId: string | null;
+    /** La cafetería ya entregó el canje: el ciclo se cerró. */
+    redemptionDelivered: boolean;
 };
 
-export const emptyDemoState: DemoState = { pendingProofUrl: null };
+export const emptyDemoState: DemoState = {
+    pendingProofUrl: null,
+    pendingRedemptionId: null,
+    redemptionDelivered: false,
+};
+
+const text = (value: unknown): string | null =>
+    typeof value === "string" && value ? value : null;
 
 export function parseDemoState(raw: string | null): DemoState {
     if (!raw) return emptyDemoState;
 
     try {
-        const parsed = JSON.parse(raw) as { pendingProofUrl?: unknown };
-        const url = parsed?.pendingProofUrl;
+        const parsed = JSON.parse(raw) as {
+            pendingProofUrl?: unknown;
+            pendingRedemptionId?: unknown;
+            redemptionDelivered?: unknown;
+        };
         return {
-            pendingProofUrl: typeof url === "string" && url ? url : null,
+            pendingProofUrl: text(parsed?.pendingProofUrl),
+            pendingRedemptionId: text(parsed?.pendingRedemptionId),
+            redemptionDelivered: parsed?.redemptionDelivered === true,
         };
     } catch {
         return emptyDemoState;
@@ -50,9 +66,17 @@ function readStorage(): DemoState {
     }
 }
 
+function sameState(left: DemoState, right: DemoState): boolean {
+    return (
+        left.pendingProofUrl === right.pendingProofUrl &&
+        left.pendingRedemptionId === right.pendingRedemptionId &&
+        left.redemptionDelivered === right.redemptionDelivered
+    );
+}
+
 function refreshSnapshot(): void {
     const next = readStorage();
-    if (next.pendingProofUrl !== snapshot.pendingProofUrl) {
+    if (!sameState(next, snapshot)) {
         snapshot = next;
     }
 }
@@ -74,11 +98,40 @@ function write(next: DemoState): void {
 }
 
 export function setPendingProofUrl(url: string | null): void {
-    write({ ...readDemoState(), pendingProofUrl: url });
+    const current = readDemoState();
+    write({
+        ...current,
+        pendingProofUrl: url,
+        // Un código nuevo abre otro ciclo: el canje anterior deja de ser el
+        // paso actual del recorrido.
+        redemptionDelivered: url ? false : current.redemptionDelivered,
+    });
 }
 
 export function clearPendingProofUrl(): void {
     setPendingProofUrl(null);
+}
+
+/**
+ * El canje lo pide el cliente y lo entrega la cafetería: son dos sesiones
+ * distintas, así que ninguna puede ver el estado de la otra consultando lo
+ * suyo. Esto es lo que mantiene el recorrido en el paso correcto al cambiar
+ * de rol.
+ */
+export function setPendingRedemptionId(id: string | null): void {
+    write({
+        ...readDemoState(),
+        pendingRedemptionId: id,
+        redemptionDelivered: false,
+    });
+}
+
+export function markRedemptionDelivered(): void {
+    write({
+        ...readDemoState(),
+        pendingRedemptionId: null,
+        redemptionDelivered: true,
+    });
 }
 
 function subscribe(onChange: () => void): () => void {

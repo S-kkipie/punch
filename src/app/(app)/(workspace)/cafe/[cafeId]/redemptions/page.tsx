@@ -15,6 +15,10 @@ import {
     ChainReceipt,
     type ChainReceiptState,
 } from "@/frontend/components/guide/chain-receipt";
+import {
+    markRedemptionDelivered,
+    setPendingRedemptionId,
+} from "@/frontend/components/guide/demo-state";
 import { EmptyState } from "@/frontend/components/guide/empty-state";
 import { JourneyCard } from "@/frontend/components/guide/journey-card";
 import { PageIntro } from "@/frontend/components/guide/page-intro";
@@ -277,6 +281,11 @@ export default function CafeRedemptionsPage() {
                     const response = (
                         result as { response?: Partial<Settlement> }
                     ).response;
+
+                    // Cierra el paso del canje en el recorrido guiado: la
+                    // sesión del cliente no puede enterarse por su cuenta.
+                    if (decision === "approved") markRedemptionDelivered();
+                    else setPendingRedemptionId(null);
 
                     setDecisions((current) => ({
                         ...current,
