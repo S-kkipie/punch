@@ -469,6 +469,53 @@
     padding-top: var(--app-demo-bar-height);
 }
 
+/* ── Journey card ──────────────────────────────────────────────────── */
+.journey {
+    display: grid;
+    gap: var(--space-sm);
+    border: var(--rule-hair) solid var(--color-rule);
+    border-radius: var(--radius-sm);
+    background: var(--color-paper-3);
+    padding: var(--space-md);
+}
+
+.journey__list {
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: var(--space-xs);
+    list-style: none;
+}
+
+.journey__step {
+    border-left: var(--rule-thick) solid transparent;
+    padding-left: var(--space-sm);
+}
+
+.journey__step--done {
+    border-left-color: var(--color-rule-2);
+    color: var(--color-ink-2);
+}
+
+.journey__step--done s {
+    text-decoration: line-through;
+}
+
+.journey__step--current {
+    border-left-color: var(--color-accent);
+    font-weight: 700;
+}
+
+.journey__step--future {
+    border-left-color: var(--color-rule);
+    color: var(--color-muted);
+}
+
+.journey__transfer-text {
+    color: var(--color-ink-2);
+    font-size: var(--text-sm);
+}
+
 .demo-bar {
     position: fixed;
     inset-inline: 0;
