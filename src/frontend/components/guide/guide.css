@@ -870,3 +870,28 @@
         animation: none;
     }
 }
+
+/* Camino recomendado de la demo: la única cafetería que el jurado puede operar. */
+.demo-pick {
+    border-left: var(--rule-thick) solid var(--color-accent);
+    padding-left: var(--space-sm);
+}
+.demo-pick__tag,
+.demo-pick__tag--muted {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.1rem 0.55rem;
+    font-family: var(--font-outlier);
+    font-size: var(--text-xs);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+.demo-pick__tag {
+    background: var(--color-accent);
+    color: var(--color-accent-ink, var(--color-paper));
+}
+.demo-pick__tag--muted {
+    border: var(--rule-hair) solid var(--color-rule);
+    color: var(--color-muted);
+}

@@ -2,6 +2,7 @@
 
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { ClientConfig } from "@/config/client-config";
 import { useCafeProducts, useCafes } from "@/core/cafe/client/hooks";
 import type { Cafe } from "@/core/cafe/domain/types";
 import {
@@ -14,6 +15,7 @@ import {
     distanceKm,
     sortCafesByDistance,
 } from "@/frontend/components/consumer/discovery-distance";
+import { isDemoCafe } from "@/frontend/components/guide/demo-cafe";
 import { JourneyCard } from "@/frontend/components/guide/journey-card";
 import { blockedLabel } from "@/frontend/components/guide/journey-steps";
 import { PageIntro } from "@/frontend/components/guide/page-intro";
@@ -264,6 +266,12 @@ export default function RedeemPage() {
                                     {isSelected ? (
                                         <span className="text-[var(--color-accent)] text-xs">
                                             Elegido
+                                        </span>
+                                    ) : null}
+                                    {ClientConfig.demoMode &&
+                                    isDemoCafe(cafe) ? (
+                                        <span className="demo-pick__tag">
+                                            Entregable en la demo
                                         </span>
                                     ) : null}
                                 </li>

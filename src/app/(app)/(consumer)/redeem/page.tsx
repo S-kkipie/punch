@@ -1,11 +1,16 @@
 "use client";
 
 import Link from "next/link";
-
+import { ClientConfig } from "@/config/client-config";
 import { useCafeProducts, useCafes } from "@/core/cafe/client/hooks";
 import type { Cafe, Product } from "@/core/cafe/domain/types";
 import { useDashboard } from "@/core/punch/client/hooks";
 import { canRedeem, PUNCH_REDEMPTION_COST } from "@/core/punch/domain/progress";
+import {
+    demoCafeFirst,
+    isDemoCafe,
+} from "@/frontend/components/guide/demo-cafe";
+import { DemoOnly } from "@/frontend/components/guide/demo-only";
 import { EmptyState } from "@/frontend/components/guide/empty-state";
 import { JourneyCard } from "@/frontend/components/guide/journey-card";
 import { PageIntro } from "@/frontend/components/guide/page-intro";
@@ -24,12 +29,36 @@ function rewardsOf(products: Product[]): Product[] {
 function CafeRewards({ cafe, unlocked }: { cafe: Cafe; unlocked: boolean }) {
     const productsQuery = useCafeProducts(cafe.id);
     const rewards = rewardsOf((productsQuery.data ?? []) as Product[]);
+    const isDemo = isDemoCafe(cafe);
 
     if (productsQuery.isPending || rewards.length === 0) return null;
 
     return (
-        <section className="grid gap-3">
-            <h2 className="consumer-eyebrow">{cafe.name}</h2>
+        <section
+            className={`grid gap-3${isDemo ? " demo-pick" : ""}`}
+            aria-label={`Recompensas de ${cafe.name}`}
+        >
+            <header className="flex flex-wrap items-center gap-2">
+                <h2 className="consumer-eyebrow">{cafe.name}</h2>
+                {ClientConfig.demoMode ? (
+                    <span
+                        className={
+                            isDemo ? "demo-pick__tag" : "demo-pick__tag--muted"
+                        }
+                    >
+                        {isDemo
+                            ? "Elige aquí para la demo"
+                            : "En la demo no puedes entregarlo"}
+                    </span>
+                ) : null}
+            </header>
+            {ClientConfig.demoMode ? (
+                <p className="text-[var(--color-ink-2)] text-sm">
+                    {isDemo
+                        ? "Es la única cafetería en la que también puedes entrar como barista, así que puedes pedir el canje y entregarlo tú mismo."
+                        : "Puedes pedirlo, pero nadie podrá entregarlo: la demo solo te deja entrar como Brújula Café."}
+                </p>
+            ) : null}
             <div className="grid gap-4 sm:grid-cols-2">
                 {rewards.map((product) => (
                     <Link
@@ -50,6 +79,7 @@ function CafeRewards({ cafe, unlocked }: { cafe: Cafe; unlocked: boolean }) {
                     </Link>
                 ))}
             </div>
+            {isDemo && ClientConfig.demoMode ? <DemoOnly /> : null}
         </section>
     );
 }
@@ -85,7 +115,11 @@ export default function RedeemIndexPage() {
             <PageIntro
                 eyebrow="Tu recompensa"
                 title="Pide tu canje"
-                explain="Tus sellos valen en cualquiera de las cafeterías de la red. Elige dónde quieres cobrarlos."
+                explain={
+                    ClientConfig.demoMode
+                        ? "Tus sellos valen en cualquiera de las cafeterías de la red. En la demo, pídelo en Brújula Café: es la única en la que también puedes entrar como barista para entregarlo."
+                        : "Tus sellos valen en cualquiera de las cafeterías de la red. Elige dónde quieres cobrarlos."
+                }
             />
             <StateStrip tone={unlocked ? "chain" : "saved"}>
                 {unlocked
@@ -102,7 +136,7 @@ export default function RedeemIndexPage() {
                     action={{ label: "Descubrir cafés", href: "/discover" }}
                 />
             ) : (
-                cafes.map((cafe) => (
+                demoCafeFirst(cafes).map((cafe) => (
                     <CafeRewards
                         key={cafe.id}
                         cafe={cafe}
