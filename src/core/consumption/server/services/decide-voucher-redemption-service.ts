@@ -1,5 +1,5 @@
 import "server-only";
-import { env } from "@/config/env";
+import { ServerConfig } from "@/config/server-config";
 import type {
     DecideRedemptionRequest,
     RedemptionRequest,
@@ -54,8 +54,12 @@ export async function decideVoucherRedemptionService(
         return err(AppErrors.conflict({ targets: ["requestId"] }));
     }
 
+    // `ServerConfig` y no `env` directo: sin la variable puesta, el modo real
+    // es "local", y leer el crudo mandaba todo canje de voucher al mock — la
+    // cafetería nunca cobraba su payout aunque el resto de la app sí escribía
+    // en la cadena.
     const chain: ConsumerChainPort =
-        env.CONSUMER_CHAIN_MODE === "local"
+        ServerConfig.consumerChainMode === "local"
             ? new CampaignEscrowChain()
             : new PostgresMockConsumerChain();
     if (existing.status === "approved") {
