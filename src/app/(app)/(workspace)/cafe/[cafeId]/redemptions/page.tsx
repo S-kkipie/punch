@@ -377,6 +377,7 @@ export default function CafeRedemptionsPage() {
                     return (
                         <section
                             key={request.id}
+                            id={`canje-${request.id}`}
                             className="consumer-panel grid gap-3 p-5"
                         >
                             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -507,7 +508,31 @@ export default function CafeRedemptionsPage() {
                 })
             )}
 
-            <JourneyCard currentRole="cafeteria" />
+            <JourneyCard
+                currentRole="cafeteria"
+                actionOverride={
+                    pendingCount > 0
+                        ? {
+                              label: "Entregar el canje aquí arriba",
+                              href: `#canje-${
+                                  visibleRequests.find(
+                                      (request) => request.status === "pending",
+                                  )?.id ?? ""
+                              }`,
+                          }
+                        : undefined
+                }
+                signals={{
+                    // La bandeja es la fuente directa: si hay un canje
+                    // esperando, el paso actual es entregarlo.
+                    hasPendingRedemption: pendingCount > 0,
+                    hasConfirmedRedemption: visibleRequests.some(
+                        (request) =>
+                            request.status === "approved" ||
+                            request.status === "confirmed",
+                    ),
+                }}
+            />
         </div>
     );
 }

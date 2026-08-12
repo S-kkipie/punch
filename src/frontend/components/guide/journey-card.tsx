@@ -1,7 +1,10 @@
 "use client";
 
 import { useDemoSignIn } from "@/frontend/components/auth/use-demo-sign-in";
-import { useDemoJourney } from "@/frontend/components/guide/use-demo-journey";
+import {
+    type JourneySignals,
+    useDemoJourney,
+} from "@/frontend/components/guide/use-demo-journey";
 import { DemoOnly } from "./demo-only";
 import { blockedLabel, journeySteps } from "./journey-steps";
 import { LoadingState } from "./loading-state";
@@ -127,11 +130,14 @@ function toAction(
 export function JourneyCard({
     currentRole,
     actionOverride,
+    signals,
 }: {
     currentRole: Role;
     actionOverride?: StepAction;
+    /** Lo que esta pantalla sabe y el hook no puede ver desde esta sesión. */
+    signals?: JourneySignals;
 }) {
-    const { loading, step } = useDemoJourney();
+    const { loading, step } = useDemoJourney(signals);
     const { signInAs } = useDemoSignIn();
 
     if (loading) {
