@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const useMyCafes = vi.fn();
 const useCreateCafe = vi.fn();
-const searchParamsGet = vi.fn(() => null);
+const searchParamsGet = vi.fn((_key: string) => null);
 
 vi.mock("next/navigation", () => ({
     useRouter: () => ({
@@ -18,7 +18,7 @@ vi.mock("next/navigation", () => ({
         replace: vi.fn(),
     }),
     useSearchParams: () => ({
-        get: (...args: string[]) => searchParamsGet(...args),
+        get: (...args: [string]) => searchParamsGet(...args),
     }),
 }));
 vi.mock("@/core/cafe/client/hooks", () => ({
