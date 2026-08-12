@@ -14,14 +14,6 @@ vi.mock("@/config/client-config", () => ({
     ClientConfig: { demoMode: true, demoPassword: "demo-password" },
 }));
 vi.mock("@/frontend/auth/auth", () => ({ authClient: { signIn: { email: signIn } } }));
-vi.mock("@/frontend/components/ui/button", () => ({
-    Button: ({ children, onClick }: { children: React.ReactNode; onClick: () => void }) => (
-        <button type="button" onClick={onClick}>
-            {children}
-        </button>
-    ),
-}));
-
 import { DemoLogin } from "../demo-login";
 
 describe("DemoLogin", () => {
@@ -35,32 +27,44 @@ describe("DemoLogin", () => {
             configurable: true,
             value: { assign },
         });
-        const root = createRoot(document.body);
+        let root = createRoot(document.body);
+
         await act(async () => root.render(<DemoLogin />));
+        const findButtons = () => [...document.querySelectorAll("button")];
 
-        const buttons = [...document.querySelectorAll("button")];
-        const consumerButton = buttons.find((button) =>
-            button.textContent?.includes("Cliente"),
+        const clientButton = findButtons().find((button) =>
+            button.textContent?.includes("Entrar como cliente"),
         );
-        const cafeButton = buttons.find((button) =>
-            button.textContent?.includes("Cafetería"),
+        const cafeButton = findButtons().find((button) =>
+            button.textContent?.includes("Entrar como cafetería"),
         );
 
-        expect(consumerButton).not.toBeUndefined();
+        expect(clientButton).not.toBeUndefined();
         expect(cafeButton).not.toBeUndefined();
-        expect(buttons.some((button) => button.textContent?.includes("Ops"))).toBe(
+        expect(findButtons().some((button) => button.textContent?.includes("Ops"))).toBe(
             false,
         );
 
-        await act(async () => consumerButton?.click());
+        await act(async () => clientButton?.click());
         expect(signIn).toHaveBeenCalledWith({
             email: "demo-consumer@punch.pe",
             password: "demo-password",
         });
         expect(assign).toHaveBeenCalledWith("/home");
 
-        vi.clearAllMocks();
-        await act(async () => cafeButton?.click());
+        await act(async () => {
+            root.unmount();
+            vi.clearAllMocks();
+            document.body.innerHTML = "";
+        });
+
+        root = createRoot(document.body);
+        await act(async () => root.render(<DemoLogin />));
+        const secondCafeButton = findButtons().find((button) =>
+            button.textContent?.includes("Entrar como cafetería"),
+        );
+
+        await act(async () => secondCafeButton?.click());
         expect(signIn).toHaveBeenCalledWith({
             email: "brujula@punch.pe",
             password: "demo-password",

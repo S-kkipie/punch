@@ -16,11 +16,5 @@ export default async function AuthPage({
         notFound();
     }
 
-    return (
-        <main className="flex min-h-svh items-center justify-center p-4">
-            <div className="w-full max-w-sm">
-                <AuthPageClient path={path} />
-            </div>
-        </main>
-    );
+    return <AuthPageClient path={path} />;
 }

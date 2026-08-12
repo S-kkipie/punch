@@ -43,7 +43,7 @@ describe("AuthPageClient", () => {
         const details = document.querySelector("details");
         const summary = document.querySelector("summary");
         expect(details).not.toBeNull();
-        expect(summary?.textContent).toBe("Entrar con email y contraseña");
+        expect(summary?.textContent).toBe("Tengo una cuenta");
         expect(
             details?.querySelector("[data-testid='auth-sign-in']"),
         ).not.toBeNull();
