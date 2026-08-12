@@ -15,7 +15,7 @@ const DEMO_LOGINS = [
     {
         email: "brujula@punch.pe",
         destination: "/cafe",
-        label: "🏪 Entrar como cafetería",
+        label: "Entrar como cafetería",
         blurb: "Eres Café Brújula, en Miraflores. Verás tus ventas, tus canjes y tu parte del fondo común.",
         buttonClass: "guide-btn guide-btn--ghost w-full",
     },

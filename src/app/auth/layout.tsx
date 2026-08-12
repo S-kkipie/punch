@@ -6,7 +6,7 @@ import "@/frontend/components/guide/guide.css";
 export default function AuthLayout({ children }: PropsWithChildren) {
     return (
         <div className="consumer-shell">
-            <main className="consumer-main pt-8">{children}</main>
+            <main className="consumer-main max-w-md pt-8">{children}</main>
         </div>
     );
 }
