@@ -106,6 +106,19 @@ describe("HistoryPage states", () => {
         expect(markup).toContain("Esperando confirmación");
     });
 
+    it("does not claim every pending row is already on chain", () => {
+        useHistory.mockReturnValue({
+            isPending: false,
+            isError: false,
+            data: [
+                { ...confirmedEntry, status: "pending", transactionHash: null },
+            ],
+        });
+        const markup = renderToStaticMarkup(<HistoryPage />);
+        expect(markup).not.toContain("Cada línea existe en la cadena");
+        expect(markup).toContain("Las operaciones confirmadas");
+    });
+
     it("shows an empty state that explains how activity appears", () => {
         useHistory.mockReturnValue({
             isPending: false,

@@ -16,7 +16,7 @@ import { TxHashLink } from "@/frontend/components/tx-hash-link";
 
 const chainWaitingLabel = "Esperando confirmación en la cadena…";
 const historyExplain =
-    "Cada línea existe en la cadena. Ni la cafetería ni PUNCH pueden cambiarla después.";
+    "Las operaciones confirmadas quedan escritas en la cadena y puedes abrir cada una para verificarla. Una vez escritas, ni la cafetería ni PUNCH pueden cambiarlas.";
 const emptyHistoryCause =
     "Escanea el código que te dé el barista en tu próxima compra y aparecerá aquí.";
 const emptyHistoryAction = { label: "Descubrir cafeterías", href: "/discover" };
