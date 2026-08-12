@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { hasPublicExplorer } from "@/config/explorer";
 import { JourneyCard } from "@/frontend/components/guide/journey-card";
 import { PageIntro } from "@/frontend/components/guide/page-intro";
 import { Button } from "@/frontend/components/ui/button";
@@ -102,7 +103,11 @@ export default function ScanPage() {
             <PageIntro
                 eyebrow="Tu visita cuenta"
                 title="Escanear compra"
-                explain="El barista genera un código al cobrarte. Al escanearlo, tu sello queda escrito en la cadena — ni la cafetería ni PUNCH pueden borrarlo."
+                explain={
+                    hasPublicExplorer()
+                        ? "El barista genera un código al cobrarte. Al escanearlo, tu sello queda escrito en la cadena — ni la cafetería ni PUNCH pueden borrarlo."
+                        : "El barista genera un código al cobrarte. Al escanearlo, tu sello queda registrado en la cadena local de desarrollo."
+                }
             />
             <ol
                 className="consumer-panel grid gap-3 p-4"
