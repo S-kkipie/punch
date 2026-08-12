@@ -16,7 +16,9 @@ vi.mock("@/config/client-config", () => ({
 vi.mock("@/frontend/auth/auth", () => ({ authClient: { signIn: { email: signIn } } }));
 vi.mock("@/frontend/components/ui/button", () => ({
     Button: ({ children, onClick }: { children: React.ReactNode; onClick: () => void }) => (
-        <button type="button" onClick={onClick}>{children}</button>
+        <button type="button" onClick={onClick}>
+            {children}
+        </button>
     ),
 }));
 
@@ -28,17 +30,43 @@ describe("DemoLogin", () => {
         vi.clearAllMocks();
     });
 
-    it("routes every successful demo role through role-aware home", async () => {
+    it("routes every visible demo role through its dedicated destination", async () => {
         Object.defineProperty(window, "location", {
             configurable: true,
             value: { assign },
         });
         const root = createRoot(document.body);
         await act(async () => root.render(<DemoLogin />));
+
         const buttons = [...document.querySelectorAll("button")];
-        await act(async () => buttons[0]?.click());
-        expect(signIn).toHaveBeenCalledWith({ email: "demo-consumer@punch.pe", password: "demo-password" });
+        const consumerButton = buttons.find((button) =>
+            button.textContent?.includes("Cliente"),
+        );
+        const cafeButton = buttons.find((button) =>
+            button.textContent?.includes("Cafetería"),
+        );
+
+        expect(consumerButton).not.toBeUndefined();
+        expect(cafeButton).not.toBeUndefined();
+        expect(buttons.some((button) => button.textContent?.includes("Ops"))).toBe(
+            false,
+        );
+
+        await act(async () => consumerButton?.click());
+        expect(signIn).toHaveBeenCalledWith({
+            email: "demo-consumer@punch.pe",
+            password: "demo-password",
+        });
         expect(assign).toHaveBeenCalledWith("/home");
+
+        vi.clearAllMocks();
+        await act(async () => cafeButton?.click());
+        expect(signIn).toHaveBeenCalledWith({
+            email: "brujula@punch.pe",
+            password: "demo-password",
+        });
+        expect(assign).toHaveBeenCalledWith("/cafe");
+
         await act(async () => root.unmount());
     });
 });

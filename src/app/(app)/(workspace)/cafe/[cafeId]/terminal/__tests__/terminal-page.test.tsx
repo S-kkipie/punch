@@ -12,6 +12,9 @@ const { toCanvas, mutate } = vi.hoisted(() => ({
     mutate: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({ useParams: () => ({ cafeId: "cafe-1" }) }));
+vi.mock("@/config/client-config", () => ({
+    ClientConfig: { demoMode: false, demoPassword: "demo-password" },
+}));
 vi.mock("qrcode", () => ({ default: { toCanvas } }));
 vi.mock("@/core/cafe/client/hooks", () => ({
     useCafeProducts: () => ({

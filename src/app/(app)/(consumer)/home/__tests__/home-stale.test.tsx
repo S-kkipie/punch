@@ -7,9 +7,14 @@ import { describe, expect, it, vi } from "vitest";
     globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn() }) }));
+const replace = vi.hoisted(() => vi.fn());
+const myCafesState = vi.hoisted(() => ({
+    data: [] as Array<{ id: string; onboardingStatus: string }>,
+}));
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace }) }));
 vi.mock("@/core/cafe/client/hooks", () => ({
-    useMyCafes: () => ({ isPending: false, data: [] }),
+    useMyCafes: () => ({ isPending: false, data: myCafesState.data }),
 }));
 vi.mock("@/frontend/auth/auth", () => ({
     authClient: { useSession: () => ({ data: { user: { id: "user-1" } } }) },
@@ -75,6 +80,21 @@ describe("HomePage chain staleness", () => {
         await act(async () => root.render(<HomePage />));
         expect(container.textContent).toContain("Actualizando desde la cadena");
         expect(container.textContent).toContain("11 / 12");
+        await act(async () => root.unmount());
+    });
+
+    it("does not redirect when the user has an approved workspace", async () => {
+        myCafesState.data = [{ id: "cafe-1", onboardingStatus: "approved" }];
+        const container = document.createElement("div");
+        document.body.append(container);
+        const root = createRoot(container);
+
+        await act(async () => root.render(<HomePage />));
+
+        expect(replace).not.toHaveBeenCalled();
+        expect(container.textContent).toContain("11 / 12");
+        expect(container.textContent).not.toContain("Cargando");
+
         await act(async () => root.unmount());
     });
 });

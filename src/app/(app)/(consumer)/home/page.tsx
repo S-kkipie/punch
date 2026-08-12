@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useMyCafes } from "@/core/cafe/client/hooks";
 import { useDashboard } from "@/core/punch/client/hooks";
@@ -31,7 +30,6 @@ export function postAuthDestination(
 }
 
 export default function HomePage() {
-    const router = useRouter();
     const dashboardQuery = useDashboard();
     const myCafesQuery = useMyCafes();
     const sessionQuery = authClient.useSession();
@@ -73,21 +71,8 @@ export default function HomePage() {
         lastKnownDashboard,
         userId,
     ]);
-    const myCafes = myCafesQuery.data as
-        | Array<{
-              id: string;
-              onboardingStatus: string;
-          }>
-        | undefined;
 
-    const workspacePath = myCafes ? postAuthDestination(myCafes) : null;
-    const hasWorkspace = Boolean(workspacePath && workspacePath !== "/home");
-
-    useEffect(() => {
-        if (workspacePath && hasWorkspace) router.replace(workspacePath);
-    }, [hasWorkspace, router, workspacePath]);
-
-    if (myCafesQuery.isPending || hasWorkspace) {
+    if (myCafesQuery.isPending) {
         return (
             <div className="flex min-h-64 items-center justify-center">
                 <span className="sr-only">Cargando</span>

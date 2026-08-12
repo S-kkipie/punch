@@ -3,10 +3,12 @@
 import { useParams } from "next/navigation";
 import QRCode from "qrcode";
 import { useEffect, useRef, useState } from "react";
+
 import { useCafeProducts } from "@/core/cafe/client/hooks";
 import type { Product } from "@/core/cafe/domain/types";
 import { useCreatePurchaseProof } from "@/core/consumption/client/hooks";
 import { CreditsBadge } from "@/core/plan/client/ui/credits-badge";
+import { FirstTimeHere } from "@/frontend/components/guide/first-time-here";
 import { Button } from "@/frontend/components/ui/button";
 import {
     Card,
@@ -61,6 +63,7 @@ export default function CafeTerminalPage() {
 
     return (
         <div className="mx-auto w-full max-w-md space-y-4 p-6">
+            <FirstTimeHere />
             <Card>
                 <CardHeader>
                     <CardTitle>Generar compra</CardTitle>
