@@ -132,3 +132,105 @@
     box-shadow: none;
     cursor: not-allowed;
 }
+
+/* ── LoadingState ────────────────────────────────────────────────── */
+.guide-loading {
+    display: grid;
+    gap: var(--space-xs);
+}
+.guide-skeleton {
+    display: block;
+    height: 1.25rem;
+    border-radius: var(--radius-xs);
+    background: linear-gradient(
+        90deg,
+        var(--color-paper-2),
+        var(--color-rule-2),
+        var(--color-paper-2)
+    );
+    background-size: 200% 100%;
+    animation: guide-shimmer 1.4s linear infinite;
+}
+.guide-skeleton:first-child {
+    width: 40%;
+}
+.guide-skeleton:last-child {
+    width: 70%;
+}
+@keyframes guide-shimmer {
+    to {
+        background-position: -200% 0;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .guide-skeleton {
+        animation: none;
+    }
+}
+
+/* ── ErrorState ──────────────────────────────────────────────────── */
+.guide-error {
+    display: grid;
+    justify-items: start;
+    gap: var(--space-xs);
+    border: var(--rule-hair) solid var(--color-rule);
+    border-left: var(--rule-thick) solid var(--color-accent);
+    border-radius: var(--radius-sm);
+    background: var(--color-paper-3);
+    padding: var(--space-md);
+}
+.guide-error__title {
+    font-weight: 700;
+}
+.guide-error__detail {
+    margin: 0;
+    color: var(--color-ink-2);
+    font-size: var(--text-sm);
+}
+
+/* ── Stat ────────────────────────────────────────────────────────── */
+.guide-stat-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: var(--space-sm);
+}
+.guide-stat {
+    display: grid;
+    gap: var(--space-3xs);
+    border: var(--rule-hair) solid var(--color-rule);
+    border-radius: var(--radius-sm);
+    background: var(--color-paper-3);
+    padding: var(--space-sm) var(--space-md);
+    box-shadow: var(--shadow-print-sm);
+}
+.guide-stat--lead {
+    border-color: var(--color-ink);
+    background: var(--color-accent-wash);
+}
+.guide-stat__label {
+    color: var(--color-accent);
+    font-family: var(--font-outlier);
+    font-size: var(--text-xs);
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+}
+.guide-stat__value {
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.03em;
+}
+.guide-stat__hint {
+    color: var(--color-ink-2);
+    font-size: var(--text-sm);
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
