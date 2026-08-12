@@ -936,3 +936,59 @@
     font-size: var(--text-sm);
     line-height: 1.5;
 }
+
+/* Rastro on-chain de una operación: en qué etapa va y su hash verificable. */
+.chain-trail {
+    display: grid;
+    gap: 0.6rem;
+}
+
+.chain-trail__now {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+}
+
+.chain-trail__list {
+    display: grid;
+    gap: 0.35rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.chain-trail__item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.4rem 0;
+    border-top: 1px solid var(--color-rule);
+    font-size: var(--text-sm);
+}
+
+.chain-trail__kind {
+    color: var(--color-ink);
+}
+
+.chain-trail__meta {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.6rem;
+}
+
+.chain-trail__pending,
+.chain-trail__time {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--color-ink-2);
+}
+
+.chain-trail__attempts {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--color-ink-2);
+}

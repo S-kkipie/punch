@@ -9,6 +9,10 @@ import {
     usePublishCampaign,
 } from "@/core/campaign/client/hooks";
 import {
+    type CampaignChainOp,
+    CampaignChainTrail,
+} from "@/core/campaign/client/ui/campaign-chain-trail";
+import {
     formatMpenAsSoles,
     parseSolesToMpen,
 } from "@/core/campaign/domain/money";
@@ -31,6 +35,7 @@ type Campaign = {
     funded: string;
     missing: string;
     canPublish: boolean;
+    chainOps: CampaignChainOp[];
 };
 
 const parseSafeCap = (value: string): number | null => {
@@ -114,6 +119,21 @@ export default function CafeCampaignsPage() {
         }
         if (!windowStart || !windowEnd) {
             setMessage("Elige la fecha de inicio y la de fin.");
+            return;
+        }
+        const end = new Date(windowEnd);
+        if (end <= new Date()) {
+            // El contrato revierte con ExpiryInPast al publicar, y ese fallo
+            // llega mucho después: la campaña ya estaría creada y financiada.
+            setMessage(
+                "La fecha de fin ya pasó. Elige una futura: si no, no vas a poder publicar la campaña.",
+            );
+            return;
+        }
+        if (end <= new Date(windowStart)) {
+            setMessage(
+                "La fecha de fin tiene que ser posterior a la de inicio.",
+            );
             return;
         }
         createCampaign.mutate(
@@ -367,17 +387,24 @@ export default function CafeCampaignsPage() {
                                                 !campaign.canPublish ||
                                                 publishCampaign.isPending
                                             }
-                                            onClick={() =>
+                                            onClick={() => {
+                                                setMessage(
+                                                    "Enviando la publicación a la cadena…",
+                                                );
                                                 publishCampaign.mutate(
                                                     campaign.id,
                                                     {
                                                         onSuccess: () =>
                                                             setMessage(
-                                                                "Publicación en cola para operaciones.",
+                                                                "Publicación enviada. Sigue su avance y su hash abajo, en esta misma campaña.",
+                                                            ),
+                                                        onError: () =>
+                                                            setMessage(
+                                                                "No se pudo enviar la publicación. Revisa que el presupuesto esté completo y vuelve a intentar.",
                                                             ),
                                                     },
-                                                )
-                                            }
+                                                );
+                                            }}
                                         >
                                             {publishCampaign.isPending
                                                 ? "Publicando…"
@@ -405,6 +432,7 @@ export default function CafeCampaignsPage() {
                                         habías apartado volvió a tu billetera.
                                     </p>
                                 )}
+                                <CampaignChainTrail ops={campaign.chainOps} />
                             </CardContent>
                         </Card>
                     );

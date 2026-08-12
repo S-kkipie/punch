@@ -14,7 +14,10 @@ import {
     err,
     ok,
 } from "@/server/common/responses";
-import { listCafeCampaigns } from "../repository/campaign-repository";
+import {
+    listCafeCampaigns,
+    listCampaignChainOps,
+} from "../repository/campaign-repository";
 
 export type CafeCampaignList = {
     campaigns: CafeCampaign[];
@@ -24,6 +27,14 @@ export type CafeCampaignList = {
      * financiamiento que la cadena va a rechazar.
      */
     walletBalance: bigint;
+};
+
+export type CafeCampaignChainOp = {
+    kind: string;
+    status: "pending" | "submitted" | "confirmed" | "failed";
+    txHash: string | null;
+    error: string | null;
+    createdAt: Date;
 };
 
 export type CafeCampaign = {
@@ -39,6 +50,8 @@ export type CafeCampaign = {
     funded: bigint;
     missing: bigint;
     canPublish: boolean;
+    /** Escrituras on-chain de esta campaña, de la más nueva a la más vieja. */
+    chainOps: CafeCampaignChainOp[];
 };
 
 export type ListCafeCampaignsDeps = {
@@ -65,6 +78,21 @@ export async function listCafeCampaignsService(
         if (!auth.ok) return auth;
 
         const rows = await listCafeCampaigns(cafeId);
+        const ops = await listCampaignChainOps(
+            rows.map((row) => row.campaign.id),
+        );
+        const opsByCampaign = new Map<string, CafeCampaignChainOp[]>();
+        for (const op of ops) {
+            const bucket = opsByCampaign.get(op.campaignId) ?? [];
+            bucket.push({
+                kind: op.kind,
+                status: op.status,
+                txHash: op.txHash,
+                error: op.error,
+                createdAt: op.createdAt,
+            });
+            opsByCampaign.set(op.campaignId, bucket);
+        }
         const campaigns: CafeCampaign[] = [];
         for (const row of rows) {
             if (
@@ -90,6 +118,7 @@ export async function listCafeCampaignsService(
                 voucherPayout: row.campaign.voucherPayout,
                 maxVouchers: row.campaign.maxVouchers,
                 ...funding,
+                chainOps: opsByCampaign.get(row.campaign.id) ?? [],
             });
         }
         const wallet = await findUserWallet(userId);

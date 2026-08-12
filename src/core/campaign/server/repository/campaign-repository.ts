@@ -1,6 +1,6 @@
 import "server-only";
 
-import { eq } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { JobTransaction } from "@/core/chain/server/relayer/job-repository";
 import type { DbClient, DbTransaction } from "@/server/drizzle/db";
 import { db } from "@/server/drizzle/db";
@@ -12,6 +12,7 @@ import {
     type CampaignRow,
     campaign,
 } from "@/server/drizzle/schemas/punch-schema";
+import { relayerJob } from "@/server/drizzle/schemas/purchase-schema";
 
 export type CampaignWithProjection = {
     campaign: CampaignRow;
@@ -63,6 +64,51 @@ export async function listCafeCampaigns(
     return campaignWithProjectionQuery(db)
         .where(eq(campaign.cafeId, cafeId))
         .orderBy(campaign.createdAt);
+}
+
+const campaignChainOpKinds = [
+    "campaign_create",
+    "campaign_fund_approve",
+    "campaign_fund",
+    "campaign_publish",
+] as const;
+
+/** Escrituras on-chain que una campaña disparó, de la más nueva a la más vieja. */
+export type CampaignChainOp = {
+    campaignId: string;
+    kind: string;
+    status: "pending" | "submitted" | "confirmed" | "failed";
+    txHash: string | null;
+    error: string | null;
+    createdAt: Date;
+};
+
+/**
+ * Los jobs de campaña no tienen columna propia de campaña: la llevan en el
+ * payload, así que el filtro sale de ahí.
+ */
+export async function listCampaignChainOps(
+    campaignIds: string[],
+): Promise<CampaignChainOp[]> {
+    if (campaignIds.length === 0) return [];
+    const rows = await db
+        .select({
+            campaignId: sql<string>`${relayerJob.payload}->>'campaignId'`,
+            kind: relayerJob.kind,
+            status: relayerJob.status,
+            txHash: relayerJob.txHash,
+            error: relayerJob.lastError,
+            createdAt: relayerJob.createdAt,
+        })
+        .from(relayerJob)
+        .where(
+            and(
+                inArray(relayerJob.kind, campaignChainOpKinds),
+                inArray(sql`${relayerJob.payload}->>'campaignId'`, campaignIds),
+            ),
+        )
+        .orderBy(desc(relayerJob.createdAt));
+    return rows as CampaignChainOp[];
 }
 
 function campaignWithProjectionQuery(client: DbClient) {

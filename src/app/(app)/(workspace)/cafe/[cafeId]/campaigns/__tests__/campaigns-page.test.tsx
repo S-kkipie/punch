@@ -61,6 +61,7 @@ const campaign = (overrides: Record<string, unknown> = {}) => ({
     missing: "8000000",
     canPublish: false,
     lifecycle: "draft",
+    chainOps: [] as unknown[],
     windowStart: "2026-08-09T00:00:00.000Z",
     windowEnd: "2026-08-10T00:00:00.000Z",
     ...overrides,
@@ -95,6 +96,38 @@ describe("café campaigns screen", () => {
         expect(rootNode.textContent).toContain("S/12.00");
         await act(async () => root.unmount());
     });
+    it("refuses a window that already ended instead of failing on chain", async () => {
+        // El contrato revierte con ExpiryInPast recién al publicar, cuando la
+        // campaña ya está creada y financiada.
+        const node = document.createElement("div");
+        document.body.append(node);
+        const root = createRoot(node);
+        await act(async () => root.render(<CafeCampaignsPage />));
+        const inputs = [...node.querySelectorAll("input")];
+        const setValue = (input: HTMLInputElement, value: string) => {
+            Object.getOwnPropertyDescriptor(
+                HTMLInputElement.prototype,
+                "value",
+            )?.set?.call(input, value);
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+        };
+        await act(async () => {
+            setValue(inputs[0], "Campaña vencida");
+            setValue(inputs[1], "5");
+            setValue(inputs[2], "10");
+            setValue(inputs[3], "2020-01-01T10:00");
+            setValue(inputs[4], "2020-02-01T10:00");
+        });
+        await act(async () =>
+            [...node.querySelectorAll("button")]
+                .find((button) => button.textContent === "Crear campaña")
+                ?.click(),
+        );
+        expect(node.textContent).toContain("La fecha de fin ya pasó");
+        expect(state.create).not.toHaveBeenCalled();
+        await act(async () => root.unmount());
+    });
+
     it("renders creating without publish", async () => {
         state.campaigns = [campaign({ lifecycle: "creating" })];
         const node = document.createElement("div");

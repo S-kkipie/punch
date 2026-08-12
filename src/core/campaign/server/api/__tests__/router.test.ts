@@ -146,6 +146,15 @@ describe("campaign API routes", () => {
                         funded: 9n,
                         missing: 9n,
                         canPublish: false,
+                        chainOps: [
+                            {
+                                kind: "campaign_publish",
+                                status: "submitted" as const,
+                                txHash: "0xabc",
+                                error: null,
+                                createdAt: new Date("2026-08-12T00:00:00.000Z"),
+                            },
+                        ],
                     },
                 ],
             }),
@@ -161,6 +170,14 @@ describe("campaign API routes", () => {
                         required: "18",
                         funded: "9",
                         missing: "9",
+                        chainOps: [
+                            {
+                                kind: "campaign_publish",
+                                status: "submitted",
+                                txHash: "0xabc",
+                                createdAt: "2026-08-12T00:00:00.000Z",
+                            },
+                        ],
                     },
                 ],
             },
