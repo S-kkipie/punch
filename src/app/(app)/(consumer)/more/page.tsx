@@ -42,7 +42,7 @@ const glossary = [
     },
     {
         question: "¿Qué es el fondo común?",
-        answer: "Parte de cada venta va a un bote que reparte la red.",
+        answer: "Cada cafetería paga su plan mensual y una parte va a un bote común de la red. Ese bote paga tres cosas: crédito para la cafetería que trajo clientes nuevos, campañas para atraer gente y las rutas de café. Ninguna cafetería lo controla sola.",
     },
     {
         question: "¿Por qué en blockchain?",

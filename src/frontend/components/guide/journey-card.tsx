@@ -41,7 +41,9 @@ const defaultActions: readonly DefaultStepAction[] = [
     },
     {
         label: "Ciclo completo: el fondo común se actualiza",
-        href: "/history",
+        // El fondo se ve en el panel de la cafetería, no en el historial del
+        // cliente: este paso es del lado cafetería.
+        href: "/cafe",
         blockedReason: "espera confirmación del canje",
     },
 ] as const;
