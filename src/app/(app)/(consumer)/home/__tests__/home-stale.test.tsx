@@ -40,6 +40,9 @@ vi.mock("@/core/punch/client/ui/punch-meter", () => ({
         <span>{balance} / 12</span>
     ),
 }));
+vi.mock("@/frontend/components/guide/journey-card", () => ({
+    JourneyCard: () => <span>JourneyCard</span>,
+}));
 vi.mock("@/frontend/components/consumer/offline-snapshot", () => ({
     readPunchSnapshot: vi.fn(),
     writePunchSnapshot: vi.fn(),
@@ -56,11 +59,18 @@ vi.mock("@/frontend/components/ui/spinner", () => ({
 import HomePage from "../page";
 
 describe("HomePage chain staleness", () => {
-    it("retains the last known balance when a stale refresh becomes unknown", async () => {
+    it("renders the guided intro and keeps last known balance when stale refresh becomes unknown", async () => {
         const container = document.createElement("div");
         document.body.append(container);
         const root = createRoot(container);
         await act(async () => root.render(<HomePage />));
+        expect(container.querySelector("h1")?.textContent).toBe(
+            "Hola de nuevo",
+        );
+        expect(container.textContent).toContain(
+            "Cada compra en una cafetería aliada te da un sello. Con 12 sellos canjeas un café — y la red de cafeterías lo respalda en la cadena.",
+        );
+        expect(container.textContent).toContain("JourneyCard");
         dashboardState.data = {
             ...dashboardState.data,
             balance: null,

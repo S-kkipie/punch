@@ -11,6 +11,8 @@ import {
     readPunchSnapshot,
     writePunchSnapshot,
 } from "@/frontend/components/consumer/offline-snapshot";
+import { JourneyCard } from "@/frontend/components/guide/journey-card";
+import { PageIntro } from "@/frontend/components/guide/page-intro";
 import { Button } from "@/frontend/components/ui/button";
 import { Spinner } from "@/frontend/components/ui/spinner";
 
@@ -131,15 +133,11 @@ export default function HomePage() {
                     Datos guardados · Conéctate para actualizar
                 </p>
             )}
-            <section className="grid gap-2">
-                <span className="consumer-eyebrow">Tu mesa, tu barrio</span>
-                <h1 className="consumer-title text-4xl font-bold tracking-tight">
-                    Hola de nuevo
-                </h1>
-                <p className="text-[var(--color-ink-2)]">
-                    Cada visita cuenta para mantener viva la red.
-                </p>
-            </section>
+            <PageIntro
+                eyebrow="Tu mesa, tu barrio"
+                title="Hola de nuevo"
+                explain="Cada compra en una cafetería aliada te da un sello. Con 12 sellos canjeas un café — y la red de cafeterías lo respalda en la cadena."
+            />
             {displayDashboard.balance !== null && (
                 <PunchMeter balance={displayDashboard.balance} />
             )}
@@ -148,6 +146,7 @@ export default function HomePage() {
                     Escanear compra <span aria-hidden="true">→</span>
                 </Link>
             </Button>
+            <JourneyCard currentRole="cliente" />
             <div className="grid gap-4 sm:grid-cols-2">
                 {dashboard.activeCampaign ? (
                     <section className="consumer-panel grid gap-3 p-5">

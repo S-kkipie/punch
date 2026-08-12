@@ -10,6 +10,10 @@ export function punchMeterLabel(balance: number): string {
 export function PunchMeter({ balance }: { balance: number }) {
     const { numerator, denominator } = progressFraction(balance);
     const percentage = (numerator / denominator) * 100;
+    const cells = Array.from(
+        { length: denominator },
+        (_, index) => index < numerator,
+    );
 
     return (
         <section
@@ -40,6 +44,16 @@ export function PunchMeter({ balance }: { balance: number }) {
                         {numerator}
                         <small>/{denominator}</small>
                     </span>
+                </div>
+                <div className="punch-meter__cells" aria-hidden="true">
+                    {cells.map((isFilled, index) => (
+                        <span
+                            key={index}
+                            className={`punch-meter__cell ${
+                                isFilled ? "punch-meter__cell--filled" : ""
+                            }`}
+                        />
+                    ))}
                 </div>
                 <p className="punch-meter__message">
                     {punchMeterLabel(balance)}

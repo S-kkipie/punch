@@ -143,6 +143,22 @@
     height: 1px;
     opacity: 0;
 }
+.punch-meter__cells {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: var(--space-2xs);
+}
+.punch-meter__cell {
+    width: var(--space-xs);
+    height: var(--space-xs);
+    border: var(--rule-hair) solid var(--color-rule);
+    border-radius: var(--radius-xs);
+    background: var(--color-paper-2);
+}
+.punch-meter__cell--filled {
+    border-color: var(--color-sun);
+    background: var(--color-sun);
+}
 .punch-meter__fill {
     position: absolute;
     inset-block: 0;
