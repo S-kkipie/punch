@@ -119,6 +119,7 @@ export default function CafeTerminalPage() {
             <section
                 aria-label="Flujo de cobro"
                 className="grid gap-4 md:grid-cols-2"
+                id="flujo-de-cobro"
             >
                 <div className="grid gap-4">
                     <section className="consumer-panel grid gap-3 p-5">
@@ -246,7 +247,13 @@ export default function CafeTerminalPage() {
             <p className="text-xs text-muted-foreground">
                 Los últimos dígitos de Yape te sirven para conciliar después.
             </p>
-            <JourneyCard currentRole="cafeteria" />
+            <JourneyCard
+                currentRole="cafeteria"
+                actionOverride={{
+                    label: "Generar el código aquí arriba",
+                    href: "#flujo-de-cobro",
+                }}
+            />
         </div>
     );
 }
