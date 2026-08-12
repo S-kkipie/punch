@@ -1,11 +1,40 @@
+// @vitest-environment happy-dom
+import { act } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
     TransactionStatus,
     transactionStatusCopy,
 } from "../transaction-status";
 
+(
+    globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true;
+
+const HASH =
+    "0x8f2ad41c00000000000000000000000000000000000000000000000000e07b92";
+
+let renderedRoot: ReturnType<typeof createRoot> | undefined;
+
+async function renderStatus(ui: React.ReactNode) {
+    document.body.innerHTML = "";
+    renderedRoot = createRoot(document.body);
+    await act(async () => renderedRoot?.render(ui));
+}
+
 describe("transactionStatusCopy", () => {
+    beforeEach(() => {
+        process.env.NEXT_PUBLIC_CHAIN_ENV = "arbitrumSepolia";
+    });
+
+    afterEach(() => {
+        act(() => renderedRoot?.unmount());
+        renderedRoot = undefined;
+        document.body.innerHTML = "";
+        process.env.NEXT_PUBLIC_CHAIN_ENV = "local";
+    });
+
     it("maps purchase lifecycle states to Spanish copy", () => {
         expect(transactionStatusCopy("queued")).toEqual({
             label: "Confirmación en cola",
@@ -60,5 +89,21 @@ describe("transactionStatusCopy", () => {
             <TransactionStatus status="failed" onRetry={() => undefined} />,
         );
         expect(failed).toContain("Reintentar");
+    });
+
+    it("links the transaction when a hash is available", async () => {
+        process.env.NEXT_PUBLIC_CHAIN_ENV = "arbitrumSepolia";
+        await renderStatus(
+            <TransactionStatus status="confirmed" txHash={HASH} />,
+        );
+        expect(document.querySelector("a")?.getAttribute("href")).toContain(
+            "sepolia.arbiscan.io/tx/0x8f2ad41c",
+        );
+        process.env.NEXT_PUBLIC_CHAIN_ENV = "local";
+    });
+
+    it("renders without a link when no hash exists yet", async () => {
+        await renderStatus(<TransactionStatus status="pending" />);
+        expect(document.querySelector("a")).toBeNull();
     });
 });

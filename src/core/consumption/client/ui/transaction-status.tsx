@@ -1,4 +1,5 @@
 import type { ConsumerTransactionStatus } from "@/core/consumption/domain/types";
+import { TxHashLink } from "@/frontend/components/tx-hash-link";
 import { purchaseStatusCopy } from "../purchase-status";
 
 export type UiTransactionState =
@@ -48,10 +49,12 @@ export function transactionStatusCopy(status: UiTransactionState): {
 export function TransactionStatus({
     status,
     rejectionReason,
+    txHash,
     onRetry,
 }: {
     status: UiTransactionState;
     rejectionReason?: string;
+    txHash?: string | null;
     onRetry?: () => void;
 }) {
     const copy = transactionStatusCopy(status);
@@ -71,6 +74,7 @@ export function TransactionStatus({
                         ? rejectionReason
                         : copy.hint}
                 </span>
+                {txHash ? <TxHashLink txHash={txHash} /> : null}
             </div>
             {(status === "failed" || status === "rejected") && onRetry ? (
                 <button
