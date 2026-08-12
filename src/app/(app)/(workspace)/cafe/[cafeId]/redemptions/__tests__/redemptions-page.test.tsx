@@ -11,29 +11,54 @@ const { punchMutate, voucherMutate, txState, inboxData, txError } = vi.hoisted(
     () => ({
         punchMutate: vi.fn(),
         voucherMutate: vi.fn(),
-        txState: new Map<string, { status: string }>(),
+        txState: new Map<
+            string,
+            {
+                status: string;
+                txHash?: string;
+                blockNumber?: number;
+                rejectionReason?: string;
+            }
+        >(),
         txError: { value: false },
         inboxData: [
-            { id: "punch-1", kind: "punch_reward", status: "pending" },
-            { id: "voucher-1", kind: "voucher", status: "pending" },
-        ] as Array<{
-            id: string;
-            kind: string;
-            status: string;
-            transactionId?: string;
-            transactionStatus?: string;
-            failureReason?: string;
-            rejectionReason?: string;
-        }>,
+            {
+                id: "punch-1",
+                kind: "punch_reward",
+                status: "pending",
+                productName: "Cappuccino clásico",
+                consumerName: "Consumidor Demo",
+                reimbursementAmount: "2.80",
+                createdAt: new Date(Date.now() - 1000 * 40).toISOString(),
+            } as {
+                id: string;
+                kind: string;
+                status: string;
+                transactionId?: string;
+                transactionStatus?: string;
+                failureReason?: string;
+                rejectionReason?: string;
+                productName?: string;
+                consumerName?: string;
+                reimbursementAmount?: string;
+                createdAt?: string;
+            },
+        ],
     }),
 );
-vi.mock("next/navigation", () => ({ useParams: () => ({ cafeId: "cafe-1" }) }));
+
+vi.mock("next/navigation", () => ({
+    useParams: () => ({ cafeId: "cafe-1" }),
+}));
 vi.mock("@/core/consumption/client/hooks", () => ({
     useCafeRedemptionInbox: () => ({
         isPending: false,
         data: inboxData,
     }),
-    useDecidePunchRedemption: () => ({ isPending: false, mutate: punchMutate }),
+    useDecidePunchRedemption: () => ({
+        isPending: false,
+        mutate: punchMutate,
+    }),
     useDecideVoucherRedemption: () => ({
         isPending: false,
         mutate: voucherMutate,
@@ -59,14 +84,6 @@ vi.mock("@/frontend/components/ui/button", () => ({
         </button>
     ),
 }));
-vi.mock("@/frontend/components/ui/card", () => ({
-    Card: ({ children }: { children: React.ReactNode }) => (
-        <div>{children}</div>
-    ),
-    CardContent: ({ children }: { children: React.ReactNode }) => (
-        <div>{children}</div>
-    ),
-}));
 vi.mock("@/frontend/components/ui/input", () => ({
     Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => (
         <input {...props} />
@@ -75,168 +92,221 @@ vi.mock("@/frontend/components/ui/input", () => ({
 vi.mock("@/frontend/components/ui/spinner", () => ({
     Spinner: () => <span>Cargando</span>,
 }));
+vi.mock("@/frontend/components/guide/journey-card", () => ({
+    JourneyCard: () => <div data-testid="journey-card" />,
+}));
+vi.mock("@/frontend/components/guide/page-intro", () => ({
+    PageIntro: ({ title }: { title: string }) => <div>{title}</div>,
+}));
+vi.mock("@/frontend/components/guide/stat", () => ({
+    Stat: ({ value, label }: { value: string; label: string }) => (
+        <div>
+            {label}: {value}
+        </div>
+    ),
+}));
+vi.mock("@/frontend/components/guide/empty-state", () => ({
+    EmptyState: ({ title, cause }: { title: string; cause: string }) => (
+        <div>
+            {title}
+            {cause}
+        </div>
+    ),
+}));
 
 import CafeRedemptionsPage from "../page";
 
-describe("café redemption settlement lifecycle", () => {
+describe("café redemption inbox guide", () => {
+    const originalChain = process.env.NEXT_PUBLIC_CHAIN_ENV;
+
     afterEach(() => {
         document.body.innerHTML = "";
         vi.clearAllMocks();
         txState.clear();
         txError.value = false;
-        inboxData.splice(
-            0,
-            inboxData.length,
-            { id: "punch-1", kind: "punch_reward", status: "pending" },
-            { id: "voucher-1", kind: "voucher", status: "pending" },
-        );
+        inboxData.splice(0, inboxData.length, {
+            id: "punch-1",
+            kind: "punch_reward",
+            status: "pending",
+            productName: "Cappuccino clásico",
+            consumerName: "Consumidor Demo",
+            reimbursementAmount: "2.80",
+            createdAt: new Date(Date.now() - 1000 * 40).toISOString(),
+        });
+        process.env.NEXT_PUBLIC_CHAIN_ENV = originalChain;
     });
 
-    it("keeps PUNCH and voucher decisions distinct and renders pending then terminal retry state", async () => {
+    it("hides reject reason input until Rechazar is pressed", async () => {
+        const container = document.createElement("div");
+        document.body.append(container);
+        const root = createRoot(container);
+
+        await act(async () => {
+            root.render(<CafeRedemptionsPage />);
+        });
+
+        expect(
+            container.querySelector('input[aria-label="Motivo del rechazo"]'),
+        ).toBeNull();
+
+        const rejectButton = [...container.querySelectorAll("button")].find(
+            (button) => button.textContent === "Rechazar",
+        );
+        await act(async () => rejectButton?.click());
+
+        expect(
+            container.querySelector('input[aria-label="Motivo del rechazo"]'),
+        ).not.toBeNull();
+        expect(container.textContent).toContain("Confirmar rechazo");
+
+        await act(async () => root.unmount());
+    });
+
+    it("shows product, consumer and refund line per row", async () => {
+        const container = document.createElement("div");
+        document.body.append(container);
+        const root = createRoot(container);
+
+        await act(async () => {
+            root.render(<CafeRedemptionsPage />);
+        });
+
+        expect(container.textContent).toContain("Cappuccino clásico");
+        expect(container.textContent).toContain("Consumidor Demo");
+        expect(container.textContent).toContain("te reembolsan S/2.80");
+
+        await act(async () => root.unmount());
+    });
+
+    it("maps settlement states into ChainReceipt states for on-chain flow", async () => {
+        process.env.NEXT_PUBLIC_CHAIN_ENV = "arbitrumSepolia";
         punchMutate.mockImplementation(
             (
                 _body: unknown,
                 options: { onSuccess: (result: unknown) => void },
             ) =>
                 options.onSuccess({
-                    response: { transactionId: "tx-punch", status: "pending" },
-                }),
-        );
-        voucherMutate.mockImplementation(
-            (
-                _body: unknown,
-                options: { onSuccess: (result: unknown) => void },
-            ) =>
-                options.onSuccess({
                     response: {
-                        transactionId: "tx-voucher",
                         status: "pending",
+                        transactionId: "tx-punch",
                     },
                 }),
         );
-        const container = document.createElement("div");
-        document.body.append(container);
-        const root = createRoot(container);
-        await act(async () => root.render(<CafeRedemptionsPage />));
-        const approve = [...container.querySelectorAll("button")].filter(
-            (button) => button.textContent === "Aprobar",
-        );
-        await act(async () => {
-            approve[0]?.click();
-            approve[1]?.click();
-        });
-        expect(punchMutate).toHaveBeenCalledWith(
-            expect.objectContaining({ requestId: "punch-1" }),
-            expect.any(Object),
-        );
-        expect(voucherMutate).toHaveBeenCalledWith(
-            expect.objectContaining({ requestId: "voucher-1" }),
-            expect.any(Object),
-        );
-        expect(container.textContent).toContain("Pendiente on-chain");
-        inboxData.splice(0, inboxData.length, {
-            id: "punch-1",
-            kind: "punch_reward",
-            status: "pending",
-        });
-        txState.set("tx-punch", { status: "confirmed" });
-        txState.set("tx-voucher", { status: "failed" });
-        await act(async () => root.render(<CafeRedemptionsPage />));
-        expect(container.textContent).toContain("Uso de voucher");
-        expect(container.textContent).toContain("Reintento disponible");
-        const retry = [...container.querySelectorAll("button")].find(
-            (button) => button.textContent === "Reintentar",
-        );
-        await act(async () => retry?.click());
-        expect(voucherMutate).toHaveBeenCalledTimes(2);
-        expect(punchMutate).toHaveBeenCalledTimes(1);
-        await act(async () => root.unmount());
-    });
 
-    it("reconstructs a decided pending settlement after remount and offers retry", async () => {
-        inboxData.splice(0, inboxData.length, {
-            id: "punch-1",
-            kind: "punch_reward",
-            status: "approved",
-            transactionId: "tx-punch",
-            transactionStatus: "pending",
-        });
-        txState.set("tx-punch", { status: "pending" });
         const container = document.createElement("div");
         document.body.append(container);
         const root = createRoot(container);
-        await act(async () => root.render(<CafeRedemptionsPage />));
-        expect(container.textContent).toContain("Pendiente on-chain");
-        txState.set("tx-punch", { status: "confirmed" });
-        await act(async () => root.render(<CafeRedemptionsPage />));
-        expect(container.textContent).toContain("Confirmado");
-        txState.set("tx-punch", { status: "failed" });
-        await act(async () => root.render(<CafeRedemptionsPage />));
+
+        await act(async () => {
+            root.render(<CafeRedemptionsPage />);
+        });
+
+        const approveButton = [...container.querySelectorAll("button")].find(
+            (button) => button.textContent === "Entregar",
+        );
+        await act(async () => approveButton?.click());
+
+        expect(container.textContent).toContain("Preparando la operación");
+
+        txState.set("tx-punch", {
+            status: "submitted",
+            txHash: "0x8f2ad41c00000000000000000000000000000000000000000000000000e07b92",
+        });
+        await act(async () => {
+            await root.render(<CafeRedemptionsPage />);
+        });
+        expect(container.textContent).toContain("Confirmando en la cadena");
+        expect(container.querySelector("a")?.getAttribute("href")).toContain(
+            "/tx/0x8f2ad41c00000000000000000000000000000000000000000000000000e07b92",
+        );
+
+        txState.set("tx-punch", {
+            status: "confirmed",
+            txHash: "0x8f2ad41c00000000000000000000000000000000000000000000000000e07b92",
+            blockNumber: 12345,
+        });
+        await act(async () => {
+            await root.render(<CafeRedemptionsPage />);
+        });
+        expect(container.textContent).toContain("Confirmado en Arbitrum");
+
+        txState.set("tx-punch", {
+            status: "failed",
+            txHash: "0x8f2ad41c00000000000000000000000000000000000000000000000000e07b92",
+            rejectionReason: "Fondos insuficientes del relayer",
+        });
+        await act(async () => {
+            await root.render(<CafeRedemptionsPage />);
+        });
+
+        expect(container.textContent).toContain(
+            "No se pudo escribir en la cadena",
+        );
         const retry = [...container.querySelectorAll("button")].find(
             (button) => button.textContent === "Reintentar",
         );
         expect(retry).toBeDefined();
         await act(async () => retry?.click());
-        expect(punchMutate).toHaveBeenCalledWith(
-            expect.objectContaining({
-                requestId: "punch-1",
-                decision: "approved",
-            }),
-            expect.any(Object),
-        );
+        expect(punchMutate).toHaveBeenCalledTimes(2);
+
         await act(async () => root.unmount());
     });
 
-    it("renders confirmed payout, failed reason, and approved processing state", async () => {
-        inboxData.splice(
-            0,
-            inboxData.length,
-            {
-                id: "confirmed-punch",
-                kind: "punch_reward",
-                status: "confirmed",
-            },
-            {
-                id: "failed-punch",
-                kind: "punch_reward",
-                status: "failed",
-                failureReason: "INSUFFICIENT_BALANCE",
-            },
-            {
-                id: "approved-punch",
-                kind: "punch_reward",
-                status: "approved",
-            },
-            {
-                id: "rejected-punch",
-                kind: "punch_reward",
-                status: "rejected",
-                rejectionReason: "No corresponde a esta campaña",
-            },
-        );
+    it("renders refetched remote settlement and handles polling errors", async () => {
+        inboxData.splice(0, inboxData.length, {
+            id: "punch-1",
+            kind: "punch_reward",
+            status: "approved",
+            transactionId: "tx-punch",
+            productName: "Cappuccino clásico",
+            consumerName: "Luis M.",
+            transactionStatus: "pending",
+            rejectionReason: "No corresponde",
+        });
+
+        txState.set("tx-punch", { status: "pending" });
         const container = document.createElement("div");
         document.body.append(container);
         const root = createRoot(container);
-        await act(async () => root.render(<CafeRedemptionsPage />));
-        expect(container.textContent).toContain("S/3.60");
-        expect(container.textContent).toContain("INSUFFICIENT_BALANCE");
-        expect(container.textContent).toContain("Procesando on-chain");
-        expect(container.textContent).toContain(
-            "No corresponde a esta campaña",
-        );
-        await act(async () => root.unmount());
-    });
 
-    it("renders a Spanish retry state when transaction polling fails", async () => {
+        await act(async () => {
+            root.render(<CafeRedemptionsPage />);
+        });
+
+        expect(container.textContent).toContain("Preparando la operación");
+        txState.set("tx-punch", {
+            status: "failed",
+            rejectionReason: "INSUFFICIENT_BALANCE",
+        });
+        await act(async () => {
+            await root.render(<CafeRedemptionsPage />);
+        });
+        expect(container.textContent).toContain(
+            "No se pudo escribir en la cadena",
+        );
+
         txError.value = true;
-        const container = document.createElement("div");
-        document.body.append(container);
-        const root = createRoot(container);
-        await act(async () => root.render(<CafeRedemptionsPage />));
+        inboxData.splice(0, inboxData.length, {
+            id: "failed-remote",
+            kind: "punch_reward",
+            status: "failed",
+            transactionId: "tx-fail",
+            transactionStatus: "failed",
+            failureReason: "No se pudo completar",
+            productName: "Cappuccino clásico",
+            consumerName: "Ana R.",
+        });
+        txState.set("tx-fail", {
+            status: "failed",
+            rejectionReason: "No se pudo consultar",
+        });
+        await act(async () => {
+            await root.render(<CafeRedemptionsPage />);
+        });
         expect(container.textContent).toContain(
-            "No se pudo consultar el estado del canje",
+            "No se pudo consultar el estado del canje.",
         );
-        expect(container.textContent).not.toContain("[object Object]");
+
         await act(async () => root.unmount());
     });
 });
