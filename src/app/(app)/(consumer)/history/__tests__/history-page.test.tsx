@@ -93,6 +93,39 @@ describe("HistoryPage states", () => {
         );
     });
 
+    it("explains that confirmed operations can be verified publicly", () => {
+        const previousChainEnv = process.env.NEXT_PUBLIC_CHAIN_ENV;
+        process.env.NEXT_PUBLIC_CHAIN_ENV = "arbitrumSepolia";
+        try {
+            useHistory.mockReturnValue({
+                isPending: false,
+                isError: false,
+                data: [],
+            });
+            const markup = renderToStaticMarkup(<HistoryPage />);
+            expect(markup).toContain("puedes abrir cada una para verificarla");
+        } finally {
+            process.env.NEXT_PUBLIC_CHAIN_ENV = previousChainEnv;
+        }
+    });
+
+    it("explains local-chain confirmation without promising a public link", () => {
+        const previousChainEnv = process.env.NEXT_PUBLIC_CHAIN_ENV;
+        process.env.NEXT_PUBLIC_CHAIN_ENV = "local";
+        try {
+            useHistory.mockReturnValue({
+                isPending: false,
+                isError: false,
+                data: [],
+            });
+            const markup = renderToStaticMarkup(<HistoryPage />);
+            expect(markup).not.toContain("puedes abrir cada una");
+            expect(markup).toContain("cadena local de desarrollo");
+        } finally {
+            process.env.NEXT_PUBLIC_CHAIN_ENV = previousChainEnv;
+        }
+    });
+
     it("says it is waiting instead of rendering a dead link", () => {
         useHistory.mockReturnValue({
             isPending: false,

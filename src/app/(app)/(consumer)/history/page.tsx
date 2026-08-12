@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { hasPublicExplorer } from "@/config/explorer";
 import { useHistory } from "@/core/consumption/client/hooks";
 import { authClient } from "@/frontend/auth/auth";
 import {
@@ -15,13 +16,15 @@ import { StateStrip } from "@/frontend/components/guide/state-strip";
 import { TxHashLink } from "@/frontend/components/tx-hash-link";
 
 const chainWaitingLabel = "Esperando confirmación en la cadena…";
-const historyExplain =
+const publicHistoryExplain =
     "Las operaciones confirmadas quedan escritas en la cadena y puedes abrir cada una para verificarla. Una vez escritas, ni la cafetería ni PUNCH pueden cambiarlas.";
+const localHistoryExplain =
+    "Las operaciones confirmadas quedan escritas en la cadena local de desarrollo.";
 const emptyHistoryCause =
     "Escanea el código que te dé el barista en tu próxima compra y aparecerá aquí.";
 const emptyHistoryAction = { label: "Descubrir cafeterías", href: "/discover" };
 const errorHistoryDetail =
-    "Tus operaciones siguen escritas en la cadena; esto es solo la vista.";
+    "Es un problema para mostrarte el historial, no con tus operaciones. Vuelve a intentarlo.";
 const loadingHistoryLabel = "Cargando tu historial";
 
 function ChainReceipt({ entry }: { entry: HistoryEntry }) {
@@ -79,7 +82,9 @@ function HistoryIntro() {
         <PageIntro
             eyebrow="Tu recorrido"
             title="Historial"
-            explain={historyExplain}
+            explain={
+                hasPublicExplorer() ? publicHistoryExplain : localHistoryExplain
+            }
         />
     );
 }
