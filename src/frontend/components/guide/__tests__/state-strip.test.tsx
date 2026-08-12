@@ -36,4 +36,9 @@ describe("StateStrip", () => {
         await render(<StateStrip tone="offline">Sin conexión</StateStrip>);
         expect(document.querySelector(".state-strip--offline")).not.toBeNull();
     });
+
+    it("styles the saved tone distinctly from the other two", async () => {
+        await render(<StateStrip tone="saved">Datos guardados</StateStrip>);
+        expect(document.querySelector(".state-strip--saved")).not.toBeNull();
+    });
 });
