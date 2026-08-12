@@ -165,6 +165,14 @@ async function fetchEvents(
     return sortEvents(all);
 }
 
+/**
+ * Bloques que se leen como máximo por pasada. Los RPC públicos rechazan un
+ * `getLogs` con un rango grande, y sin tope el indexador que se atrasa pide un
+ * rango cada vez mayor: falla siempre, el cursor no avanza y la brecha crece
+ * sola. Con este tope cada pasada avanza aunque venga rezagado.
+ */
+export const MAX_BLOCKS_PER_PASS = 2_000n;
+
 export async function runIndexerOnce(
     deps: IndexerDeps = defaultDeps(),
 ): Promise<void> {
@@ -180,8 +188,13 @@ export async function runIndexerOnce(
         .where(eq(indexerCursor.contract, "punch"));
     const cursor = cursorRows[0]?.block ?? deps.deployBlock ?? 0n;
 
-    const latest = await deps.pub.getBlockNumber({ cacheTime: 0 });
-    if (latest <= cursor) return;
+    const head = await deps.pub.getBlockNumber({ cacheTime: 0 });
+    if (head <= cursor) return;
+    // Se avanza por tramos; el resto queda para la siguiente pasada.
+    const latest =
+        head - cursor > MAX_BLOCKS_PER_PASS
+            ? cursor + MAX_BLOCKS_PER_PASS
+            : head;
 
     const events = await fetchEvents(deps, cursor + 1n, latest);
     const apply = deps.apply ?? applyEvent;

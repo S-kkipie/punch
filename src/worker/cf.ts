@@ -32,6 +32,7 @@ export class PunchWorker extends DurableObject {
      * an alarm while one is pending just overwrites it.
      */
     async start(): Promise<void> {
+        useHyperdrive(this.env as Env);
         await this.ctx.storage.put("ticks", 0);
         await this.recover();
         await this.ctx.storage.setAlarm(Date.now() + TICK_MS);
@@ -49,6 +50,9 @@ export class PunchWorker extends DurableObject {
     }
 
     async alarm(): Promise<void> {
+        // El alarm despierta el objeto por su cuenta, sin pasar por fetch: si
+        // no se re-aplica aquí, el pool se abre contra la URL equivocada.
+        useHyperdrive(this.env as Env);
         const ticks = ((await this.ctx.storage.get<number>("ticks")) ?? 0) + 1;
         await this.ctx.storage.put("ticks", ticks);
 
@@ -91,7 +95,21 @@ export class PunchWorker extends DurableObject {
     }
 }
 
+/**
+ * Apunta la base a Hyperdrive antes de la primera consulta. El pool de
+ * `@/server/drizzle/db` es perezoso justamente para esto: la cadena de
+ * conexión del binding solo existe dentro del handler, y contra el pooler de
+ * Supabase el socket del runtime de Workers se cae apenas se usa.
+ */
+function useHyperdrive(env: Env): void {
+    if (!env.HYPERDRIVE?.connectionString) return;
+    process.env.DATABASE_URL = env.HYPERDRIVE.connectionString;
+    // El tramo worker→Hyperdrive es local; el TLS al servidor lo pone Cloudflare.
+    process.env.DATABASE_SSL = "false";
+}
+
 function stub(env: Env) {
+    useHyperdrive(env);
     return env.PUNCH_WORKER.get(env.PUNCH_WORKER.idFromName("singleton"));
 }
 

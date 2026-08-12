@@ -13,7 +13,12 @@ import {
     projectionStatus,
 } from "@/server/drizzle/schemas/chain-schema";
 import type { IndexerEvent } from "../apply-event";
-import { fetchEvents, runIndexerOnce, sortEvents } from "../indexer";
+import {
+    fetchEvents,
+    MAX_BLOCKS_PER_PASS,
+    runIndexerOnce,
+    sortEvents,
+} from "../indexer";
 
 const addresses = {
     cafeRegistry: "0x1000000000000000000000000000000000000001",
@@ -276,6 +281,48 @@ describe("indexer helpers", () => {
                 10n,
             ),
         ).rejects.toThrow();
+    });
+});
+
+describe("runIndexerOnce block range", () => {
+    it("caps how far a lagging pass reads", async () => {
+        // Sin tope, un indexador rezagado pide un rango cada vez mayor, el RPC
+        // lo rechaza y el cursor nunca vuelve a avanzar.
+        const pub = fakePub(
+            {
+                [addresses.punchVault]: [],
+                [addresses.planManager]: [],
+                [addresses.consumptionLog]: [],
+                [addresses.campaignEscrow]: [],
+            },
+            50_000n,
+        );
+        const database = fakeDatabase({ cursor: 10n });
+
+        await runIndexerOnce({ pub: pub as any, database, addresses });
+
+        for (const call of pub.calls) {
+            expect(call.fromBlock).toBe(11n);
+            expect(call.toBlock).toBe(10n + MAX_BLOCKS_PER_PASS);
+        }
+        expect(database.cursorWrites).toBe(1);
+    });
+
+    it("reads up to the head when the gap fits in one pass", async () => {
+        const pub = fakePub(
+            {
+                [addresses.punchVault]: [],
+                [addresses.planManager]: [],
+                [addresses.consumptionLog]: [],
+                [addresses.campaignEscrow]: [],
+            },
+            10n + MAX_BLOCKS_PER_PASS,
+        );
+        const database = fakeDatabase({ cursor: 10n });
+
+        await runIndexerOnce({ pub: pub as any, database, addresses });
+
+        expect(pub.calls[0]?.toBlock).toBe(10n + MAX_BLOCKS_PER_PASS);
     });
 });
 

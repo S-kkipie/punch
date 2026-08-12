@@ -9,6 +9,10 @@
     "alias": {
         "server-only": "./src/worker/cf-shim-server-only.ts"
     },
+    // node-postgres no logra sostener el TCP al pooler de Supabase desde el
+    // runtime de Workers ("Connection terminated unexpectedly"): Hyperdrive
+    // mantiene el pool del lado de Cloudflare y expone una URL local.
+    "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "70abb69d4f8a4c02934ee8d79be019dd" }],
     "durable_objects": {
         "bindings": [{ "name": "PUNCH_WORKER", "class_name": "PunchWorker" }]
     },
