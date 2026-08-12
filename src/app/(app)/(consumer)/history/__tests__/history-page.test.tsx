@@ -1,22 +1,32 @@
-import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { useHistory } = vi.hoisted(() => ({ useHistory: vi.fn() }));
 vi.mock("@/core/consumption/client/hooks", () => ({ useHistory }));
-vi.mock("@/frontend/components/ui/button", () => ({
-    Button: ({ children }: { children: ReactNode }) => (
-        <button type="button">{children}</button>
-    ),
-}));
-vi.mock("@/frontend/components/ui/spinner", () => ({
-    Spinner: () => <span>Cargando</span>,
-}));
+
+const confirmedEntry = {
+    id: "purchase",
+    operation: "emission",
+    status: "confirmed",
+    cafeName: "Brújula Café",
+    productName: "Latte",
+    rejectionReason: null,
+    createdAt: "2026-08-11T14:14:00.000Z",
+    transactionHash:
+        "0x8f2ad41c00000000000000000000000000000000000000000000000000e07b92",
+};
 
 import HistoryPage from "../page";
 
 describe("HistoryPage states", () => {
-    beforeEach(() => useHistory.mockReset());
+    beforeEach(() => {
+        useHistory.mockReset();
+        process.env.NEXT_PUBLIC_CHAIN_ENV = "arbitrumSepolia";
+    });
+
+    afterEach(() => {
+        process.env.NEXT_PUBLIC_CHAIN_ENV = "local";
+    });
 
     it("renders distinct café and provenance details", () => {
         useHistory.mockReturnValue({
@@ -67,7 +77,41 @@ describe("HistoryPage states", () => {
             data: [],
         });
         expect(renderToStaticMarkup(<HistoryPage />)).toContain(
-            "Todavía no tienes actividad.",
+            "Todavía no tienes actividad",
         );
+    });
+
+    it("links each confirmed row to its Arbitrum transaction", () => {
+        useHistory.mockReturnValue({
+            isPending: false,
+            isError: false,
+            data: [confirmedEntry],
+        });
+        const markup = renderToStaticMarkup(<HistoryPage />);
+        expect(markup).toContain(
+            `href="https://sepolia.arbiscan.io/tx/${confirmedEntry.transactionHash}"`,
+        );
+    });
+
+    it("says it is waiting instead of rendering a dead link", () => {
+        useHistory.mockReturnValue({
+            isPending: false,
+            isError: false,
+            data: [
+                { ...confirmedEntry, status: "pending", transactionHash: null },
+            ],
+        });
+        const markup = renderToStaticMarkup(<HistoryPage />);
+        expect(markup).not.toContain("arbiscan");
+        expect(markup).toContain("Esperando confirmación");
+    });
+
+    it("shows an empty state that explains how activity appears", () => {
+        useHistory.mockReturnValue({
+            isPending: false,
+            isError: false,
+            data: [],
+        });
+        expect(renderToStaticMarkup(<HistoryPage />)).toContain("Escanea");
     });
 });

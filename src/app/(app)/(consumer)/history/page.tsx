@@ -7,8 +7,132 @@ import {
     readPunchSnapshot,
     writePunchSnapshot,
 } from "@/frontend/components/consumer/offline-snapshot";
-import { Button } from "@/frontend/components/ui/button";
-import { Spinner } from "@/frontend/components/ui/spinner";
+import { EmptyState } from "@/frontend/components/guide/empty-state";
+import { ErrorState } from "@/frontend/components/guide/error-state";
+import { LoadingState } from "@/frontend/components/guide/loading-state";
+import { PageIntro } from "@/frontend/components/guide/page-intro";
+import { StateStrip } from "@/frontend/components/guide/state-strip";
+import { TxHashLink } from "@/frontend/components/tx-hash-link";
+
+const chainWaitingLabel = "Esperando confirmación en la cadena…";
+const historyExplain =
+    "Cada línea existe en la cadena. Ni la cafetería ni PUNCH pueden cambiarla después.";
+const emptyHistoryCause =
+    "Escanea el código que te dé el barista en tu próxima compra y aparecerá aquí.";
+const emptyHistoryAction = { label: "Descubrir cafeterías", href: "/discover" };
+const errorHistoryDetail =
+    "Tus operaciones siguen escritas en la cadena; esto es solo la vista.";
+const loadingHistoryLabel = "Cargando tu historial";
+
+function ChainReceipt({ entry }: { entry: HistoryEntry }) {
+    if (entry.transactionHash)
+        return <TxHashLink txHash={entry.transactionHash} />;
+    if (entry.status === "pending") {
+        return (
+            <span className="tx-link tx-link--plain">{chainWaitingLabel}</span>
+        );
+    }
+    return null;
+}
+
+function HistoryListEntry({ entry }: { entry: HistoryEntry }) {
+    return (
+        <div
+            className="consumer-panel flex items-center justify-between gap-4 p-5"
+            key={entry.id}
+        >
+            <div>
+                <p className="font-semibold">
+                    {labels[entry.operation] ?? "Actividad"}
+                </p>
+                <p className="text-[var(--color-ink-2)] text-sm">
+                    {provenance(entry)}
+                </p>
+                <p className="text-[var(--color-ink-2)] text-sm">
+                    {new Date(entry.createdAt).toLocaleString("es-PE")}
+                </p>
+                <ChainReceipt entry={entry} />
+                {entry.rejectionReason && (
+                    <p className="text-sm">{entry.rejectionReason}</p>
+                )}
+            </div>
+            <span className="text-sm">
+                {statuses[entry.status] ?? entry.status}
+            </span>
+        </div>
+    );
+}
+
+function HistoryEmptyState() {
+    return (
+        <EmptyState
+            mark="☕"
+            title="Todavía no tienes actividad"
+            cause={emptyHistoryCause}
+            action={emptyHistoryAction}
+        />
+    );
+}
+
+function HistoryIntro() {
+    return (
+        <PageIntro
+            eyebrow="Tu recorrido"
+            title="Historial"
+            explain={historyExplain}
+        />
+    );
+}
+
+function HistoryErrorState({ onRetry }: { onRetry: () => void }) {
+    return (
+        <ErrorState
+            title="No pudimos traer tu historial"
+            detail={errorHistoryDetail}
+            onRetry={onRetry}
+        />
+    );
+}
+
+function HistoryLoadingState() {
+    return <LoadingState label={loadingHistoryLabel} lines={4} />;
+}
+
+function SavedHistoryStrip() {
+    return (
+        <StateStrip tone="saved">
+            Datos guardados · Conéctate para actualizar
+        </StateStrip>
+    );
+}
+
+function HistoryEntries({ entries }: { entries: HistoryEntry[] }) {
+    return entries.length === 0 ? (
+        <HistoryEmptyState />
+    ) : (
+        entries.map((entry) => (
+            <HistoryListEntry entry={entry} key={entry.id} />
+        ))
+    );
+}
+
+function HistoryContent({
+    entries,
+    savedEntries,
+    hasQueryData,
+}: {
+    entries: HistoryEntry[];
+    savedEntries: HistoryEntry[] | null;
+    hasQueryData: boolean;
+}) {
+    return (
+        <div className="mx-auto grid w-full max-w-2xl gap-5">
+            {savedEntries && !hasQueryData ? <SavedHistoryStrip /> : null}
+            <HistoryIntro />
+            <HistoryEntries entries={entries} />
+        </div>
+    );
+}
 
 const labels: Record<string, string> = {
     emission: "PUNCH ganado",
@@ -25,6 +149,7 @@ type HistoryEntry = {
     status: string;
     rejectionReason: string | null;
     createdAt: string;
+    transactionHash: string | null;
 };
 
 function provenance(entry: HistoryEntry): string | null {
@@ -77,80 +202,15 @@ export default function HistoryPage() {
             );
         }
     }, [query.data, query.isError, userId]);
-    if (query.isPending)
-        return (
-            <div className="flex min-h-64 items-center justify-center">
-                <Spinner />
-            </div>
-        );
+    if (query.isPending) return <HistoryLoadingState />;
     if (query.isError && !savedEntries)
-        return (
-            <div className="consumer-panel grid gap-3 p-6">
-                <p>
-                    No se pudo cargar tu historial. Conéctate para actualizarlo.
-                </p>
-                <Button onClick={() => query.refetch()}>Reintentar</Button>
-            </div>
-        );
-    const entries = (query.data ?? savedEntries ?? []) as Array<{
-        id: string;
-        operation: string;
-        status: string;
-        cafeName?: string | null;
-        productName?: string | null;
-        campaignName?: string | null;
-        crawlName?: string | null;
-        rejectionReason: string | null;
-        createdAt: string;
-    }>;
+        return <HistoryErrorState onRetry={() => query.refetch()} />;
+    const entries = (query.data ?? savedEntries ?? []) as HistoryEntry[];
     return (
-        <div className="mx-auto grid w-full max-w-2xl gap-5">
-            {savedEntries && !query.data && (
-                <p
-                    className="rounded-md bg-[var(--color-surface-2)] p-3 text-sm"
-                    role="status"
-                >
-                    Datos guardados · Conéctate para actualizar
-                </p>
-            )}
-            <section className="grid gap-2">
-                <span className="consumer-eyebrow">Tu recorrido</span>
-                <h1 className="consumer-title text-4xl font-bold">Historial</h1>
-            </section>
-            {entries.length === 0 ? (
-                <div className="consumer-panel p-6 text-[var(--color-ink-2)]">
-                    Todavía no tienes actividad.
-                </div>
-            ) : (
-                entries.map((entry) => (
-                    <div
-                        className="consumer-panel flex items-center justify-between gap-4 p-5"
-                        key={entry.id}
-                    >
-                        <div>
-                            <p className="font-semibold">
-                                {labels[entry.operation] ?? "Actividad"}
-                            </p>
-                            <p className="text-[var(--color-ink-2)] text-sm">
-                                {provenance(entry)}
-                            </p>
-                            <p className="text-[var(--color-ink-2)] text-sm">
-                                {new Date(entry.createdAt).toLocaleString(
-                                    "es-PE",
-                                )}
-                            </p>
-                            {entry.rejectionReason && (
-                                <p className="text-destructive text-sm">
-                                    {entry.rejectionReason}
-                                </p>
-                            )}
-                        </div>
-                        <span className="text-sm">
-                            {statuses[entry.status] ?? entry.status}
-                        </span>
-                    </div>
-                ))
-            )}
-        </div>
+        <HistoryContent
+            entries={entries}
+            savedEntries={savedEntries}
+            hasQueryData={Boolean(query.data)}
+        />
     );
 }
