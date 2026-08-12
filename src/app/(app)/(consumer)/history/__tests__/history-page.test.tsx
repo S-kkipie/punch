@@ -60,6 +60,39 @@ describe("HistoryPage states", () => {
         expect(markup).toContain("Voucher usado");
     });
 
+    it("renders status badges for activity rows", () => {
+        useHistory.mockReturnValue({
+            isPending: false,
+            isError: false,
+            data: [
+                {
+                    ...confirmedEntry,
+                    id: "confirmed",
+                    status: "confirmed",
+                },
+                {
+                    ...confirmedEntry,
+                    id: "pending",
+                    status: "pending",
+                },
+                {
+                    ...confirmedEntry,
+                    id: "rejected",
+                    status: "rejected",
+                    rejectionReason: "Límite diario excedido",
+                },
+            ],
+        });
+
+        const markup = renderToStaticMarkup(<HistoryPage />);
+        expect(markup).toContain("history-badge history-badge--ok");
+        expect(markup).toContain("Listo");
+        expect(markup).toContain("history-badge history-badge--pending");
+        expect(markup).toContain("En proceso");
+        expect(markup).toContain("history-badge history-badge--rejected");
+        expect(markup).toContain("No aprobado");
+    });
+
     it("shows loading, error retry, and empty states", () => {
         useHistory.mockReturnValue({ isPending: true });
         expect(renderToStaticMarkup(<HistoryPage />)).toContain("Cargando");

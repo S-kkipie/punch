@@ -39,6 +39,9 @@ function ChainReceipt({ entry }: { entry: HistoryEntry }) {
 }
 
 function HistoryListEntry({ entry }: { entry: HistoryEntry }) {
+    const status = statuses[entry.status] ?? entry.status;
+    const statusClass = statusClasses[entry.status] ?? "history-badge--unknown";
+
     return (
         <div
             className="consumer-panel flex items-center justify-between gap-4 p-5"
@@ -59,9 +62,7 @@ function HistoryListEntry({ entry }: { entry: HistoryEntry }) {
                     <p className="text-sm">{entry.rejectionReason}</p>
                 )}
             </div>
-            <span className="text-sm">
-                {statuses[entry.status] ?? entry.status}
-            </span>
+            <span className={`history-badge ${statusClass}`}>{status}</span>
         </div>
     );
 }
@@ -178,6 +179,13 @@ const statuses: Record<string, string> = {
     confirmed: "Listo",
     rejected: "No aprobado",
     failed: "No completado",
+};
+
+const statusClasses: Record<string, string> = {
+    pending: "history-badge--pending",
+    confirmed: "history-badge--ok",
+    rejected: "history-badge--rejected",
+    failed: "history-badge--failed",
 };
 
 export default function HistoryPage() {

@@ -307,6 +307,46 @@
     border-left: var(--rule-thick) solid var(--color-accent);
 }
 
+/* ── History badges ─────────────────────────────────────────────── */
+.history-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: var(--rule-hair) solid var(--color-rule);
+    border-radius: 999px;
+    padding: 0.15rem 0.65rem;
+    font-family: var(--font-outlier);
+    font-size: var(--text-xs);
+    line-height: 1;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.history-badge--ok {
+    border-color: var(--color-ink);
+    color: var(--color-ink);
+    background: color-mix(in srgb, var(--color-accent-wash) 80%, transparent);
+}
+
+.history-badge--pending {
+    border-color: var(--color-sun);
+    color: var(--color-ink);
+    background: color-mix(in srgb, var(--color-sun) 25%, transparent);
+}
+
+.history-badge--rejected,
+.history-badge--failed {
+    border-color: var(--color-accent);
+    color: var(--color-accent-ink);
+    background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+}
+
+.history-badge--unknown {
+    border-color: var(--color-rule);
+    color: var(--color-ink-2);
+    background: var(--color-paper-2);
+}
+
 /* ── Shell del workspace ─────────────────────────────────────────── */
 .ws-shell {
     min-height: 100svh;
