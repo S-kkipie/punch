@@ -8,6 +8,12 @@ import {
     useFundCampaign,
     usePublishCampaign,
 } from "@/core/campaign/client/hooks";
+import {
+    formatMpenAsSoles,
+    parseSolesToMpen,
+} from "@/core/campaign/domain/money";
+import { PageIntro } from "@/frontend/components/guide/page-intro";
+import { Stat } from "@/frontend/components/guide/stat";
 import { Button } from "@/frontend/components/ui/button";
 import { Card, CardContent } from "@/frontend/components/ui/card";
 import { Input } from "@/frontend/components/ui/input";
@@ -27,22 +33,21 @@ type Campaign = {
     canPublish: boolean;
 };
 
-const parsePositiveInteger = (value: string): bigint | null => {
-    if (!/^\d+$/.test(value)) return null;
-    try {
-        const parsed = BigInt(value);
-        return parsed > 0n ? parsed : null;
-    } catch {
-        return null;
-    }
-};
-const formatAmount = (value: string) => value;
 const parseSafeCap = (value: string): number | null => {
-    const parsed = parsePositiveInteger(value);
-    if (parsed === null || parsed > BigInt(Number.MAX_SAFE_INTEGER))
-        return null;
-    return Number(parsed);
+    if (!/^\d+$/.test(value.trim())) return null;
+    const parsed = Number(value.trim());
+    return parsed > 0 && parsed <= Number.MAX_SAFE_INTEGER ? parsed : null;
 };
+
+const lifecycleTag: Record<Campaign["lifecycle"], string> = {
+    creating: "CREÁNDOSE",
+    draft: "BORRADOR",
+    published: "PUBLICADA",
+    cancelled: "CANCELADA",
+};
+
+const campaignExplain =
+    "Una campaña invita el café a alguien que nunca te visitó. Apartas el presupuesto por adelantado en un contrato; cuando un cliente nuevo se gana el voucher y se lo entregas, ese contrato te paga a ti.";
 
 export default function CafeCampaignsPage() {
     const { cafeId } = useParams<{ cafeId: string }>();
@@ -61,10 +66,10 @@ export default function CafeCampaignsPage() {
     const [message, setMessage] = useState("");
 
     const prospectiveRequired = useMemo(() => {
-        const payoutValue = parsePositiveInteger(payout);
-        const capValue = parsePositiveInteger(cap);
+        const payoutValue = parseSolesToMpen(payout);
+        const capValue = parseSafeCap(cap);
         return payoutValue && capValue
-            ? (payoutValue * capValue).toString()
+            ? formatMpenAsSoles(payoutValue * BigInt(capValue))
             : "—";
     }, [payout, cap]);
 
@@ -87,22 +92,28 @@ export default function CafeCampaignsPage() {
 
     const campaigns = (campaignsQuery.data ?? []) as Campaign[];
     const submitCreate = () => {
-        const payoutValue = parsePositiveInteger(payout);
+        const payoutValue = parseSolesToMpen(payout);
         const capValue = parseSafeCap(cap);
-        if (
-            !name.trim() ||
-            !payoutValue ||
-            !capValue ||
-            !windowStart ||
-            !windowEnd
-        ) {
-            setMessage("Completa todos los campos con valores válidos.");
+        if (!name.trim()) {
+            setMessage("Ponle un nombre a la campaña.");
+            return;
+        }
+        if (!payoutValue) {
+            setMessage("El monto por voucher va en soles, por ejemplo 5.00.");
+            return;
+        }
+        if (!capValue) {
+            setMessage("El máximo de vouchers es un número entero mayor a 0.");
+            return;
+        }
+        if (!windowStart || !windowEnd) {
+            setMessage("Elige la fecha de inicio y la de fin.");
             return;
         }
         createCampaign.mutate(
             {
                 name: name.trim(),
-                voucherPayout: payout,
+                voucherPayout: payoutValue.toString(),
                 maxVouchers: capValue,
                 windowStart: new Date(windowStart).toISOString(),
                 windowEnd: new Date(windowEnd).toISOString(),
@@ -120,34 +131,41 @@ export default function CafeCampaignsPage() {
 
     return (
         <div className="mx-auto w-full max-w-3xl space-y-4 p-4 sm:p-6">
-            <h1 className="font-semibold text-2xl">Campañas del café</h1>
-            <p className="text-muted-foreground">
-                Crea campañas y financia su presupuesto antes de publicarlas.
-            </p>
+            <PageIntro
+                eyebrow="Traer clientes nuevos"
+                title="Campañas del café"
+                explain={campaignExplain}
+            />
             <p className="sr-only" role="status" aria-live="polite">
                 {message}
             </p>
+
             <Card>
                 <CardContent className="space-y-3 p-4">
                     <h2 className="font-medium">Nueva campaña</h2>
+                    <p className="text-muted-foreground text-sm">
+                        Tres pasos: la creas, la financias y la publicas. Solo
+                        puedes publicarla cuando el presupuesto cubra todos los
+                        vouchers que prometes.
+                    </p>
                     <Input
                         aria-label="Nombre de la campaña"
-                        placeholder="Nombre"
+                        placeholder="Nombre (ej. Bienvenida de agosto)"
                         value={name}
                         onChange={(event) => setName(event.target.value)}
                     />
                     <div className="grid gap-3 sm:grid-cols-2">
                         <Input
-                            aria-label="Payout por voucher"
-                            inputMode="numeric"
-                            placeholder="Payout por voucher"
+                            aria-label="Monto por voucher en soles"
+                            inputMode="decimal"
+                            placeholder="Monto por voucher (S/, ej. 5.00)"
                             value={payout}
                             onChange={(event) => setPayout(event.target.value)}
                         />
                         <Input
                             aria-label="Máximo de vouchers"
                             inputMode="numeric"
-                            placeholder="Máximo de vouchers"
+                            placeholder="Máximo de vouchers (ej. 10)"
                             value={cap}
                             onChange={(event) => setCap(event.target.value)}
                         />
@@ -168,10 +186,12 @@ export default function CafeCampaignsPage() {
                             }
                         />
                     </div>
-                    <p>
-                        Presupuesto requerido (vista previa):{" "}
-                        <strong>{prospectiveRequired}</strong>
-                    </p>
+                    <Stat
+                        label="Presupuesto que tendrás que apartar"
+                        value={prospectiveRequired}
+                        hint="monto por voucher × máximo de vouchers"
+                        lead
+                    />
                     <Button
                         className="min-h-11"
                         disabled={createCampaign.isPending}
@@ -183,6 +203,7 @@ export default function CafeCampaignsPage() {
                     </Button>
                 </CardContent>
             </Card>
+
             {campaigns.length === 0 ? (
                 <Card>
                     <CardContent className="p-6 text-muted-foreground">
@@ -201,21 +222,26 @@ export default function CafeCampaignsPage() {
                                         {campaign.name}
                                     </h2>
                                     <span className="rounded-full border px-2 py-1 text-xs">
-                                        {campaign.lifecycle}
+                                        {lifecycleTag[campaign.lifecycle]}
                                     </span>
                                 </div>
-                                <p>
-                                    Presupuesto requerido:{" "}
-                                    <strong>
-                                        {formatAmount(campaign.required)}
-                                    </strong>
-                                </p>
-                                <p>
-                                    Financiado on-chain:{" "}
-                                    <strong>
-                                        {formatAmount(campaign.funded)}
-                                    </strong>
-                                </p>
+                                <div className="guide-stat-row">
+                                    <Stat
+                                        label="Presupuesto requerido"
+                                        value={formatMpenAsSoles(
+                                            campaign.required,
+                                        )}
+                                        hint={`${campaign.maxVouchers} vouchers × ${formatMpenAsSoles(campaign.voucherPayout)}`}
+                                    />
+                                    <Stat
+                                        label="Ya apartado en el contrato"
+                                        value={formatMpenAsSoles(
+                                            campaign.funded,
+                                        )}
+                                        hint="bloqueado en CampaignEscrow"
+                                        lead
+                                    />
+                                </div>
                                 {campaign.lifecycle === "creating" ? (
                                     <p
                                         role="status"
@@ -232,15 +258,17 @@ export default function CafeCampaignsPage() {
                                                 className="text-destructive"
                                             >
                                                 Faltan{" "}
-                                                {formatAmount(campaign.missing)}{" "}
-                                                para financiar la campaña.
+                                                {formatMpenAsSoles(
+                                                    campaign.missing,
+                                                )}{" "}
+                                                para poder publicarla.
                                             </p>
                                         )}
                                         <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
                                             <Input
-                                                aria-label={`Monto para financiar ${campaign.name}`}
-                                                inputMode="numeric"
-                                                placeholder="Monto a financiar"
+                                                aria-label={`Monto en soles para financiar ${campaign.name}`}
+                                                inputMode="decimal"
+                                                placeholder="Monto a financiar (S/)"
                                                 value={fundingAmount}
                                                 onChange={(event) =>
                                                     setFundingAmounts(
@@ -257,16 +285,21 @@ export default function CafeCampaignsPage() {
                                                 className="min-h-11"
                                                 variant="outline"
                                                 disabled={
-                                                    !parsePositiveInteger(
+                                                    !parseSolesToMpen(
                                                         fundingAmount,
                                                     ) || isFunding
                                                 }
-                                                onClick={() =>
+                                                onClick={() => {
+                                                    const amount =
+                                                        parseSolesToMpen(
+                                                            fundingAmount,
+                                                        );
+                                                    if (!amount) return;
                                                     fundCampaign.mutate(
                                                         {
                                                             campaignId:
                                                                 campaign.id,
-                                                            amount: fundingAmount,
+                                                            amount: amount.toString(),
                                                         },
                                                         {
                                                             onSuccess: () =>
@@ -274,8 +307,8 @@ export default function CafeCampaignsPage() {
                                                                     "Financiamiento en cola para aprobación.",
                                                                 ),
                                                         },
-                                                    )
-                                                }
+                                                    );
+                                                }}
                                             >
                                                 {isFunding
                                                     ? "Enviando…"
@@ -306,13 +339,24 @@ export default function CafeCampaignsPage() {
                                         </Button>
                                     </>
                                 ) : campaign.lifecycle === "published" ? (
-                                    <p className="text-muted-foreground">
-                                        Campaña publicada. No hay acciones
-                                        pendientes.
-                                    </p>
+                                    <div className="guide-note">
+                                        <span className="guide-note__label">
+                                            Publicada
+                                        </span>
+                                        <p>
+                                            Ya no se puede cancelar ni cambiar
+                                            el monto: eso es lo que le garantiza
+                                            al cliente que el voucher vale. La
+                                            primera compra de un cliente nuevo
+                                            desbloquea su voucher solo. Lo que
+                                            sobre al cerrar la ventana vuelve a
+                                            ti.
+                                        </p>
+                                    </div>
                                 ) : (
                                     <p className="text-muted-foreground">
-                                        Campaña cancelada.
+                                        Campaña cancelada. El presupuesto que
+                                        habías apartado volvió a tu billetera.
                                     </p>
                                 )}
                             </CardContent>

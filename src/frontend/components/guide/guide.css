@@ -910,3 +910,29 @@
     font-weight: 700;
     letter-spacing: 0.12em;
 }
+
+/* Nota explicativa dentro de una tarjeta: la regla del dominio en palabras. */
+.guide-note {
+    display: grid;
+    gap: 0.35rem;
+    padding: 0.75rem 0.85rem;
+    border-left: 3px solid var(--color-accent);
+    border-radius: 0 0.5rem 0.5rem 0;
+    background: var(--color-paper-2);
+    text-align: left;
+}
+
+.guide-note__label {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+}
+
+.guide-note p {
+    margin: 0;
+    color: var(--color-ink);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+}

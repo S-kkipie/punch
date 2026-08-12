@@ -282,6 +282,20 @@ describe("RedeemPage voucher safety", () => {
         await act(async () => root.unmount());
     });
 
+    it("binds a voucher to its café instead of offering the network", async () => {
+        voucherStatus.value = "available";
+        const container = document.createElement("div");
+        document.body.append(container);
+        const root = createRoot(container);
+        await act(async () => root.render(<RedeemPage />));
+        // El escrow de la campaña solo puede pagarle a su cafetería: ofrecer
+        // las otras sería prometer un canje que la cadena rechazaría.
+        expect(container.textContent).toContain("Voucher para Brújula Café");
+        expect(container.textContent).not.toContain("Cafeterías disponibles");
+        expect(container.textContent).not.toContain("Patio 9");
+        await act(async () => root.unmount());
+    });
+
     it("disables a valid voucher and avoids mutation after going offline", async () => {
         voucherStatus.value = "available";
         const container = document.createElement("div");

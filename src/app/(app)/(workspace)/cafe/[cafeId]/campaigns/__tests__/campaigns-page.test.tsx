@@ -45,14 +45,15 @@ vi.mock("@/frontend/components/ui/spinner", () => ({
 
 import CafeCampaignsPage from "../page";
 
+// Montos en unidades base de mPEN (6 decimales): S/3.00 por voucher × 4.
 const campaign = (overrides: Record<string, unknown> = {}) => ({
     id: "campaign-1",
     name: "Campaña",
-    voucherPayout: "3",
+    voucherPayout: "3000000",
     maxVouchers: 4,
-    required: "12",
-    funded: "4",
-    missing: "8",
+    required: "12000000",
+    funded: "4000000",
+    missing: "8000000",
     canPublish: false,
     lifecycle: "draft",
     windowStart: "2026-08-09T00:00:00.000Z",
@@ -84,7 +85,8 @@ describe("café campaigns screen", () => {
             )?.set?.call(inputs[2], "4");
             inputs[2].dispatchEvent(new Event("input", { bubbles: true }));
         });
-        expect(rootNode.textContent).toContain("12");
+        // El preview convierte soles a soles: S/3.00 × 4 = S/12.00.
+        expect(rootNode.textContent).toContain("S/12.00");
         await act(async () => root.unmount());
     });
     it("renders creating without publish", async () => {
@@ -103,7 +105,7 @@ describe("café campaigns screen", () => {
         document.body.append(node);
         const root = createRoot(node);
         await act(async () => root.render(<CafeCampaignsPage />));
-        expect(node.textContent).toContain("Faltan 8");
+        expect(node.textContent).toContain("Faltan S/8.00");
         expect(
             [...node.querySelectorAll("button")].find(
                 (button) => button.textContent === "Publicar campaña",
@@ -113,7 +115,7 @@ describe("café campaigns screen", () => {
     });
     it("enables publish when fully funded", async () => {
         state.campaigns = [
-            campaign({ funded: "12", missing: "0", canPublish: true }),
+            campaign({ funded: "12000000", missing: "0", canPublish: true }),
         ];
         const node = document.createElement("div");
         document.body.append(node);

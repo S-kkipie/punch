@@ -311,19 +311,34 @@ export default function RedeemPage() {
 
     return (
         <div className="mx-auto grid w-full max-w-md gap-5">
-            <PageIntro
-                eyebrow="Tus 12 sellos"
-                title="Canjear recompensa"
-                explain="El café que elijas lo paga la red con el fondo común, no la cafetería que te atiende. Por eso puedes canjear donde quieras."
-            />
+            {isVoucherFlow ? (
+                <PageIntro
+                    eyebrow="Tu voucher"
+                    title="Usar tu voucher"
+                    explain={`Este voucher lo paga la campaña de ${selectedCafe?.name ?? "la cafetería"}, no el fondo común. Por eso solo vale ahí y no en el resto de la red.`}
+                />
+            ) : (
+                <PageIntro
+                    eyebrow="Tus 12 sellos"
+                    title="Canjear recompensa"
+                    explain="El café que elijas lo paga la red con el fondo común, no la cafetería que te atiende. Por eso puedes canjear donde quieras."
+                />
+            )}
             <div className="consumer-panel grid gap-2 p-5">
                 <p className="font-semibold">
                     {isVoucherFlow
-                        ? "Voucher disponible"
+                        ? `Voucher para ${selectedCafe?.name ?? "la cafetería"}`
                         : product
                           ? product.name
                           : "Recompensa"}
                 </p>
+                {isVoucherFlow && (
+                    <p className="text-[var(--color-ink-2)] text-sm">
+                        {voucher
+                            ? "Pídelo en la barra: la cafetería lo marca como entregado y el contrato de la campaña le paga a ella."
+                            : "Este voucher ya no está disponible."}
+                    </p>
+                )}
                 {!isVoucherFlow && balance !== null && (
                     <p className="text-[var(--color-ink-2)] text-sm">
                         Tu progreso: {Math.min(balance, 12)} / 12
@@ -338,7 +353,9 @@ export default function RedeemPage() {
                     </p>
                 )}
             </div>
-            {visibleCafes.length > 0 ? (
+            {/* El voucher está atado a su cafetería: ofrecer la red entera
+                sería ofrecer algo que el contrato no puede pagar. */}
+            {!isVoucherFlow && visibleCafes.length > 0 ? (
                 <section
                     className="consumer-panel grid gap-2 p-5"
                     aria-label="Red de cafeterías"
