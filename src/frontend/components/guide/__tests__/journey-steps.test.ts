@@ -67,7 +67,20 @@ describe("journey step derivation", () => {
         expect(step).toBe(4);
     });
 
-    it("returns 5 when redemption is confirmed", () => {
+    it("returns 5 right after a redemption, when the balance is back at zero", () => {
+        const step = stepFrom({
+            balance: 0,
+            hasPendingPurchase: false,
+            hasPendingRedemption: false,
+            hasConfirmedRedemption: true,
+        });
+
+        expect(step).toBe(5);
+    });
+
+    it("starts a fresh cycle when the client re-accumulated stamps after a past redemption", () => {
+        // Regresión: un canje de una demo anterior dejaba la guía marcada como
+        // "ciclo completo" aunque el cliente ya volviera a juntar sellos.
         const step = stepFrom({
             balance: 11,
             hasPendingPurchase: false,
@@ -75,7 +88,7 @@ describe("journey step derivation", () => {
             hasConfirmedRedemption: true,
         });
 
-        expect(step).toBe(5);
+        expect(step).toBe(0);
     });
 
     it("exports six step labels with role alignment", () => {

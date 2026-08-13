@@ -36,13 +36,19 @@ export function deriveJourneyStep(input: JourneyInput): number {
     const balance = input.balance ?? 0;
 
     if (input.hasPendingRedemption) return 4;
-    if (input.hasConfirmedRedemption) return 5;
-
     if (input.hasPendingPurchase) return 1;
 
-    if (balance < 12) return 0;
+    // El saldo manda sobre un canje ya confirmado: si el cliente volvió a
+    // acumular sellos, arrancó un ciclo nuevo y "ciclo completo" (5) quedó
+    // atrás. Sin esto, el canje de una demo pasada dejaba la guía marcada
+    // como terminada para siempre.
+    if (balance >= 12) return 3;
+    if (balance > 0) return 0;
 
-    return 3;
+    // Saldo en cero y un canje confirmado: el cliente acaba de cerrar el ciclo.
+    if (input.hasConfirmedRedemption) return 5;
+
+    return 0;
 }
 
 export function blockedLabel(base: string, reason: string): string {
