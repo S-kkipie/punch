@@ -1,0 +1,1127 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Simulación educativa de flujo de dinero y clientes entre cuatro cafeterías PUNCH.">
+  <title>PUNCH — simulación de 4 cafeterías</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='8' fill='%23a12e26'/%3E%3Ccircle cx='20' cy='20' r='6' fill='%23fffaf0'/%3E%3Ccircle cx='44' cy='20' r='6' fill='%23fffaf0'/%3E%3Ccircle cx='20' cy='44' r='6' fill='%23fffaf0'/%3E%3Ccircle cx='44' cy='44' r='6' fill='%23fffaf0'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f3eee3;
+      --paper-raised: #fffaf0;
+      --ink: #25221d;
+      --ink-soft: #514b42;
+      --muted: #756d61;
+      --rule: #d5ccbc;
+      --rule-strong: #9f9587;
+      --stamp: #a12e26;
+      --stamp-dark: #7d221d;
+      --stamp-soft: #f0d5ce;
+      --money: #007fa4;
+      --money-soft: #d4ebef;
+      --network: #b07825;
+      --network-soft: #f1e2c4;
+      --good: #18795c;
+      --good-soft: #dceee6;
+      --warning: #ad6500;
+      --shadow: 0 12px 34px rgb(57 44 24 / 0.09);
+      --display: Georgia, "Times New Roman", serif;
+      --body: Arial, Helvetica, sans-serif;
+      --mono: "Courier New", Courier, monospace;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --paper: #1e1a17;
+        --paper-raised: #28221e;
+        --ink: #f5eee3;
+        --ink-soft: #d2c7ba;
+        --muted: #a99c8e;
+        --rule: #4d433a;
+        --rule-strong: #786a5e;
+        --stamp: #d76154;
+        --stamp-dark: #ef7d70;
+        --stamp-soft: #512923;
+        --money: #168fa8;
+        --money-soft: #173c43;
+        --network: #b67a25;
+        --network-soft: #47361e;
+        --good: #68c49f;
+        --good-soft: #173b31;
+        --warning: #e8a13f;
+        --shadow: 0 12px 34px rgb(0 0 0 / 0.25);
+      }
+    }
+
+    :root[data-theme="light"] {
+      color-scheme: light;
+      --paper: #f3eee3;
+      --paper-raised: #fffaf0;
+      --ink: #25221d;
+      --ink-soft: #514b42;
+      --muted: #756d61;
+      --rule: #d5ccbc;
+      --rule-strong: #9f9587;
+      --stamp: #a12e26;
+      --stamp-dark: #7d221d;
+      --stamp-soft: #f0d5ce;
+      --money: #007fa4;
+      --money-soft: #d4ebef;
+      --network: #b07825;
+      --network-soft: #f1e2c4;
+      --good: #18795c;
+      --good-soft: #dceee6;
+      --warning: #ad6500;
+      --shadow: 0 12px 34px rgb(57 44 24 / 0.09);
+    }
+
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --paper: #1e1a17;
+      --paper-raised: #28221e;
+      --ink: #f5eee3;
+      --ink-soft: #d2c7ba;
+      --muted: #a99c8e;
+      --rule: #4d433a;
+      --rule-strong: #786a5e;
+      --stamp: #d76154;
+      --stamp-dark: #ef7d70;
+      --stamp-soft: #512923;
+      --money: #168fa8;
+      --money-soft: #173c43;
+      --network: #b67a25;
+      --network-soft: #47361e;
+      --good: #68c49f;
+      --good-soft: #173b31;
+      --warning: #e8a13f;
+      --shadow: 0 12px 34px rgb(0 0 0 / 0.25);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      overflow-x: hidden;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--body);
+      line-height: 1.58;
+    }
+    button, select, input { font: inherit; }
+    button, select { color: inherit; }
+    a { color: var(--stamp-dark); }
+    h1, h2, h3 { margin: 0; text-wrap: balance; }
+    h1, h2 { font-family: var(--display); font-weight: 500; line-height: 0.98; }
+    h1 { font-size: clamp(3rem, 9vw, 7.6rem); letter-spacing: -0.055em; }
+    h2 { font-size: clamp(2.2rem, 5.5vw, 4.8rem); letter-spacing: -0.04em; }
+    h3 { line-height: 1.15; }
+    p { margin: 0.6rem 0 0; }
+    strong, output, td.num { font-variant-numeric: tabular-nums; }
+    code, .mono { font-family: var(--mono); }
+
+    .shell { width: min(1160px, calc(100% - 2rem)); margin-inline: auto; }
+    .topbar {
+      position: sticky;
+      z-index: 20;
+      top: 0;
+      border-bottom: 1px solid var(--rule-strong);
+      background: color-mix(in srgb, var(--paper) 94%, transparent);
+      backdrop-filter: blur(12px);
+    }
+    .topbar-inner {
+      min-height: 3.7rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+    .brand { display: inline-flex; align-items: center; gap: 0.65rem; color: var(--ink); text-decoration: none; font-weight: 900; letter-spacing: 0.08em; }
+    .brand-mark { display: grid; grid-template-columns: repeat(3, 4px); gap: 3px; }
+    .brand-mark i { width: 4px; height: 4px; border-radius: 50%; background: var(--stamp); }
+    .actions { display: flex; gap: 0.5rem; }
+    .button {
+      min-height: 2.3rem;
+      padding: 0.45rem 0.7rem;
+      border: 1px solid var(--rule-strong);
+      border-radius: 3px;
+      background: var(--paper-raised);
+      color: var(--ink);
+      cursor: pointer;
+      font-weight: 800;
+    }
+    .button:hover, .button:focus-visible { border-color: var(--stamp); outline: 2px solid color-mix(in srgb, var(--stamp) 30%, transparent); outline-offset: 2px; }
+
+    .hero { padding: clamp(4rem, 8vw, 8rem) 0 3rem; border-bottom: 1px solid var(--rule); }
+    .eyebrow, .kicker {
+      color: var(--stamp-dark);
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .hero-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(16rem, 0.7fr); gap: 2rem; align-items: end; }
+    .hero-lede { max-width: 64ch; color: var(--ink-soft); font-size: 1.08rem; }
+    .seed-card { border: 1px solid var(--rule-strong); padding: 1rem; background: var(--paper-raised); box-shadow: var(--shadow); }
+    .seed-card strong { display: block; margin-top: 0.45rem; font-family: var(--mono); font-size: 1.15rem; }
+    .tag-row { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 1.4rem; }
+    .tag { padding: 0.35rem 0.55rem; border: 1px solid var(--rule-strong); background: var(--paper-raised); font-family: var(--mono); font-size: 0.72rem; font-weight: 800; }
+
+    .toc { border-bottom: 1px solid var(--rule); background: var(--paper-raised); }
+    .toc-list { display: flex; gap: 0.3rem; overflow-x: auto; margin: 0; padding: 0.7rem 0; list-style: none; scrollbar-width: thin; }
+    .toc a { display: block; white-space: nowrap; padding: 0.4rem 0.6rem; border: 1px solid transparent; color: var(--ink-soft); text-decoration: none; font-size: 0.8rem; font-weight: 800; }
+    .toc a:hover, .toc a:focus-visible { border-color: var(--rule-strong); color: var(--stamp-dark); outline: none; }
+
+    main section { padding: clamp(3.5rem, 7vw, 6.5rem) 0; border-bottom: 1px solid var(--rule); scroll-margin-top: 4.5rem; }
+    .section-head { display: grid; grid-template-columns: minmax(8rem, 0.34fr) minmax(0, 1fr); gap: 1.2rem; margin-bottom: 2rem; }
+    .section-intro { max-width: 66ch; color: var(--ink-soft); }
+
+    .summary-grid, .cafe-grid, .journey-grid, .two-column, .three-column, .glossary-grid { display: grid; gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+    .summary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .cafe-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .journey-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .two-column { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .three-column { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .glossary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .stat, .cafe-card, .journey, .panel, .glossary-item { min-width: 0; padding: 1.1rem; background: var(--paper-raised); }
+    .stat span, .cafe-meta, .glossary-item span { display: block; color: var(--muted); font-size: 0.75rem; }
+    .stat strong { display: block; margin-top: 0.45rem; font-size: clamp(1.7rem, 4vw, 2.8rem); line-height: 1; }
+    .stat.good strong { color: var(--good); }
+    .stat.money strong { color: var(--money); }
+    .stat.network strong { color: var(--network); }
+    .cafe-code { color: var(--stamp-dark); font-family: var(--mono); font-size: 0.72rem; font-weight: 900; }
+    .cafe-card h3 { margin-top: 0.35rem; font-size: 1.25rem; }
+    .bar-track { height: 0.7rem; margin-top: 1rem; background: color-mix(in srgb, var(--stamp) 14%, var(--paper)); }
+    .bar-fill { height: 100%; background: var(--stamp); }
+
+    .callout { display: grid; grid-template-columns: 2.8rem minmax(0, 1fr); border: 1px solid var(--rule); border-left: 3px solid var(--stamp); background: var(--paper-raised); box-shadow: var(--shadow); }
+    .callout-mark { display: grid; place-items: center; margin: 0.7rem; width: 1.7rem; height: 1.7rem; border-radius: 50%; background: var(--stamp); color: white; font-family: var(--mono); font-size: 0.72rem; font-weight: 900; }
+    .callout > div { padding: 1rem 1rem 1rem 0; }
+    .callout h3 { font-size: 1.1rem; }
+    .callout p { color: var(--ink-soft); }
+
+    .money-flow { overflow-x: auto; border: 1px solid var(--rule-strong); background: var(--paper-raised); box-shadow: var(--shadow); }
+    .money-flow svg { display: block; width: 100%; min-width: 760px; height: auto; }
+    .svg-box { fill: var(--paper); stroke: var(--rule-strong); stroke-width: 2; }
+    .svg-reserve { fill: var(--money-soft); stroke: var(--money); stroke-width: 2; }
+    .svg-fund { fill: var(--network-soft); stroke: var(--network); stroke-width: 2; }
+    .svg-punch { fill: var(--stamp-soft); stroke: var(--stamp); stroke-width: 2; }
+    .svg-line { fill: none; stroke: var(--stamp); stroke-width: 2.5; }
+    .svg-label { fill: var(--ink); font: 800 15px Arial, sans-serif; }
+    .svg-value { fill: var(--ink); font: 800 24px "Courier New", monospace; }
+    .svg-small { fill: var(--muted); font: 12px Arial, sans-serif; }
+    figcaption { padding: 0.85rem 1rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.8rem; }
+
+    .table-wrap { max-width: 100%; overflow-x: auto; border: 1px solid var(--rule); background: var(--paper-raised); }
+    table { width: 100%; min-width: 700px; border-collapse: collapse; font-size: 0.84rem; }
+    th, td { padding: 0.75rem; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+    th { color: var(--muted); font-family: var(--mono); font-size: 0.67rem; letter-spacing: 0.07em; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
+    td.num { text-align: right; white-space: nowrap; font-family: var(--mono); }
+    td.positive { color: var(--good); font-weight: 900; }
+    td.negative { color: var(--stamp-dark); font-weight: 900; }
+    .matrix-total { background: color-mix(in srgb, var(--money) 9%, var(--paper-raised)); font-weight: 900; }
+
+    .price-card { padding: 1rem; border: 1px solid var(--rule); background: var(--paper-raised); }
+    .price-card .equation { margin-top: 0.8rem; padding: 0.8rem; background: var(--paper); font-family: var(--mono); font-weight: 800; }
+    .price-card small { display: block; margin-top: 0.65rem; color: var(--muted); }
+
+    .journey { position: relative; }
+    .journey-number { display: inline-grid; place-items: center; width: 1.7rem; height: 1.7rem; border: 1px solid var(--stamp); border-radius: 50%; color: var(--stamp-dark); font-family: var(--mono); font-size: 0.72rem; font-weight: 900; }
+    .journey h3 { margin-top: 0.7rem; }
+    .journey ol { margin: 0.7rem 0 0; padding-left: 1.2rem; color: var(--ink-soft); }
+    .journey-result { margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px solid var(--rule); font-family: var(--mono); font-size: 0.78rem; }
+
+    .ledger { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border: 1px solid var(--rule); background: var(--rule); gap: 1px; }
+    .ledger-cell { padding: 1rem; background: var(--paper-raised); }
+    .ledger-cell span { display: block; color: var(--muted); font-size: 0.72rem; }
+    .ledger-cell strong { display: block; margin-top: 0.4rem; font-size: 1.5rem; }
+
+    .stress-box { display: grid; grid-template-columns: minmax(16rem, 0.68fr) minmax(0, 1.32fr); gap: 1.5rem; padding: 1.3rem; border: 1px solid var(--rule-strong); background: var(--paper-raised); box-shadow: var(--shadow); scroll-margin-top: 5rem; }
+    .controls { display: grid; gap: 1.2rem; }
+    .control { display: grid; gap: 0.4rem; }
+    .control label { font-weight: 900; }
+    .control small { color: var(--muted); }
+    .input-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.8rem; align-items: center; }
+    input[type="range"] { width: 100%; accent-color: var(--stamp); }
+    output { min-width: 5rem; text-align: right; color: var(--stamp-dark); font-family: var(--mono); font-size: 1.1rem; font-weight: 900; }
+    select { min-height: 2.5rem; padding: 0.45rem; border: 1px solid var(--rule-strong); border-radius: 2px; background: var(--paper); }
+    .result-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; border: 1px solid var(--rule); background: var(--rule); }
+    .result-cell { min-width: 0; padding: 1rem; background: var(--paper); }
+    .result-cell span { display: block; color: var(--muted); font-size: 0.72rem; }
+    .result-cell strong { display: block; margin-top: 0.35rem; font-size: clamp(1.3rem, 3vw, 2rem); line-height: 1; }
+    .result-cell.total { background: var(--ink); color: var(--paper); }
+    .result-cell.total span { color: color-mix(in srgb, var(--paper) 72%, transparent); }
+    .result-cell.positive strong { color: var(--good); }
+    .result-cell.negative strong { color: var(--stamp); }
+
+    .roi-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; border: 1px solid var(--rule); background: var(--rule); }
+    .roi-card { padding: 1rem; background: var(--paper-raised); }
+    .roi-card strong { display: block; margin-top: 0.45rem; color: var(--good); font-size: 2rem; line-height: 1; }
+    .roi-card .roi-equation { margin-top: 0.75rem; color: var(--muted); font-family: var(--mono); font-size: 0.72rem; }
+
+    .proof-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+    .proof-card { padding: 1.3rem; border: 1px solid var(--rule-strong); background: var(--paper-raised); box-shadow: var(--shadow); }
+    .proof-card .big { display: block; margin-top: 0.6rem; font-family: var(--display); font-size: clamp(2.3rem, 5vw, 4.6rem); line-height: 0.95; }
+    .proof-card ul { margin: 1rem 0 0; padding-left: 1.1rem; color: var(--ink-soft); }
+
+    .glossary-item strong { display: block; margin-bottom: 0.35rem; }
+    .glossary-item p { margin: 0; color: var(--ink-soft); font-size: 0.88rem; }
+
+    .footer { padding: 2rem 0 4rem; color: var(--muted); font-size: 0.82rem; }
+    .footer-inner { display: flex; justify-content: space-between; gap: 1rem; }
+
+    @media (max-width: 900px) {
+      .hero-grid, .section-head, .stress-box { grid-template-columns: 1fr; }
+      .summary-grid, .cafe-grid, .roi-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .ledger { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .glossary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 620px) {
+      .shell { width: min(100% - 1rem, 1160px); }
+      .actions .back-label { display: none; }
+      .summary-grid, .cafe-grid, .journey-grid, .two-column, .three-column, .result-grid, .roi-cards, .proof-grid, .glossary-grid { grid-template-columns: 1fr; }
+      .ledger { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .topbar-inner { min-height: 3.25rem; }
+      .button { padding-inline: 0.55rem; font-size: 0.76rem; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+    @media print {
+      :root { color-scheme: light; }
+      body { background: white; color: #111; }
+      .topbar, .toc, .controls { display: none !important; }
+      main section { break-inside: avoid; }
+      .money-flow, .panel, .stress-box, .proof-card { box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="shell topbar-inner">
+      <a class="brand" href="#inicio" aria-label="Ir al inicio">
+        <span class="brand-mark" aria-hidden="true">
+          <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+        </span>
+        PUNCH · 4 CAFÉS
+      </a>
+      <div class="actions">
+        <a class="button" href="../economia/index.html"><span class="back-label">Modelo completo</span> ↗</a>
+        <button class="button" id="themeToggle" type="button">Tema oscuro</button>
+        <button class="button" type="button" onclick="window.print()">Imprimir / PDF</button>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero" id="inicio">
+    <div class="shell hero-grid">
+      <div>
+        <span class="eyebrow">Corrida ficticia reproducible · un mes estabilizado</span>
+        <h1>Cuatro cafés.<br>Un solo flujo.</h1>
+        <p class="hero-lede">Ejemplo cerrado para seguir clientes, Yape, PUNCH, canjes, oportunidades perdidas, referidos, fondo común y ROI desde inicio hasta resultado.</p>
+        <div class="tag-row">
+          <span class="tag">4 suscripciones × S/49</span>
+          <span class="tag">420 clientes iniciales</span>
+          <span class="tag">40 viajes pagados</span>
+          <span class="tag">30 canjes</span>
+          <span class="tag">Sin horas pico</span>
+        </div>
+      </div>
+      <aside class="seed-card">
+        <span class="kicker">Semilla congelada</span>
+        <strong>F4–LIMA–2408</strong>
+        <p>Números ficticios muestreados una vez y fijados para que cada suma pueda auditarse. No son ventas reales ni promesa comercial.</p>
+      </aside>
+    </div>
+  </section>
+
+  <nav class="toc" aria-label="Contenido">
+    <div class="shell">
+      <ol class="toc-list">
+        <li><a href="#respuesta">Respuesta corta</a></li>
+        <li><a href="#precios">Precios y dinero</a></li>
+        <li><a href="#cafes">4 cafeterías</a></li>
+        <li><a href="#viajes">Viajes reales</a></li>
+        <li><a href="#punch">PUNCH y reserva</a></li>
+        <li><a href="#canjes">Canjes y pérdida</a></li>
+        <li><a href="#roi">ROI completo</a></li>
+        <li><a href="#fondo">Fondo común</a></li>
+        <li><a href="#prueba">Qué demuestra</a></li>
+        <li><a href="#glosario">Glosario</a></li>
+      </ol>
+    </div>
+  </nav>
+
+  <main>
+    <section id="respuesta">
+      <div class="shell">
+        <div class="section-head">
+          <span class="kicker">00 · resultado</span>
+          <div>
+            <h2>En esta corrida, las cuatro cubren S/49.</h2>
+            <p class="section-intro">Café grande gana mayor crédito de referido. Café pequeño recibe más ventas nuevas. Resultado depende de que mayoría de viajes sea incremental, no desplazamiento.</p>
+          </div>
+        </div>
+        <div class="summary-grid" aria-live="polite">
+          <article class="stat good"><span>Retorno neto PUNCH</span><strong id="heroNetworkRoi">+S/312.40</strong></article>
+          <article class="stat money"><span>Cafés que cubren plan</span><strong id="heroCoverCount">4 / 4</strong></article>
+          <article class="stat network"><span>Mayor crédito de referido</span><strong>A · S/3.20</strong></article>
+          <article class="stat"><span>Mayor margen por ventas recibidas</span><strong>D · S/144</strong></article>
+        </div>
+        <div class="callout" style="margin-top:1rem">
+          <span class="callout-mark">!</span>
+          <div>
+            <h3>Demostración matemática, no validación de mercado.</h3>
+            <p>Corrida muestra condiciones bajo las que modelo funciona. Piloto debe comprobar cuántos viajes son realmente adicionales, cuántos canjes reemplazan ventas y cuántos usuarios regresan.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="precios">
+      <div class="shell">
+        <div class="section-head">
+          <span class="kicker">01 · reglas simples</span>
+          <div>
+            <h2>Cinco números gobiernan ejemplo.</h2>
+            <p class="section-intro">Usuario siempre paga ventas normales por Yape. PUNCH solo aparece al emitir sello o cumplir reward.</p>
+          </div>
+        </div>
+
+        <div class="three-column">
+          <article class="price-card">
+            <span class="kicker">Venta normal</span>
+            <h3>Producto S/12</h3>
+            <div class="equation">S/12 − S/3 = S/9</div>
+            <small>Precio pagado − costo variable = margen.</small>
+          </article>
+          <article class="price-card">
+            <span class="kicker">Canje PUNCH</span>
+            <h3>Payout S/3.60</h3>
+            <div class="equation">S/3.60 − S/3 = S/0.60</div>
+            <small>Reserva paga anfitrión; producto cuesta S/3.</small>
+          </article>
+          <article class="price-card">
+            <span class="kicker">Venta desplazada</span>
+            <h3>Oportunidad S/8.40</h3>
+            <div class="equation">S/9 − S/0.60 = S/8.40</div>
+            <small>Margen que café deja de ganar si usuario habría comprado igual.</small>
+          </article>
+        </div>
+
+        <figure class="money-flow" style="margin-top:2rem">
+          <svg viewBox="0 0 1040 350" role="img" aria-label="Cuatro cafeterías pagan S/196: S/120 van a reserva, S/20 a fondo común y S/56 a PUNCH">
+            <defs>
+              <marker id="arrow-money" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#a12e26"></path></marker>
+            </defs>
+            <text x="44" y="38" class="svg-small">SUSCRIPCIONES DEL MES</text>
+            <rect x="44" y="76" width="220" height="120" rx="3" class="svg-box"></rect>
+            <text x="154" y="116" text-anchor="middle" class="svg-label">4 cafés × S/49</text>
+            <text x="154" y="158" text-anchor="middle" class="svg-value">S/196</text>
+            <path d="M264 136 H350" class="svg-line" marker-end="url(#arrow-money)"></path>
+
+            <rect x="365" y="56" width="190" height="100" rx="3" class="svg-reserve"></rect>
+            <text x="460" y="91" text-anchor="middle" class="svg-label">RewardVault</text>
+            <text x="460" y="127" text-anchor="middle" class="svg-value">S/120</text>
+
+            <rect x="590" y="56" width="190" height="100" rx="3" class="svg-fund"></rect>
+            <text x="685" y="91" text-anchor="middle" class="svg-label">Fondo común</text>
+            <text x="685" y="127" text-anchor="middle" class="svg-value">S/20</text>
+
+            <rect x="815" y="56" width="180" height="100" rx="3" class="svg-punch"></rect>
+            <text x="905" y="91" text-anchor="middle" class="svg-label">PUNCH</text>
+            <text x="905" y="127" text-anchor="middle" class="svg-value">S/56</text>
+
+            <path d="M460 156 V235" class="svg-line" marker-end="url(#arrow-money)"></path>
+            <text x="460" y="260" text-anchor="middle" class="svg-label">paga 30 canjes · S/108</text>
+            <text x="460" y="285" text-anchor="middle" class="svg-small">S/12 permanecen; S/3 respaldan 10 PUNCH vivos</text>
+
+            <path d="M685 156 V235" class="svg-line" marker-end="url(#arrow-money)"></path>
+            <text x="685" y="260" text-anchor="middle" class="svg-label">créditos + adquisición</text>
+            <text x="685" y="285" text-anchor="middle" class="svg-small">no paga rewards ya emitidos</text>
+
+            <path d="M905 156 V235" class="svg-line" marker-end="url(#arrow-money)"></path>
+            <text x="905" y="260" text-anchor="middle" class="svg-label">producto y operación</text>
+            <text x="905" y="285" text-anchor="middle" class="svg-small">ingreso bruto PUNCH</text>
+          </svg>
+          <figcaption>S/196 sale de cuatro cafés. No todo vuelve: S/56 es ingreso PUNCH. Cafés recuperan inversión mediante ventas, canjes rentables y créditos, no retirando suscripción.</figcaption>
+        </figure>
+
+        <div class="table-wrap" style="margin-top:1rem">
+          <table>
+            <thead><tr><th>Flujo</th><th>Por café</th><th>4 cafés</th><th>Explicación simple</th></tr></thead>
+            <tbody>
+              <tr><td>Suscripción</td><td class="num">S/49</td><td class="num">S/196</td><td>Costo mensual completo.</td></tr>
+              <tr><td>Reserva reward</td><td class="num">S/30</td><td class="num">S/120</td><td>Dinero separado para pagar anfitriones.</td></tr>
+              <tr><td>Fondo común</td><td class="num">S/5</td><td class="num">S/20</td><td>Créditos de origen, adquisición, eventos y seguridad.</td></tr>
+              <tr><td>Ingreso PUNCH</td><td class="num">S/14</td><td class="num">S/56</td><td>Presupuesto bruto antes de gas, soporte, fraude y cumplimiento; no demuestra utilidad PUNCH.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="cafes">
+      <div class="shell">
+        <div class="section-head">
+          <span class="kicker">02 · punto de partida</span>
+          <div>
+            <h2>Clientes desiguales. Mismo plan.</h2>
+            <p class="section-intro">Números ficticios aleatorios. “Cliente inicial” significa persona ya relacionada con café antes de movimiento PUNCH del mes.</p>
+          </div>
+        </div>
+
+        <div class="cafe-grid">
+          <article class="cafe-card">
+            <span class="cafe-code">CAFÉ A · MAYOR BASE</span>
+            <h3>Brújula Café</h3>
+            <strong class="big">180 clientes</strong>
+            <span class="cafe-meta">220 compras base · margen base S/1,980</span>
+            <div class="bar-track" aria-label="180 clientes de un máximo de 180"><div class="bar-fill" style="width:100%"></div></div>
+          </article>
+          <article class="cafe-card">
+            <span class="cafe-code">CAFÉ B</span>
+            <h3>Patio 9</h3>
+            <strong class="big">120 clientes</strong>
+            <span class="cafe-meta">150 compras base · margen base S/1,350</span>
+            <div class="bar-track" aria-label="120 clientes de un máximo de 180"><div class="bar-fill" style="width:66.7%"></div></div>
+          </article>
+          <article class="cafe-card">
+            <span class="cafe-code">CAFÉ C</span>
+            <h3>Nube Tostada</h3>
+            <strong class="big">75 clientes</strong>
+            <span class="cafe-meta">95 compras base · margen base S/855</span>
+            <div class="bar-track" aria-label="75 clientes de un máximo de 180"><div class="bar-fill" style="width:41.7%"></div></div>
+          </article>
+          <article class="cafe-card">
+            <span class="cafe-code">CAFÉ D · MENOR BASE</span>
+            <h3>Esquina Sur</h3>
+            <strong class="big">45 clientes</strong>
+            <span class="cafe-meta">55 compras base · margen base S/495</span>
+            <div class="bar-track" aria-label="45 clientes de un máximo de 180"><div class="bar-fill" style="width:25%"></div></div>
+          </article>
+        </div>
+
+        <div class="callout" style="margin-top:1rem">
+          <span class="callout-mark">420</span>
+          <div>
+            <h3>Red empieza con 420 relaciones, no con cuatro locales vacíos.</h3>
+            <p>A aporta más alcance inicial. D aporta destino nuevo. Algoritmo recomienda red completa; marcas conservan clientes y atribución de origen.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="viajes">
+      <div class="shell">
+        <div class="section-head">
+          <span class="kicker">03 · tráfico</span>
+          <div>
+            <h2>40 clientes pagan en otro café.</h2>
+            <p class="section-intro">Cada número es primera visita pagada con Yape de cliente originado en un café y recibido por otro. Ocho retornos posteriores, 16 ventas de retención y nueve upsells usan eventos separados: no se cuentan dentro de estos 40.</p>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Origen ↓ / destino →</th><th>A · Brújula</th><th>B · Patio</th><th>C · Nube</th><th>D · Esquina</th><th>Viajes enviados</th><th>Crédito origen</th></tr></thead>
+            <tbody>
+              <tr><td>A · Brújula</td><td class="num">—</td><td class="num">4</td><td class="num">5</td><td class="num">7</td><td class="num">16</td><td class="num positive">S/3.20</td></tr>
+              <tr><td>B · Patio</td><td class="num">2</td><td class="num">—</td><td class="num">3</td><td class="num">6</td><td class="num">11</td><td class="num positive">S/2.20</td></tr>
+              <tr><td>C · Nube</td><td class="num">2</td><td class="num">3</td><td class="num">—</td><td class="num">3</td><td class="num">8</td><td class="num positive">S/1.60</td></tr>
+              <tr><td>D · Esquina</td><td class="num">2</td><td class="num">2</td><td class="num">1</td><td class="num">—</td><td class="num">5</td><td class="num positive">S/1.00</td></tr>
+              <tr class="matrix-total"><td>Ventas recibidas</td><td class="num">6</td><td class="num">9</td><td class="num">9</td><td class="num">16</td><td class="num">40</td><td class="num">S/8.00</td></tr>
+              <tr class="matrix-total"><td>Margen recibido</td><td class="num">S/54</td><td class="num">S/81</td><td class="num">S/81</td><td class="num">S/144</td><td class="num">S/360</td><td class="num">—</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="two-column" style="margin-top:1rem">
+          <article class="panel">
+            <span class="kicker">30 visitas incrementales</span>
+            <h3>Cliente no habría comprado en café de origen.</h3>
+            <p>Puede venir de cadena, quedarse en casa o hacer compra adicional. Para coalición crea S/9 de margen nuevo por visita.</p>
+          </article>
+          <article class="panel">
+            <span class="kicker">10 visitas desplazadas</span>
+            <h3>Cliente habría comprado en café de origen.</h3>
+            <p>Destino gana S/9; origen pierde S/9. Coalición no crea valor: solo lo mueve. Crédito S/0.20 no compensa pérdida completa.</p>
+          </article>
+        </div>
+
+        <div class="callout" style="margin-top:1rem">
+          <span class="callout-mark">ID</span>
+          <div>
+            <h3>Cohortes separadas para no inflar resultado.</h3>
+            <p>Ventana común de 30 días: <span class="mono">X01–X40</span> primeras visitas cross-café · <span class="mono">R01–R16</span> retención propia · <span class="mono">P01–P08</span> retornos post-reward · <span class="mono">U01–U09</span> upsells. Ninguna transacción pertenece a dos grupos.</p>
+          </div>
+        </div>
+
+        <div class="section-head" style="margin-top:3rem">
+          <span class="kicker">4 de 420 clientes</span>
+          <div><h2 style="font-size:clamp(1.8rem,4vw,3rem)">Cómo usa PUNCH una persona</h2></div>
+        </div>
+        <div class="journey-grid">
+          <article class="journey">
+            <span class="journey-number">01</span>
+            <h3>Valeria · origen A</h3>
+            <ol>
+              <li>Empieza con 10 PUNCH acumulados.</li>
+              <li>Paga S/12 en D por Yape → recibe PUNCH 11.</li>
+              <li>Paga S/12 en C → recibe PUNCH 12.</li>
+              <li>Canjea producto en D; D recibe S/3.60.</li>
+              <li>Compra brownie; D obtiene S/3.60 de margen extra.</li>
+            </ol>
+            <div class="journey-result">A: 2 referidos · C/D: 2 ventas · D: 1 canje + upsell</div>
+          </article>
+          <article class="journey">
+            <span class="journey-number">02</span>
+            <h3>Marco · origen B</h3>
+            <ol>
+              <li>Empieza con 11 PUNCH.</li>
+              <li>Paga S/12 en D → completa 12.</li>
+              <li>Canjea en C; C recibe payout.</li>
+              <li>Una semana después vuelve a C y paga S/12.</li>
+            </ol>
+            <div class="journey-result">B: referido · D: venta · C: canje + retorno pagado</div>
+          </article>
+          <article class="journey">
+            <span class="journey-number">03</span>
+            <h3>Sofía · origen C</h3>
+            <ol>
+              <li>Descubre B desde red.</li>
+              <li>Paga S/12 en B y recibe PUNCH.</li>
+              <li>Más adelante canjea en B.</li>
+              <li>Compra adicional deja S/3.60 de margen.</li>
+            </ol>
+            <div class="journey-result">C: referido · B: venta + canje + upsell</div>
+          </article>
+          <article class="journey">
+            <span class="journey-number">04</span>
+            <h3>Renzo · origen D</h3>
+            <ol>
+              <li>Paga S/12 en A y recibe PUNCH.</li>
+              <li>A registra D como origen.</li>
+              <li>Después canjea en A.</li>
+              <li>Vuelve a A y paga otra compra de S/12.</li>
+            </ol>
+            <div class="journey-result">D: referido · A: venta + canje + retorno pagado</div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="punch">
+      <div class="shell">
+        <div class="section-head">
+          <span class="kicker">04 · ledger</span>
+          <div>
+            <h2>370 PUNCH entran. 360 se queman.</h2>
+            <p class="section-intro">Mes estabilizado: usuarios traen progreso previo, siguen comprando y canjean. Conservación permite auditar reserva.</p>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Café emisor</th><th>Créditos incluidos</th><th>PUNCH emitidos</th><th>Capacidad sin usar</th><th>Reserva comprometida</th></tr></thead>
+            <tbody>
+              <tr><td>A · Brújula</td><td class="num">100</td><td class="num">100</td><td class="num">0</td><td class="num">S/30.00</td></tr>
+              <tr><td>B · Patio</td><td class="num">100</td><td class="num">95</td><td class="num">5</td><td class="num">S/28.50</td></tr>
+              <tr><td>C · Nube</td><td class="num">100</td><td class="num">90</td><td class="num">10</td><td class="num">S/27.00</td></tr>
+              <tr><td>D · Esquina</td><td class="num">100</td><td class="num">85</td><td class="num">15</td><td class="num">S/25.50</td></tr>
+              <tr class="matrix-total"><td>Total</td><td class="num">400</td><td class="num">370</td><td class="num">30</td><td class="num">S/111.00</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p style="color:var(--muted);font-size:.82rem">Emisión también es dato sembrado: cuenta compras opt-in, no personas únicas. D puede emitir 85 con 45 clientes porque existen repeticiones y tráfico entrante. Simulación no deduce emisión automáticamente desde base inicial.</p>
+
+        <div class="ledger" style="margin-top:1rem">
+          <div class="ledger-cell"><span>Reserva inicial</span><strong>S/120</strong></div>
+          <div class="ledger-cell"><span>30 canjes pagados</span><strong>−S/108</strong></div>
+          <div class="ledger-cell"><span>Reserva restante</span><strong>S/12</strong></div>
+          <div class="ledger-cell"><span>10 PUNCH vivos × S/0.30</span><strong>S/3</strong></div>
+          <div class="ledger-cell"><span>Sobre-reserva inicial no asignada</span><strong>S/9</strong></div>
+        </div>
+
+        <div class="callout" style="margin-top:1rem">
+          <span class="callout-mark">12</span>
+          <div>
+            <h3>30 canjes consumen 360 PUNCH.</h3>
+            <p>30 × 12 = 360 quemados. 370 emitidos − 360 quemados = 10 PUNCH vivos. Cada uno conserva S/0.30 de liability. S/9 adicionales ya estaban sin asignar porque B, C y D no usaron toda capacidad; no son ganancia creada.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="canjes">
+      <div class="shell">
+        <div class="section-head">
+          <span class="kicker">05 · oportunidad perdida</span>
+          <div>
+            <h2>“Pude ganar S/99, no S/6.60.”</h2>
+            <p class="section-intro">Objeción correcta. Hay que separar peor caso de pérdida real atribuible.</p>
+          </div>
+        </div>
+
+        <div class="two-column">
+          <article class="price-card">
+            <span class="kicker">D sirve 11 canjes</span>
+            <h3>Dinero realmente recibido</h3>
+            <div class="equation">11 × S/3.60 = S/39.60</div>
+            <div class="equation">S/39.60 − S/33 COGS = S/6.60</div>
+            <small>Margen directo antes de upsell y retornos.</small>
+          </article>
+          <article class="price-card">
+            <span class="kicker">Si 11 hubieran comprado</span>
+            <h3>Máximo margen alternativo</h3>
+            <div class="equation">11 × S/9 = S/99</div>
+            <div class="equation">S/99 − S/6.60 = S/92.40</div>
+            <small>Peor caso: todos habrían pagado igual. Entonces PUNCH destruye valor.</small>
+          </article>
+        </div>
+
+        <div class="callout" style="margin-top:1rem">
+          <span class="callout-mark">1</span>
+          <div>
+            <h3>Corrida base reconoce 1 venta desplazada en D, no 11.</h3>
+            <p>Diez personas llegaron por red y no habrían comprado producto normal en D. Una sí habría pagado: pérdida reconocida = S/8.40. Supuesto puede tensionarse en calculadora.</p>
+          </div>
+        </div>
+
+        <div class="table-wrap" style="margin-top:1rem">
+          <table>
+            <thead><tr><th>Café anfitrión</th><th>Canjes</th><th>Payout</th><th>COGS</th><th>Margen directo</th><th>Upsells</th><th>Retornos pagados</th><th>Canjes desplazados</th><th>Margen base restado</th><th>Valor reward neto</th></tr></thead>
+            <tbody>
+              <tr><td>A</td><td class="num">4</td><td class="num">S/14.40</td><td class="num">−S/12</td><td class="num">S/2.40</td><td class="num">1 · S/3.60</td><td class="num">1 · S/9</td><td class="num">1</td><td class="num negative">−S/9.00</td><td class="num positive">S/6.00</td></tr>
+              <tr><td>B</td><td class="num">7</td><td class="num">S/25.20</td><td class="num">−S/21</td><td class="num">S/4.20</td><td class="num">2 · S/7.20</td><td class="num">2 · S/18</td><td class="num">1</td><td class="num negative">−S/9.00</td><td class="num positive">S/20.40</td></tr>
+              <tr><td>C</td><td class="num">8</td><td class="num">S/28.80</td><td class="num">−S/24</td><td class="num">S/4.80</td><td class="num">2 · S/7.20</td><td class="num">2 · S/18</td><td class="num">1</td><td class="num negative">−S/9.00</td><td class="num positive">S/21.00</td></tr>
+              <tr><td>D</td><td class="num">11</td><td class="num">S/39.60</td><td class="num">−S/33</td><td class="num">S/6.60</td><td class="num">4 · S/14.40</td><td class="num">3 · S/27</td><td class="num">1</td><td class="num negative">−S/9.00</td><td class="num positive">S/39.00</td></tr>
+              <tr class="matrix-total"><td>Total</td><td class="num">30</td><td class="num">S/108</td><td class="num">−S/90</td><td class="num">S/18</td><td class="num">9 · S/32.40</td><td class="num">8 · S/72</td><td class="num">4</td><td class="num negative">−S/36.00</td><td class="num positive">S/86.40</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="color:var(--muted);font-size:.82rem">Contabilidad incremental: tabla suma S/0.60 directo de todos los canjes y luego resta S/9 de margen base por cada canje desplazado. Efecto neto de ese canje = S/0.60 − S/9 = −S/8.40. Así no se cuenta S/0.60 dos veces.</p>
+      </div>
+    </section>
+
+    <section id="roi">
+      <div class="shell">
+        <div class="section-head">
+          <span class="kicker">06 · ROI auditable</span>
+          <div>
+            <h2>Cada beneficio y cada pérdida, en una suma.</h2>
+            <p class="section-intro">Mueve tasas de desplazamiento. “Con fondo” incluye S/49; “sin fondo” simula plan S/44, elimina créditos y cuatro visitas atribuidas a campaña común.</p>
+          </div>
+        </div>
+
+        <div class="stress-box" id="stressCalculator">
+          <div class="controls">
+            <div class="control">
+              <label for="travelDisplacement">Viajes pagados que reemplazan venta en origen</label>
+              <div class="input-row"><input id="travelDisplacement" type="range" min="0" max="100" step="5" value="25"><output id="travelDisplacementValue">25%</output></div>
+              <small>Base: 10 de 40 viajes solo mueven venta entre cafés.</small>
+            </div>
+            <div class="control">
+              <label for="rewardDisplacement">Canjes que reemplazan compra normal</label>
+              <div class="input-row"><input id="rewardDisplacement" type="range" min="0" max="100" step="0.5" value="12.5"><output id="rewardDisplacementValue">12.5%</output></div>
+              <small>Base redondeada: 1 canje desplazado por café.</small>
+            </div>
+            <div class="control">
+              <label for="fundMode">Fondo común</label>
+              <select id="fundMode">
+                <option value="on">Con fondo · plan S/49</option>
+                <option value="off">Sin fondo · plan contrafactual S/44</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <div class="result-grid" aria-live="polite">
+              <div class="result-cell"><span>Viajes desplazados</span><strong id="resultTravelDisplaced">10</strong></div>
+              <div class="result-cell"><span>Canjes desplazados</span><strong id="resultRewardDisplaced">4</strong></div>
+              <div class="result-cell"><span>Oportunidad perdida total</span><strong id="resultOpportunityLoss">−S/126.00</strong></div>
+              <div class="result-cell"><span>Suscripciones</span><strong id="resultSubscriptions">−S/196.00</strong></div>
+              <div class="result-cell total positive" id="resultNetCell"><span>Retorno neto PUNCH</span><strong id="resultNetworkRoi">+S/312.40</strong></div>
+              <div class="result-cell positive" id="resultRoiCell"><span>ROI neto sobre suscripciones</span><strong id="resultRoiRate">159.4%</strong></div>
+              <div class="result-cell positive" id="resultCoverCell"><span>Cafés que cubren plan</span><strong id="resultCoverCount">4 / 4</strong></div>
+              <div class="result-cell positive" id="resultFundCell"><span>Aporte neto del fondo vs no tenerlo</span><strong id="resultFundUplift">+S/24.00</strong></div>
+            </div>
+            <p id="stressInterpretation" style="color:var(--ink-soft);margin-top:1rem">Corrida viable: cuatro cafés recuperan suscripción.</p>
+          </div>
+        </div>
+
+        <div class="roi-cards" style="margin-top:1rem" aria-live="polite">
+          <article class="roi-card"><span class="cafe-code">CAFÉ A</span><h3>Brújula</h3><strong id="roiA">+S/23.20</strong><p class="roi-equation" id="equationA">54 + 45 + 6.00 + 3.20 − 36 − 49</p></article>
+          <article class="roi-card"><span class="cafe-code">CAFÉ B</span><h3>Patio</h3><strong id="roiB">+S/63.60</strong><p class="roi-equation" id="equationB">81 + 36 + 20.40 + 2.20 − 27 − 49</p></article>
+          <article class="roi-card"><span class="cafe-code">CAFÉ C</span><h3>Nube</h3><strong id="roiC">+S/72.60</strong><p class="roi-equation" id="equationC">81 + 36 + 21.00 + 1.60 − 18 − 49</p></article>
+          <article class="roi-card"><span class="cafe-code">CAFÉ D</span><h3>Esquina</h3><strong id="roiD">+S/153.00</strong><p class="roi-equation" id="equationD">144 + 27 + 39.00 + 1 − 9 − 49</p></article>
+        </div>
+
+        <div class="table-wrap" style="margin-top:1rem">
+          <table>
+            <thead><tr><th>Café</th><th>Ventas recibidas</th><th>Retención propia</th><th>Valor de canjes</th><th>Crédito origen</th><th>Ventas perdidas al exportar</th><th>Suscripción</th><th>Retorno neto</th><th>ROI sobre plan</th><th>Margen base + retorno</th></tr></thead>
+            <tbody id="roiTableBody">
+              <tr><td>A · Brújula</td><td class="num">S/54</td><td class="num">S/45</td><td class="num">S/6.00</td><td class="num">S/3.20</td><td class="num negative">−S/36</td><td class="num negative">−S/49</td><td class="num positive">+S/23.20</td><td class="num positive">47.3%</td><td class="num">S/2,003.20</td></tr>
+              <tr><td>B · Patio</td><td class="num">S/81</td><td class="num">S/36</td><td class="num">S/20.40</td><td class="num">S/2.20</td><td class="num negative">−S/27</td><td class="num negative">−S/49</td><td class="num positive">+S/63.60</td><td class="num positive">129.8%</td><td class="num">S/1,413.60</td></tr>
+              <tr><td>C · Nube</td><td class="num">S/81</td><td class="num">S/36</td><td class="num">S/21.00</td><td class="num">S/1.60</td><td class="num negative">−S/18</td><td class="num negative">−S/49</td><td class="num positive">+S/72.60</td><td class="num positive">148.2%</td><td class="num">S/927.60</td></tr>
+              <tr><td>D · Esquina</td><td class="num">S/144</td><td class="num">S/27</td><td class="num">S/39.00</td><td class="num">S/1</td><td class="num negative">−S/9</td><td class="num negative">−S/49</td><td class="num positive">+S/153.00</td><td class="num positive">312.2%</td><td class="num">S/648.00</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout" style="margin-top:1rem">
+          <span class="callout-mark">Σ</span>
+          <div>
+            <h3>Dos resultados distintos</h3>
+            <p><span class="mono">retorno neto = ventas recibidas + retención + reward + crédito − pérdidas − suscripción</span><br><span class="mono">ROI % = retorno neto ÷ suscripción × 100</span></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="fondo">
+      <div class="shell">
+        <div class="section-head">
+          <span class="kicker">07 · fondo común</span>
+          <div>
+            <h2>¿Para qué carajo sirve S/20?</h2>
+            <p class="section-intro">No fabrica dinero. Hace dos trabajos: compensa contribución y compra tráfico medible. Con solo cuatro cafés sigue siendo pequeño.</p>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Uso</th><th>Monto</th><th>Acción en simulación</th><th>Resultado merchant contado</th></tr></thead>
+            <tbody>
+              <tr><td>40% créditos de origen</td><td class="num">S/8</td><td>S/0.20 por 40 visitas cross-café verificadas.</td><td>S/8 reduce próximas facturas.</td></tr>
+              <tr><td>30% adquisición</td><td class="num">S/6</td><td>Campaña común: una visita atribuida a cada café destino.</td><td rowspan="2">4 ventas incrementales × S/9 = S/36.</td></tr>
+              <tr><td>20% ruta/evento</td><td class="num">S/4</td><td>Descubrimiento entre cuatro locales.</td></tr>
+              <tr><td>10% seguridad</td><td class="num">S/2</td><td>Permanece para incidente aprobado.</td><td>S/0 inmediato; protege red.</td></tr>
+              <tr class="matrix-total"><td>Total</td><td class="num">S/20</td><td>Capital colectivo del mes.</td><td>S/36 de margen nuevo atribuido + S/8 transferidos.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="summary-grid" style="margin-top:1rem">
+          <article class="stat"><span>Aporte fondo</span><strong>S/20</strong></article>
+          <article class="stat money"><span>Margen nuevo atribuido</span><strong>S/36</strong></article>
+          <article class="stat network"><span>Transferencia interna</span><strong>S/8</strong></article>
+          <article class="stat"><span>Safety aún no gastado</span><strong>S/2</strong></article>
+        </div>
+
+        <div class="callout" style="margin-top:1rem">
+          <span class="callout-mark">↔</span>
+          <div>
+            <h3>S/8 de créditos no son riqueza nueva.</h3>
+            <p>Son transferencia desde aportes de los cuatro cafés hacia quienes originaron viajes. Sí cuentan en retorno privado de cada café; no cuentan como valor nuevo de coalición. Cuatro ventas atribuidas tampoco prueban causalidad sin grupo de control.</p>
+          </div>
+        </div>
+
+        <div class="two-column" style="margin-top:1rem">
+          <article class="panel">
+            <span class="kicker">Con fondo</span>
+            <h3>S/49 × 4</h3>
+            <p>Cuatro ventas atribuidas + S/8 de créditos. Retorno neto merchant base: <strong>+S/312.40</strong>.</p>
+          </article>
+          <article class="panel">
+            <span class="kicker">Sin fondo</span>
+            <h3>S/44 × 4</h3>
+            <p>Se ahorran S/20, pero desaparecen cuatro ventas y créditos. Retorno neto merchant: <strong>+S/288.40</strong>.</p>
+          </article>
+        </div>
+
+        <div class="callout" style="margin-top:1rem">
+          <span class="callout-mark">−</span>
+          <div>
+            <h3>Fondo no puede compensar ventas desviadas completas.</h3>
+            <p>Diez ventas desviadas cuestan S/90 de margen a cafés origen. Pool de créditos contiene S/8: faltan S/82 para compensación total. Solución no es fingir: mantener mayoría de tráfico incremental o sumar sponsors/campañas externos.</p>
+          </div>
+        </div>
+
+        <div class="three-column" style="margin-top:1rem">
+          <article class="panel"><span class="kicker">Lo que sí hace</span><h3>Premia origen</h3><p>A envía 16 viajes y recibe mayor crédito: S/3.20.</p></article>
+          <article class="panel"><span class="kicker">Lo que sí hace</span><h3>Compra tráfico</h3><p>S/10 de adquisición/evento producen cuatro ventas verificadas en escenario.</p></article>
+          <article class="panel"><span class="kicker">Lo que no hace</span><h3>No paga reward</h3><p>Canjes salen de RewardVault S/120, nunca de fondo común.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="prueba">
+      <div class="shell">
+        <div class="section-head">
+          <span class="kicker">08 · conclusión</span>
+          <div>
+            <h2>Grande aporta alcance. Pequeña captura tráfico.</h2>
+            <p class="section-intro">Eso sí demuestra corrida. Lo que solo piloto puede demostrar es si tasas usadas ocurren en mercado real.</p>
+          </div>
+        </div>
+
+        <div class="proof-grid">
+          <article class="proof-card">
+            <span class="kicker">Café A · 180 clientes</span>
+            <strong class="big">16 referidos</strong>
+            <ul>
+              <li>Mayor base inicial.</li>
+              <li>Mayor cantidad de viajes enviados.</li>
+              <li>Mayor crédito de origen: S/3.20.</li>
+              <li>También pierde S/36 por cuatro viajes desplazados.</li>
+              <li>Retorno neto base: +S/23.20.</li>
+            </ul>
+          </article>
+          <article class="proof-card">
+            <span class="kicker">Café D · 45 clientes</span>
+            <strong class="big">16 ventas recibidas</strong>
+            <ul>
+              <li>Menor base inicial.</li>
+              <li>Escenario le asigna mayor tráfico importado; no ocurre automáticamente.</li>
+              <li>S/144 de margen por tráfico pagado.</li>
+              <li>11 canjes generan upsell y retornos.</li>
+              <li>Retorno neto base: +S/153.00.</li>
+            </ul>
+          </article>
+        </div>
+
+        <div class="callout" style="margin-top:1rem">
+          <span class="callout-mark">✓</span>
+          <div>
+            <h3>Condición exacta de éxito en corrida</h3>
+            <p>30 de 40 viajes pagados son incrementales; solo 4 de 30 canjes desplazan compra normal; 16 ventas propias adicionales, 9 upsells y 8 retornos ocurren. Con esas condiciones, cuatro retornos netos quedan positivos después de S/49.</p>
+          </div>
+        </div>
+
+        <div class="callout" style="margin-top:1rem">
+          <span class="callout-mark">×</span>
+          <div>
+            <h3>Si todo reemplaza ventas existentes, tesis falla.</h3>
+            <p>Usa controles al 100%. Café A deja de cubrir plan primero. PUNCH debe crear consumo adicional o recuperar tráfico de cadenas; mover ventas entre pequeños no basta.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="glosario">
+      <div class="shell">
+        <div class="section-head">
+          <span class="kicker">09 · glosario</span>
+          <div>
+            <h2>Cada palabra, en castellano simple.</h2>
+          </div>
+        </div>
+
+        <div class="glossary-grid">
+          <article class="glossary-item"><strong>Cliente inicial</strong><p>Persona que ya tenía relación con café antes del tráfico PUNCH del mes.</p></article>
+          <article class="glossary-item"><strong>Café origen</strong><p>Café que incorporó o ya atendía al cliente. Permite atribuir quién aportó relación.</p></article>
+          <article class="glossary-item"><strong>Café destino</strong><p>Otro café donde cliente viaja y paga compra.</p></article>
+          <article class="glossary-item"><strong>Anfitrión</strong><p>Café que recibe canje y entrega producto reward.</p></article>
+          <article class="glossary-item"><strong>Venta normal</strong><p>Usuario paga S/12 por Yape. Con costo S/3, café conserva S/9 de margen.</p></article>
+          <article class="glossary-item"><strong>Venta cross-café</strong><p>Compra pagada en café distinto del origen del cliente.</p></article>
+          <article class="glossary-item"><strong>Venta incremental</strong><p>Compra que no habría ocurrido sin PUNCH. Crea valor nuevo para coalición.</p></article>
+          <article class="glossary-item"><strong>Venta desplazada</strong><p>Compra PUNCH que reemplaza otra que habría ocurrido igual. Mueve o destruye margen.</p></article>
+          <article class="glossary-item"><strong>Precio retail</strong><p>Precio visible de carta: S/12 en ejemplo.</p></article>
+          <article class="glossary-item"><strong>COGS</strong><p>Costo variable real del producto: insumos, vaso, merma y otros costos por unidad.</p></article>
+          <article class="glossary-item"><strong>Margen</strong><p>Lo que queda después de restar costo variable al ingreso.</p></article>
+          <article class="glossary-item"><strong>Oportunidad perdida</strong><p>Margen que café habría ganado con mejor alternativa. S/8.40 por canje desplazado.</p></article>
+          <article class="glossary-item"><strong>PUNCH</strong><p>Sello portable. No es S/1, no se transfiere y no se retira como dinero.</p></article>
+          <article class="glossary-item"><strong>Emisión</strong><p>Crear un PUNCH después de compra verificada y consumir crédito del plan.</p></article>
+          <article class="glossary-item"><strong>Canje</strong><p>Quemar 12 PUNCH para recibir producto elegible.</p></article>
+          <article class="glossary-item"><strong>Burn / quema</strong><p>Eliminar PUNCH usados para impedir segundo canje.</p></article>
+          <article class="glossary-item"><strong>Payout / settlement</strong><p>S/3.60 que reserva paga al café anfitrión por canje.</p></article>
+          <article class="glossary-item"><strong>Reward</strong><p>Producto específico que usuario recibe al canjear 12 PUNCH.</p></article>
+          <article class="glossary-item"><strong>Upsell</strong><p>Compra adicional pagada durante canje, por ejemplo brownie o extra.</p></article>
+          <article class="glossary-item"><strong>Retorno pagado</strong><p>Usuario vuelve después del canje y paga compra normal.</p></article>
+          <article class="glossary-item"><strong>Retención propia</strong><p>Cliente vuelve a su café habitual porque quiere seguir acumulando o usando PUNCH.</p></article>
+          <article class="glossary-item"><strong>Crédito de origen</strong><p>Descuento de futura factura para café que aportó cliente que convirtió fuera.</p></article>
+          <article class="glossary-item"><strong>RewardVault</strong><p>Reserva separada que paga anfitriones. No es fondo común.</p></article>
+          <article class="glossary-item"><strong>Liability</strong><p>Obligación futura asociada a PUNCH vivos. En ejemplo: S/0.30 por PUNCH.</p></article>
+          <article class="glossary-item"><strong>Fondo común</strong><p>Presupuesto para créditos, adquisición, eventos y seguridad. No paga rewards prometidos.</p></article>
+          <article class="glossary-item"><strong>Retorno neto</strong><p>Monto en soles que queda después de beneficios, pérdidas y suscripción.</p></article>
+          <article class="glossary-item"><strong>ROI</strong><p>Porcentaje: retorno neto dividido entre inversión. S/23.20 sobre S/49 = 47.3%.</p></article>
+          <article class="glossary-item"><strong>Break-even</strong><p>Punto donde beneficios igualan costos. Retorno neto = S/0.</p></article>
+          <article class="glossary-item"><strong>Mes estabilizado</strong><p>Mes donde usuarios ya traen PUNCH previos; emisión y canje ocurren juntos.</p></article>
+          <article class="glossary-item"><strong>Semilla congelada</strong><p>Conjunto ficticio de números aleatorios fijado para repetir y auditar ejemplo.</p></article>
+          <article class="glossary-item"><strong>Arbitrum</strong><p>Fuente de verdad económica: emisión, reserva, quema, payout, fondo y créditos.</p></article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="shell footer-inner">
+      <p>Simulación educativa · no forecast ni contrato.</p>
+      <p class="mono">docs/simulacion-4-cafes/index.html</p>
+    </div>
+  </footer>
+
+  <script>
+    ((() => {
+      const root = document.documentElement;
+      const themeButton = document.getElementById("themeToggle");
+      const storedTheme = localStorage.getItem("punch-simulation-theme");
+      const initialTheme = storedTheme || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+
+      function applyTheme(theme) {
+        root.dataset.theme = theme;
+        themeButton.textContent = theme === "dark" ? "Tema claro" : "Tema oscuro";
+      }
+      applyTheme(initialTheme);
+      themeButton.addEventListener("click", () => {
+        const next = root.dataset.theme === "dark" ? "light" : "dark";
+        applyTheme(next);
+        localStorage.setItem("punch-simulation-theme", next);
+      });
+
+      const cafes = [
+        { id: "A", name: "Brújula", baseMargin: 1980, outbound: 16, inbound: 6, retentionSales: 5, canjes: 4, upsells: 1, returns: 1, credit: 3.2 },
+        { id: "B", name: "Patio", baseMargin: 1350, outbound: 11, inbound: 9, retentionSales: 4, canjes: 7, upsells: 2, returns: 2, credit: 2.2 },
+        { id: "C", name: "Nube", baseMargin: 855, outbound: 8, inbound: 9, retentionSales: 4, canjes: 8, upsells: 2, returns: 2, credit: 1.6 },
+        { id: "D", name: "Esquina", baseMargin: 495, outbound: 5, inbound: 16, retentionSales: 3, canjes: 11, upsells: 4, returns: 3, credit: 1 }
+      ];
+      const price = 12;
+      const cogs = 3;
+      const paidMargin = price - cogs;
+      const payout = 3.6;
+      const rewardDirectMargin = payout - cogs;
+      const rewardBaselineMargin = paidMargin;
+      const upsellMargin = 3.6;
+      const formatMoney = new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const formatNumber = new Intl.NumberFormat("es-PE", { maximumFractionDigits: 0 });
+      const formatPercent = new Intl.NumberFormat("es-PE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+      const travelInput = document.getElementById("travelDisplacement");
+      const rewardInput = document.getElementById("rewardDisplacement");
+      const fundMode = document.getElementById("fundMode");
+
+      function signedMoney(value) {
+        return (value >= 0 ? "+" : "−") + formatMoney.format(Math.abs(value));
+      }
+
+      function calculateCafe(cafe, travelRate, rewardRate, fundOn) {
+        const fundGeneratedVisit = fundOn ? 0 : 1;
+        const effectiveInbound = Math.max(0, cafe.inbound - fundGeneratedVisit);
+        const inboundMargin = effectiveInbound * paidMargin;
+        const retentionMargin = cafe.retentionSales * paidMargin;
+        const direct = cafe.canjes * rewardDirectMargin;
+        const upsell = cafe.upsells * upsellMargin;
+        const returns = cafe.returns * paidMargin;
+        const rewardDisplaced = Math.round(cafe.canjes * rewardRate);
+        const rewardLoss = rewardDisplaced * rewardBaselineMargin;
+        const rewardNet = direct + upsell + returns - rewardLoss;
+        const travelDisplaced = Math.round(cafe.outbound * travelRate);
+        const exportedLoss = travelDisplaced * paidMargin;
+        const originCredit = fundOn ? cafe.credit : 0;
+        const subscription = fundOn ? 49 : 44;
+        const roi = inboundMargin + retentionMargin + rewardNet + originCredit - exportedLoss - subscription;
+        const roiRate = subscription > 0 ? roi / subscription * 100 : 0;
+        return {
+          ...cafe,
+          effectiveInbound,
+          inboundMargin,
+          retentionMargin,
+          direct,
+          upsell,
+          returns,
+          rewardDisplaced,
+          rewardLoss,
+          rewardNet,
+          travelDisplaced,
+          exportedLoss,
+          originCredit,
+          subscription,
+          roi,
+          roiRate,
+          finalMargin: cafe.baseMargin + roi
+        };
+      }
+
+      function update() {
+        const travelRate = Number(travelInput.value) / 100;
+        const rewardRate = Number(rewardInput.value) / 100;
+        const fundOn = fundMode.value === "on";
+        const results = cafes.map((cafe) => calculateCafe(cafe, travelRate, rewardRate, fundOn));
+        const networkRoi = results.reduce((sum, cafe) => sum + cafe.roi, 0);
+        const coverCount = results.filter((cafe) => cafe.roi >= 0).length;
+        const travelDisplaced = results.reduce((sum, cafe) => sum + cafe.travelDisplaced, 0);
+        const rewardDisplaced = results.reduce((sum, cafe) => sum + cafe.rewardDisplaced, 0);
+        const opportunityLoss = results.reduce((sum, cafe) => sum + cafe.exportedLoss + cafe.rewardLoss, 0);
+        const subscriptions = results.reduce((sum, cafe) => sum + cafe.subscription, 0);
+        const roiRate = subscriptions > 0 ? networkRoi / subscriptions * 100 : 0;
+        const withFundNet = cafes.map((cafe) => calculateCafe(cafe, travelRate, rewardRate, true))
+          .reduce((sum, cafe) => sum + cafe.roi, 0);
+        const withoutFundNet = cafes.map((cafe) => calculateCafe(cafe, travelRate, rewardRate, false))
+          .reduce((sum, cafe) => sum + cafe.roi, 0);
+        const fundUplift = withFundNet - withoutFundNet;
+
+        document.getElementById("travelDisplacementValue").textContent = travelInput.value + "%";
+        document.getElementById("rewardDisplacementValue").textContent = rewardInput.value + "%";
+        document.getElementById("resultTravelDisplaced").textContent = formatNumber.format(travelDisplaced);
+        document.getElementById("resultRewardDisplaced").textContent = formatNumber.format(rewardDisplaced);
+        document.getElementById("resultOpportunityLoss").textContent = "−" + formatMoney.format(opportunityLoss);
+        document.getElementById("resultSubscriptions").textContent = "−" + formatMoney.format(subscriptions);
+        document.getElementById("resultNetworkRoi").textContent = signedMoney(networkRoi);
+        document.getElementById("resultRoiRate").textContent = formatPercent.format(roiRate) + "%";
+        document.getElementById("resultCoverCount").textContent = coverCount + " / 4";
+        document.getElementById("resultFundUplift").textContent = signedMoney(fundUplift);
+        document.getElementById("heroNetworkRoi").textContent = signedMoney(networkRoi);
+        document.getElementById("heroCoverCount").textContent = coverCount + " / 4";
+
+        const netCell = document.getElementById("resultNetCell");
+        netCell.classList.toggle("positive", networkRoi >= 0);
+        netCell.classList.toggle("negative", networkRoi < 0);
+        const roiCell = document.getElementById("resultRoiCell");
+        roiCell.classList.toggle("positive", roiRate >= 0);
+        roiCell.classList.toggle("negative", roiRate < 0);
+        const coverCell = document.getElementById("resultCoverCell");
+        coverCell.classList.toggle("positive", coverCount === 4);
+        coverCell.classList.toggle("negative", coverCount < 4);
+        const fundCell = document.getElementById("resultFundCell");
+        fundCell.classList.toggle("positive", fundUplift >= 0);
+        fundCell.classList.toggle("negative", fundUplift < 0);
+
+        document.getElementById("stressInterpretation").textContent = coverCount === 4
+          ? "Corrida viable: cuatro cafés recuperan suscripción. Valor depende de supuestos seleccionados."
+          : "Corrida falla para " + (4 - coverCount) + " café(s). Demasiadas ventas existentes fueron desplazadas.";
+
+        const body = document.getElementById("roiTableBody");
+        body.replaceChildren();
+        results.forEach((cafe) => {
+          document.getElementById("roi" + cafe.id).textContent = signedMoney(cafe.roi);
+          document.getElementById("roi" + cafe.id).style.color = cafe.roi >= 0 ? "var(--good)" : "var(--stamp)";
+          document.getElementById("equation" + cafe.id).textContent =
+            formatMoney.format(cafe.inboundMargin) + " + " + formatMoney.format(cafe.retentionMargin) + " + " +
+            formatMoney.format(cafe.rewardNet) + " + " + formatMoney.format(cafe.originCredit) + " − " +
+            formatMoney.format(cafe.exportedLoss) + " − " + formatMoney.format(cafe.subscription);
+
+          const row = document.createElement("tr");
+          const values = [
+            cafe.id + " · " + cafe.name,
+            formatMoney.format(cafe.inboundMargin),
+            formatMoney.format(cafe.retentionMargin),
+            formatMoney.format(cafe.rewardNet),
+            formatMoney.format(cafe.originCredit),
+            "−" + formatMoney.format(cafe.exportedLoss),
+            "−" + formatMoney.format(cafe.subscription),
+            signedMoney(cafe.roi),
+            formatPercent.format(cafe.roiRate) + "%",
+            formatMoney.format(cafe.finalMargin)
+          ];
+          values.forEach((value, index) => {
+            const cell = document.createElement("td");
+            cell.textContent = value;
+            if (index > 0) cell.classList.add("num");
+            if (index === 5 || index === 6) cell.classList.add("negative");
+            if (index === 7 || index === 8) cell.classList.add(cafe.roi >= 0 ? "positive" : "negative");
+            row.appendChild(cell);
+          });
+          body.appendChild(row);
+        });
+      }
+
+      travelInput.addEventListener("input", update);
+      rewardInput.addEventListener("input", update);
+      fundMode.addEventListener("change", update);
+      update();
+    })());
+  </script>
+</body>
+</html>

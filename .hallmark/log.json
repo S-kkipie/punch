@@ -1,0 +1,26 @@
+[
+    {
+        "date": "2026-08-06",
+        "macrostructure": "Narrative Workflow",
+        "theme": "Newsprint-adjacent",
+        "theme_axes": "light / display-heavy grotesk / warm accent",
+        "vibe": "cartón perforado, tinta de sello, broadsheet de barrio",
+        "genre": "editorial",
+        "nav": "N6 newspaper masthead",
+        "footer": "Ft4 dense colophon",
+        "enrichment": "Tier A CSS art (punch-hole row + hand-built primitive diagram)",
+        "brief": "PUNCH · pitch page para Hackathon Ethereum Lima 2026 (Arbitrum Track)"
+    },
+    {
+        "date": "2026-08-06",
+        "macrostructure": "Split Studio",
+        "theme": "custom",
+        "theme_axes": "light / roman-serif / warm",
+        "vibe": "cartón perforado, tinta de sello, mostrador de barrio",
+        "genre": "editorial",
+        "nav": "N12 banner + retract",
+        "footer": "Ft4 dense colophon",
+        "enrichment": "Tier A pure-CSS punch card",
+        "brief": "PUNCH · landing de red de lealtad para cafeterías, doble CTA café/cliente"
+    }
+]

@@ -1,0 +1,43 @@
+- generic [active] [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - banner [ref=f1e3]:
+      - generic [ref=f1e4]:
+        - link [ref=f1e5] [cursor=pointer]:
+          - /url: /
+          - img "Ethereum Lima Hackathon" [ref=f1e6]
+        - navigation "Principal" [ref=f1e7]:
+          - link "Proyectos" [ref=f1e8] [cursor=pointer]:
+            - /url: /proyectos
+          - link "Aliados" [ref=f1e9] [cursor=pointer]:
+            - /url: /aliados
+          - link "Mentores" [ref=f1e10] [cursor=pointer]:
+            - /url: /mentores
+          - link "Jurados" [ref=f1e11] [cursor=pointer]:
+            - /url: /jurados
+        - generic [ref=f1e13]:
+          - link "Postular" [ref=f1e14] [cursor=pointer]:
+            - /url: /apply
+          - link "Ingresar" [ref=f1e15] [cursor=pointer]:
+            - /url: /auth/sign-in
+    - main [ref=f1e16]:
+      - generic [ref=f1e17]:
+        - generic [ref=f1e18]:
+          - heading "Iniciar sesión" [level=1] [ref=f1e19]
+          - paragraph [ref=f1e20]: Accede a tu dashboard del hackathon.
+        - generic [ref=f1e21]:
+          - generic [ref=f1e22]:
+            - group [ref=f1e23]:
+              - generic [ref=f1e24]: Email
+              - textbox "Email" [ref=f1e25]
+            - group [ref=f1e26]:
+              - generic [ref=f1e27]: Contraseña
+              - textbox "Contraseña" [ref=f1e28]
+            - button "Iniciar sesion" [ref=f1e29]
+          - link "Me olvidé mi contraseña" [ref=f1e31] [cursor=pointer]:
+            - /url: /auth/forgot-password
+        - generic [ref=f1e32]:
+          - text: Necesitas una cuenta?
+          - link "Crear cuenta" [ref=f1e33] [cursor=pointer]:
+            - /url: /auth/sign-up
+  - region "Notifications alt+T"
+  - alert [ref=f1e34]
